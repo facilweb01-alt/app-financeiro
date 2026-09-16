@@ -18,8 +18,8 @@ const page = await browser.newPage();
 
 let failed = false;
 function check(label, cond, extra) {
-  console.log((cond ? "OK  " : "FAIL") + " - " + label + (extra ? ` (${extra})` : ""));
-  if (!cond) failed = true;
+    console.log((cond ? "OK  " : "FAIL") + " - " + label + (extra ? ` (${extra})` : ""));
+    if (!cond) failed = true;
 }
 
 // 1. Cadastro — nasce 'pending' (ver e2e/auth.smoke.mjs para o teste
@@ -29,6 +29,7 @@ await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo Fluxo");
 await page.fill("#email", email);
 await page.fill("#password", password);
+await page.check("#terms");
 await page.click('button[type="submit"]');
 await page.waitForURL(`${BASE}/conta-pendente`, { timeout: 10000 });
 await activateUser(email);
@@ -122,8 +123,8 @@ await browser.close();
 await closeTestDb();
 
 if (failed) {
-  console.error("\nALGUM TESTE FALHOU");
-  process.exit(1);
+    console.error("\nALGUM TESTE FALHOU");
+    process.exit(1);
 } else {
-  console.log("\nTODOS OS TESTES DE FUMAÇA (FLUXO COMPLETO) PASSARAM");
+    console.log("\nTODOS OS TESTES DE FUMAÇA (FLUXO COMPLETO) PASSARAM");
 }
