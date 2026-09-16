@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { db, withRLS } from "@/db/client";
 import { users } from "@/db/schema";
 import { verifySessionInDb } from "@/lib/session";
+import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
 /**
  * Data Access Layer — centraliza a checagem "de verdade" (contra o banco) de
@@ -23,14 +24,20 @@ import { verifySessionInDb } from "@/lib/session";
  * verifySession() não repitam a consulta ao banco.
  */
 export const verifySession = cache(async (): Promise<{ userId: string }> => {
-  const session = await verifySessionInDb();
-  if (!session) {
-    redirect("/login");
-  }
-  if (session.status !== "active") {
-    redirect("/conta-pendente");
-  }
-  return { userId: session.userId };
+    const session = await verifySessionInDb();
+    if (!session) {
+          redirect("/login");
+    }
+    if (session.status !== "active") {
+          redirect("/conta-pendente");
+    }
+    // Consentimento LGPD ausente ou de uma versão antiga do termo (ver
+                                     // src/lib/terms.ts) — barra o resto do app até a pessoa aceitar de novo,
+                                     // mesma lógica do gate de aprovação acima, só que para o aceite.
+                                     if (session.termsAcceptedAt === null || session.termsVersion !== CURRENT_TERMS_VERSION) {
+                                           redirect("/aceitar-termos");
+                                     }
+    return { userId: session.userId };
 });
 
 /**
@@ -43,44 +50,47 @@ export const getRawSession = cache(async () => verifySessionInDb());
 
 /** Como verifySession(), mas não redireciona — para usar em lugares como o layout raiz. */
 export const getOptionalSession = cache(async (): Promise<{ userId: string } | null> => {
-  const session = await verifySessionInDb();
-  return session ? { userId: session.userId } : null;
+    const session = await verifySessionInDb();
+    return session ? { userId: session.userId } : null;
 });
 
-/**
+  /**
  * Confirma sessão + que a conta é admin (role lido fresco do banco a cada
  * chamada dentro de verifySessionInDb — nunca confiar num "role" que viesse
  * só do cookie/JWT). Quem não é admin é mandado pro dashboard normal, não
  * pro login — para não revelar se a rota existe.
  */
 export const verifyAdminSession = cache(async (): Promise<{ userId: string }> => {
-  const session = await verifySessionInDb();
-  if (!session) {
-    redirect("/login");
-  }
-  if (session.status !== "active" || session.role !== "admin") {
-    redirect("/dashboard");
-  }
-  return { userId: session.userId };
+    const session = await verifySessionInDb();
+    if (!session) {
+          redirect("/login");
+    }
+    if (session.status !== "active" || session.role !== "admin") {
+          redirect("/dashboard");
+    }
+    if (session.termsAcceptedAt === null || session.termsVersion !== CURRENT_TERMS_VERSION) {
+          redirect("/aceitar-termos");
+    }
+    return { userId: session.userId };
 });
 
 export const getCurrentUser = cache(async () => {
-  const session = await verifySession();
+    const session = await verifySession();
 
-  const [user] = await withRLS(session.userId, () =>
-    db
-      .select({
-        id: users.id,
-        name: users.name,
-        email: users.email,
-        monthlyIncome: users.monthlyIncome,
-        role: users.role,
-        status: users.status,
-      })
-      .from(users)
-      .where(eq(users.id, session.userId))
-      .limit(1)
-  );
+                                      const [user] = await withRLS(session.userId, () =>
+                                            db
+                                                                         .select({
+                                                                                   id: users.id,
+                                                                                   name: users.name,
+                                                                                   email: users.email,
+                                                                                   monthlyIncome: users.monthlyIncome,
+                                                                                   role: users.role,
+                                                                                   status: users.status,
+                                                                         })
+                                                                         .from(users)
+                                                                         .where(eq(users.id, session.userId))
+                                                                         .limit(1)
+                                                                     );
 
-  return user ?? null;
+                                      return user ?? null;
 });

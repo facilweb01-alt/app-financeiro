@@ -20,8 +20,8 @@ const page = await browser.newPage();
 
 let failed = false;
 function check(label, cond) {
-  console.log((cond ? "OK  " : "FAIL") + " - " + label);
-  if (!cond) failed = true;
+    console.log((cond ? "OK  " : "FAIL") + " - " + label);
+    if (!cond) failed = true;
 }
 
 // 1. Signup — conta nova nasce 'pending' e cai na tela de espera, não no app
@@ -30,6 +30,7 @@ await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo Teste");
 await page.fill("#email", email);
 await page.fill("#password", password);
+await page.check("#terms");
 await page.click('button[type="submit"]');
 await page.waitForURL(`${BASE}/conta-pendente`, { timeout: 10000 });
 check("signup de conta nova cai em /conta-pendente (aguardando aprovação)", page.url() === `${BASE}/conta-pendente`);
@@ -79,6 +80,7 @@ await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Outra Pessoa");
 await page.fill("#email", email);
 await page.fill("#password", "OutraSenha123");
+await page.check("#terms");
 await page.click('button[type="submit"]');
 await page.waitForTimeout(1500);
 const dupText = await page.textContent("body");
@@ -100,8 +102,8 @@ await browser.close();
 await closeTestDb();
 
 if (failed) {
-  console.error("\nALGUM TESTE FALHOU");
-  process.exit(1);
+    console.error("\nALGUM TESTE FALHOU");
+    process.exit(1);
 } else {
-  console.log("\nTODOS OS TESTES DE FUMAÇA PASSARAM");
+    console.log("\nTODOS OS TESTES DE FUMAÇA PASSARAM");
 }

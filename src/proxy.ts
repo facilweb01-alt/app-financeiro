@@ -10,37 +10,38 @@ import { readOptimisticSessionForProxy } from "@/lib/session-edge";
 // "middleware.ts" em versões anteriores).
 
 const PROTECTED_PREFIXES = [
-  "/dashboard",
-  "/lancamentos",
-  "/cartoes",
-  "/investimentos",
-  "/contas-fixas",
-  "/fechamento",
-  "/admin",
-  "/conta-pendente",
-];
+    "/dashboard",
+    "/lancamentos",
+    "/cartoes",
+    "/investimentos",
+    "/contas-fixas",
+    "/fechamento",
+    "/admin",
+    "/conta-pendente",
+    "/aceitar-termos",
+  ];
 const PUBLIC_ROUTES = ["/login", "/registrar"];
 
 export async function proxy(req: NextRequest) {
-  const path = req.nextUrl.pathname;
-  const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
-  const isPublic = PUBLIC_ROUTES.some((p) => path === p || path.startsWith(p + "/"));
+    const path = req.nextUrl.pathname;
+    const isProtected = PROTECTED_PREFIXES.some((p) => path === p || path.startsWith(p + "/"));
+    const isPublic = PUBLIC_ROUTES.some((p) => path === p || path.startsWith(p + "/"));
 
   const session = await readOptimisticSessionForProxy(req);
 
   if (isProtected && !session) {
-    const loginUrl = new URL("/login", req.nextUrl);
-    loginUrl.searchParams.set("next", path);
-    return NextResponse.redirect(loginUrl);
+        const loginUrl = new URL("/login", req.nextUrl);
+        loginUrl.searchParams.set("next", path);
+        return NextResponse.redirect(loginUrl);
   }
 
   if (isPublic && session) {
-    return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
+        return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/).*)"],
+    matcher: ["/((?!api|_next/static|_next/image|favicon.ico|manifest.webmanifest|icons/).*)"],
 };

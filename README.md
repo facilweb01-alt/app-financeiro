@@ -71,6 +71,7 @@ Como o app vai ser usado por vários clientes pagantes (não só um usuário só
 - **Verificado com SQL cru, não só pelos testes da aplicação**: conectando direto como `app_runtime` via `psql`, confirmamos que (a) sem contexto de usuário definido, todas as tabelas retornam zero linhas, e (b) com o contexto do usuário A definido, uma tentativa de ler até um único campo (e-mail) do usuário B é bloqueada pelo banco.
 - **Para reproduzir em produção (Supabase)**: depois de rodar as migrações normalmente com `DATABASE_URL`, colar o conteúdo de `drizzle/rls-runtime-role.sql` no SQL Editor do projeto Supabase, trocando a senha de exemplo por uma gerada com `openssl rand -base64 24`, e usar essa connection string (com a role `app_runtime`) como `APP_DATABASE_URL` nas variáveis de ambiente de produção — nunca como `DATABASE_URL`.
 
+
 ## Estrutura
 
 ```
@@ -100,6 +101,16 @@ O que falta, e que exige uma conta/número de verdade (por isso não foi feito n
 1. **Um número de WhatsApp Business** (ou reaproveitar um que você já tenha).
 2. **Uma automação que receba as mensagens e entenda o comando** — o caminho mais rápido, já que você tem o n8n rodando para o Webfacilita, é criar um fluxo novo (nó dedicado, sem mexer no que já existe — como manda o método) que: recebe a mensagem do WhatsApp → usa IA para extrair `description`, `amount`, `categoryKey` → chama `POST /api/whatsapp/lancamento` com o segredo.
 3. Isso é testável localmente antes de qualquer coisa em produção (dispara a chamada com `curl`/Postman simulando o n8n, sem precisar de WhatsApp de verdade rodando).
+
+## Termos de Uso / Política de Privacidade (LGPD)
+
+Texto e versão vigente ficam em `src/lib/terms.ts` (fonte única, reaproveitada no cadastro, na página pública `/termos` e no aceite retroativo).
+
+- **Cadastro novo**: `/registrar` exige o checkbox marcado (validado no servidor via `SignupFormSchema`, não só no HTML) — sem isso a conta não é criada. O aceite é gravado junto com a conta: `users.termsAcceptedAt` (data/hora) + `users.termsVersion` (qual texto foi aceito) — não é só um booleano, porque o ônus da prova do consentimento é de quem trata o dado (LGPD art. 8º, §2º).
+- **Contas antigas / mudança de versão**: `verifySession()` e `verifyAdminSession()` (`src/lib/dal.ts`) barram qualquer conta cujo `termsAcceptedAt` seja nulo ou cujo `termsVersion` não bata com `CURRENT_TERMS_VERSION`, mandando para `/aceitar-termos` — mesmo padrão do gate de aprovação (`/conta-pendente`). É assim que uma conta criada antes desta funcionalidade existir (ou depois de o texto mudar) é pega no próximo acesso, sem precisar de migração de dados retroativa.
+- **Painel `/admin`**: cada cliente mostra se aceitou a versão vigente, uma versão antiga, ou nenhuma — com a data do aceite (ver `TermsInfo` em `src/app/(app)/admin/page.tsx`).
+- **Mudar o texto**: edite `TERMS_SECTIONS`/`TERMS_CHECKBOX_LABEL` em `src/lib/terms.ts` e troque `CURRENT_TERMS_VERSION` (ex: para a data do dia) — todo mundo que já tinha aceitado uma versão anterior é automaticamente mandado para aceitar de novo.
+- **Isto não é aconselhamento jurídico formal**: o texto foi elaborado com base em pesquisa sobre a LGPD (Lei 13.709/2018) e fontes públicas — vale revisão de um advogado antes de tratar como definitivo, principalmente por ser um serviço pago (Código de Defesa do Consumidor também se aplica).
 
 ## Painel administrativo (`/admin`)
 
