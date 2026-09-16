@@ -13,11 +13,14 @@ const LINKS = [
   { href: "/fechamento", label: "Fechamento", icon: "🗓️" },
 ];
 
-const ADMIN_LINK = { href: "/admin", label: "Admin", icon: "🛠️" };
+// O painel administrativo NÃO mora mais neste app (ver app-financeiro-admin
+// — deploy separado, banco separado/role separada) — de propósito, para
+// reduzir o que um eventual problema neste app conseguiria alcançar. Não
+// há mais link nem rota /admin aqui.
 
-export function AppNav({ isAdmin = false }: { isAdmin?: boolean }) {
+export function AppNav() {
   const pathname = usePathname();
-  const links = isAdmin ? [...LINKS, ADMIN_LINK] : LINKS;
+  const links = LINKS;
 
   return (
     <>
