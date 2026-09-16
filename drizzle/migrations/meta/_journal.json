@@ -1,41 +1,48 @@
 {
-  "version": "7",
-  "dialect": "postgresql",
-  "entries": [
-    {
-      "idx": 0,
-      "version": "7",
-      "when": 1788895688492,
-      "tag": "0000_rare_betty_ross",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1788895883448,
-      "tag": "0001_add_sessions",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1788897060325,
-      "tag": "0002_add_whatsapp_phone",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1789500000000,
-      "tag": "0003_add_row_level_security",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1789600000000,
-      "tag": "0004_add_admin_subscription_fields",
-      "breakpoints": true
-    }
-  ]
+    "version": "7",
+    "dialect": "postgresql",
+    "entries": [
+          {
+                  "idx": 0,
+                  "version": "7",
+                  "when": 1788895688492,
+                  "tag": "0000_rare_betty_ross",
+                  "breakpoints": true
+          },
+          {
+                  "idx": 1,
+                  "version": "7",
+                  "when": 1788895883448,
+                  "tag": "0001_add_sessions",
+                  "breakpoints": true
+          },
+          {
+                  "idx": 2,
+                  "version": "7",
+                  "when": 1788897060325,
+                  "tag": "0002_add_whatsapp_phone",
+                  "breakpoints": true
+          },
+          {
+                  "idx": 3,
+                  "version": "7",
+                  "when": 1789500000000,
+                  "tag": "0003_add_row_level_security",
+                  "breakpoints": true
+          },
+          {
+                  "idx": 4,
+                  "version": "7",
+                  "when": 1789600000000,
+                  "tag": "0004_add_admin_subscription_fields",
+                  "breakpoints": true
+          },
+          {
+                  "idx": 5,
+                  "version": "7",
+                  "when": 1789700000000,
+                  "tag": "0005_add_terms_acceptance",
+                  "breakpoints": true
+          }
+    ]
 }
