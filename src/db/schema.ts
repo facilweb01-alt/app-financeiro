@@ -95,6 +95,30 @@ export const sessions = pgTable("sessions", {
 }));
 
 // ---------------------------------------------------------------------------
+// Sessões do painel administrativo — SEPARADO da tabela `sessions` acima de
+// propósito. O painel admin é um app à parte (app-financeiro-admin, outro
+// deploy, outra role de banco: app_admin_runtime — ver
+// drizzle/migrations/0006_admin_isolation.sql e
+// drizzle/admin-runtime-role.sql), pensado pra continuar funcionando (e
+// continuar isolado) mesmo se o app dos clientes for comprometido. Por isso
+// esta tabela tem sua própria política de RLS, alcançável só por quem
+// conecta como app_admin_runtime — nem o app_runtime (clientes) nem um
+// usuário comum autenticado enxergam ou gravam aqui.
+// ---------------------------------------------------------------------------
+export const adminSessions = pgTable("admin_sessions", {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+    userIdx: index("admin_sessions_user_idx").on(t.userId),
+}));
+
+export const adminSessionsRelations = relations(adminSessions, ({ one }) => ({
+    user: one(users, { fields: [adminSessions.userId], references: [users.id] }),
+}));
+
+// ---------------------------------------------------------------------------
 // Categorias (lazer, saúde, alimentação, compras pessoais, viagem, gasolina...)
 // Ficam numa tabela (em vez de enum fixo) para o usuário poder criar novas.
 // Categorias com userId = null são categorias padrão do sistema (globais).
@@ -267,6 +291,7 @@ export const usersRelations = relations(users, ({ many }) => ({
     monthClosings: many(monthClosings),
     categories: many(categories),
     sessions: many(sessions),
+    adminSessions: many(adminSessions),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({
