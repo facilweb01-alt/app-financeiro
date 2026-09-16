@@ -14,8 +14,8 @@ const browser = await chromium.launch(launchOptions);
 
 let failed = false;
 function check(label, cond, extra) {
-  console.log((cond ? "OK  " : "FAIL") + " - " + label + (extra ? ` (${extra})` : ""));
-  if (!cond) failed = true;
+    console.log((cond ? "OK  " : "FAIL") + " - " + label + (extra ? ` (${extra})` : ""));
+    if (!cond) failed = true;
 }
 
 const adminEmail = `admin.${Date.now()}@example.com`;
@@ -23,19 +23,20 @@ const clientEmail = `cliente.${Date.now()}@example.com`;
 const password = "SenhaForte123";
 
 async function signup(page, name, email) {
-  await page.goto(`${BASE}/registrar`);
-  await page.fill("#name", name);
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL(`${BASE}/conta-pendente`, { timeout: 10000 });
+    await page.goto(`${BASE}/registrar`);
+    await page.fill("#name", name);
+    await page.fill("#email", email);
+    await page.fill("#password", password);
+    await page.check("#terms");
+    await page.click('button[type="submit"]');
+    await page.waitForURL(`${BASE}/conta-pendente`, { timeout: 10000 });
 }
 
 async function login(page, email) {
-  await page.goto(`${BASE}/login`);
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click('button[type="submit"]');
+    await page.goto(`${BASE}/login`);
+    await page.fill("#email", email);
+    await page.fill("#password", password);
+    await page.click('button[type="submit"]');
 }
 
 // 1. Cria as duas contas de teste (ambas nascem 'pending'). Cada signup usa
@@ -119,8 +120,8 @@ await browser.close();
 await closeTestDb();
 
 if (failed) {
-  console.error("\nALGUM TESTE FALHOU");
-  process.exit(1);
+    console.error("\nALGUM TESTE FALHOU");
+    process.exit(1);
 } else {
-  console.log("\nTODOS OS TESTES DO PAINEL ADMINISTRATIVO PASSARAM");
+    console.log("\nTODOS OS TESTES DO PAINEL ADMINISTRATIVO PASSARAM");
 }
