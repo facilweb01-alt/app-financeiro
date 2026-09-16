@@ -54,25 +54,12 @@ export const getOptionalSession = cache(async (): Promise<{ userId: string } | n
     return session ? { userId: session.userId } : null;
 });
 
-  /**
- * Confirma sessão + que a conta é admin (role lido fresco do banco a cada
- * chamada dentro de verifySessionInDb — nunca confiar num "role" que viesse
- * só do cookie/JWT). Quem não é admin é mandado pro dashboard normal, não
- * pro login — para não revelar se a rota existe.
- */
-export const verifyAdminSession = cache(async (): Promise<{ userId: string }> => {
-    const session = await verifySessionInDb();
-    if (!session) {
-          redirect("/login");
-    }
-    if (session.status !== "active" || session.role !== "admin") {
-          redirect("/dashboard");
-    }
-    if (session.termsAcceptedAt === null || session.termsVersion !== CURRENT_TERMS_VERSION) {
-          redirect("/aceitar-termos");
-    }
-    return { userId: session.userId };
-});
+// verifyAdminSession() foi removida daqui — o painel administrativo agora é
+// um app separado (app-financeiro-admin, outro deploy, outra role de banco:
+// app_admin_runtime, ver drizzle/migrations/0006_admin_isolation.sql), de
+// propósito para reduzir o que um eventual problema neste app conseguiria
+// alcançar. Este app não faz mais nenhuma checagem "é admin?" nem tem
+// nenhum caminho de código que leia/grave dado de outro usuário.
 
 export const getCurrentUser = cache(async () => {
     const session = await verifySession();
