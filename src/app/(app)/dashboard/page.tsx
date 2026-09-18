@@ -1,10 +1,12 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { getCurrentUser, verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
 import { loadClosingInputsForUser } from "@/lib/queries/monthClosing";
 import { computeMonthClosingSnapshot } from "@/lib/business/monthClosing";
 import { currentYearMonth } from "@/lib/business/dates";
-import { formatBRL, formatYearMonthBR } from "@/lib/format";
+import { formatYearMonthBR } from "@/lib/format";
+import { Money } from "@/components/Money";
 import { CategoryPieChart, FutureMonthsBarChart } from "@/components/DashboardCharts";
 
 export default async function DashboardPage() {
@@ -38,7 +40,7 @@ export default async function DashboardPage() {
             <>
               {" "}
               Defina sua renda mensal na aba{" "}
-              <Link href="/fechamento" className="font-medium text-emerald-700 dark:text-emerald-400">
+              <Link href="/fechamento" className="font-medium text-blue-700 dark:text-blue-400">
                 Fechamento
               </Link>{" "}
               para ver os percentuais.
@@ -48,10 +50,14 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Gasto no mês" value={formatBRL(snapshot.totalSpent)} />
-        <StatCard label="% da renda" value={snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`} />
-        <StatCard label="Contas fixas" value={formatBRL(snapshot.fixedAccountsTotal)} />
-        <StatCard label="Investido no mês" value={formatBRL(snapshot.investmentsTotal)} />
+        <StatCard label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
+        <StatCard
+          label="% da renda"
+          value={snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`}
+          icon="📊"
+        />
+        <StatCard label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
+        <StatCard label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -77,10 +83,13 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function StatCard({ label, value, icon }: { label: string; value: ReactNode; icon?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-      <div className="text-xs text-slate-500">{label}</div>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+        {icon && <span aria-hidden>{icon}</span>}
+        {label}
+      </div>
       <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
     </div>
   );
@@ -90,7 +99,7 @@ function QuickLink({ href, label, icon }: { href: string; label: string; icon: s
   return (
     <Link
       href={href}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-emerald-400 hover:text-emerald-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300"
+      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm shadow-slate-200/50 transition-colors hover:border-blue-400 hover:text-blue-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:shadow-none"
     >
       <span aria-hidden>{icon}</span>
       {label}

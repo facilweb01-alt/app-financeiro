@@ -263,6 +263,41 @@ export const fixedAccounts = pgTable("fixed_accounts", {
 }));
 
 // ---------------------------------------------------------------------------
+// Limites de gastos por categoria (um limite mensal por categoria, com
+// alerta visual no fechamento quando o gasto do mês se aproxima/ultrapassa).
+// ---------------------------------------------------------------------------
+export const spendingLimits = pgTable("spending_limits", {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    categoryId: text("category_id").notNull().references(() => categories.id, { onDelete: "cascade" }),
+    monthlyLimit: numeric("monthly_limit", { precision: 12, scale: 2 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+}, (t) => ({
+    userIdx: index("spending_limits_user_idx").on(t.userId),
+    userCategoryUnique: uniqueIndex("spending_limits_user_category_unique").on(t.userId, t.categoryId),
+}));
+
+// ---------------------------------------------------------------------------
+// Metas de investimento (nome, valor alvo, data alvo opcional, progresso
+// acumulado via aportes lançados manualmente).
+// ---------------------------------------------------------------------------
+export const investmentGoals = pgTable("investment_goals", {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    targetAmount: numeric("target_amount", { precision: 12, scale: 2 }).notNull(),
+    currentAmount: numeric("current_amount", { precision: 12, scale: 2 }).notNull().default("0"),
+    targetDate: date("target_date"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+}, (t) => ({
+    userIdx: index("investment_goals_user_idx").on(t.userId),
+}));
+
+// ---------------------------------------------------------------------------
 // Fechamento mensal — snapshot do mês fechado (totais por categoria, % sobre
 // a renda, e a projeção de parcelas/valores a vencer nos próximos meses).
 // Guardamos um snapshot em JSON para o histórico de um mês já fechado não
@@ -292,6 +327,17 @@ export const usersRelations = relations(users, ({ many }) => ({
     categories: many(categories),
     sessions: many(sessions),
     adminSessions: many(adminSessions),
+    spendingLimits: many(spendingLimits),
+    investmentGoals: many(investmentGoals),
+}));
+
+export const spendingLimitsRelations = relations(spendingLimits, ({ one }) => ({
+    user: one(users, { fields: [spendingLimits.userId], references: [users.id] }),
+    category: one(categories, { fields: [spendingLimits.categoryId], references: [categories.id] }),
+}));
+
+export const investmentGoalsRelations = relations(investmentGoals, ({ one }) => ({
+    user: one(users, { fields: [investmentGoals.userId], references: [users.id] }),
 }));
 
 export const sessionsRelations = relations(sessions, ({ one }) => ({

@@ -1,27 +1,33 @@
+import type { ReactNode } from "react";
 import { verifySession } from "@/lib/dal";
 import { db, withRLS } from "@/db/client";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { loadClosingInputsForUser, listMonthClosingsForUser } from "@/lib/queries/monthClosing";
+import { listSpendingLimitsForUser } from "@/lib/queries/spendingLimits";
+import { listCategoriesForUser } from "@/lib/queries/categories";
 import { computeMonthClosingSnapshot, type MonthClosingSnapshot } from "@/lib/business/monthClosing";
 import { currentYearMonth } from "@/lib/business/dates";
-import { formatBRL, formatYearMonthBR } from "@/lib/format";
+import { formatYearMonthBR } from "@/lib/format";
+import { Money } from "@/components/Money";
 import { IncomeForm } from "./IncomeForm";
 import { CloseMonthForm } from "./CloseMonthForm";
 import { WhatsappPhoneForm } from "./WhatsappPhoneForm";
+import { SpendingLimitForm } from "./SpendingLimitForm";
+import { SpendingLimitRow } from "./SpendingLimitRow";
 import { deleteMonthClosing } from "@/app/actions/monthClosing";
 
 function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
   return (
     <div className="flex flex-col gap-4">
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Total gasto" value={formatBRL(snapshot.totalSpent)} />
+        <Stat label="Total gasto" value={<Money value={snapshot.totalSpent} />} />
         <Stat
           label="% da renda"
           value={snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`}
         />
-        <Stat label="Contas fixas" value={formatBRL(snapshot.fixedAccountsTotal)} />
-        <Stat label="Investido no mês" value={formatBRL(snapshot.investmentsTotal)} />
+        <Stat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} />
+        <Stat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} />
       </div>
 
       <div>
@@ -34,7 +40,7 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
               <li key={c.categoryKey} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-950/50">
                 <span>{c.categoryLabel}</span>
                 <span>
-                  <span className="font-medium">{formatBRL(c.amount)}</span>
+                  <span className="font-medium"><Money value={c.amount} /></span>
                   {c.percentOfIncome !== null && (
                     <span className="ml-2 text-xs text-slate-500">({c.percentOfIncome}% da renda)</span>
                   )}
@@ -57,13 +63,13 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
               <li key={bucket.yearMonth} className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
                 <div className="flex items-center justify-between text-sm font-medium">
                   <span>{formatYearMonthBR(bucket.yearMonth)}</span>
-                  <span>{formatBRL(bucket.amount)}</span>
+                  <span><Money value={bucket.amount} /></span>
                 </div>
                 <ul className="mt-1 flex flex-col gap-0.5 text-xs text-slate-500">
                   {bucket.items.map((item, idx) => (
                     <li key={idx}>
                       {item.cardName} · {item.purchaseDescription} ({item.installmentNumber}/{item.installmentsTotal}) —{" "}
-                      {formatBRL(item.amount)}
+                      <Money value={item.amount} />
                     </li>
                   ))}
                 </ul>
@@ -76,7 +82,7 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-800">
       <div className="text-xs text-slate-500">{label}</div>
@@ -88,7 +94,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 export default async function FechamentoPage() {
   const session = await verifySession();
 
-  const [user, inputs, closings] = await withRLS(session.userId, () =>
+  const [user, inputs, closings, spendingLimits, categories] = await withRLS(session.userId, () =>
     Promise.all([
       db
         .select({ monthlyIncome: users.monthlyIncome, whatsappPhone: users.whatsappPhone })
@@ -97,6 +103,8 @@ export default async function FechamentoPage() {
         .limit(1),
       loadClosingInputsForUser(session.userId),
       listMonthClosingsForUser(session.userId),
+      listSpendingLimitsForUser(session.userId),
+      listCategoriesForUser(session.userId),
     ])
   );
 
@@ -142,13 +150,38 @@ export default async function FechamentoPage() {
           <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
             Prévia — {formatYearMonthBR(thisMonth)}
           </h2>
-          {alreadyClosedThisMonth ? (
-            <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-              Este mês já foi fechado
-            </span>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {alreadyClosedThisMonth ? (
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+                Este mês já foi fechado
+              </span>
+            ) : null}
+            <a
+              href={`/api/fechamento/pdf?yearMonth=${thisMonth}`}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Exportar PDF
+            </a>
+          </div>
         </div>
         <SnapshotView snapshot={livePreview} />
+      </div>
+
+      <div className="flex flex-col gap-4">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Limites de gastos por categoria</h2>
+        <SpendingLimitForm categories={categories} />
+        {spendingLimits.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-slate-400 dark:border-slate-800">
+            Nenhum limite definido ainda.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {spendingLimits.map((limit) => {
+              const spent = livePreview.categoryTotals.find((c) => c.categoryKey === limit.categoryKey)?.amount ?? 0;
+              return <SpendingLimitRow key={limit.id} limit={limit} spent={spent} />;
+            })}
+          </div>
+        )}
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
@@ -166,7 +199,13 @@ export default async function FechamentoPage() {
                 <summary className="flex cursor-pointer items-center justify-between">
                   <span className="font-medium">{formatYearMonthBR(c.yearMonth)}</span>
                   <span className="flex items-center gap-3 text-sm text-slate-500">
-                    {formatBRL(snapshot.totalSpent)} gastos
+                    <Money value={snapshot.totalSpent} /> gastos
+                    <a
+                      href={`/api/fechamento/pdf?yearMonth=${c.yearMonth}`}
+                      className="text-xs text-blue-600 hover:underline dark:text-blue-400"
+                    >
+                      exportar PDF
+                    </a>
                     <form action={deleteMonthClosing}>
                       <input type="hidden" name="id" value={c.id} />
                       <button type="submit" className="text-xs text-red-600 hover:underline dark:text-red-400">

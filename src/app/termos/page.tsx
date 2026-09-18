@@ -12,7 +12,7 @@ export default function TermosPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-10">
       <div>
-        <Link href="/" className="text-sm text-emerald-700 dark:text-emerald-400">
+        <Link href="/" className="text-sm text-blue-700 dark:text-blue-400">
           ← Voltar
         </Link>
         <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">

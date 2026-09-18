@@ -23,12 +23,12 @@ export function CloseMonthForm() {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+        className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
       >
         {pending ? "Fechando..." : "Fechar mês"}
       </button>
       {state && !state.ok && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
-      {state?.ok && <p className="text-sm text-emerald-600 dark:text-emerald-400">Mês fechado com sucesso.</p>}
+      {state?.ok && <p className="text-sm text-blue-600 dark:text-blue-400">Mês fechado com sucesso.</p>}
     </form>
   );
 }

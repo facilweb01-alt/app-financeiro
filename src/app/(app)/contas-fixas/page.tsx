@@ -1,7 +1,7 @@
 import { verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
 import { listFixedAccountsForUser } from "@/lib/queries/fixedAccounts";
-import { formatBRL } from "@/lib/format";
+import { Money } from "@/components/Money";
 import { deleteFixedAccount, toggleFixedAccountActive } from "@/app/actions/fixedAccounts";
 import { FixedAccountForm } from "./FixedAccountForm";
 
@@ -16,7 +16,7 @@ export default async function ContasFixasPage() {
         <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Contas fixas</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Total mensal (contas ativas):{" "}
-          <span className="font-semibold text-slate-700 dark:text-slate-200">{formatBRL(totalAtivas)}</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-200"><Money value={totalAtivas} /></span>
         </p>
       </div>
 
@@ -36,7 +36,7 @@ export default async function ContasFixasPage() {
                     title={item.active ? "Marcar como inativa" : "Marcar como ativa"}
                     className={`h-4 w-4 rounded-full border ${
                       item.active
-                        ? "border-emerald-600 bg-emerald-500"
+                        ? "border-blue-600 bg-blue-500"
                         : "border-slate-300 bg-transparent dark:border-slate-600"
                     }`}
                   />
@@ -44,7 +44,7 @@ export default async function ContasFixasPage() {
                 <span className={item.active ? "" : "text-slate-400 line-through"}>{item.description}</span>
               </div>
               <div className="flex items-center gap-4">
-                <span className="font-medium">{formatBRL(item.amount)}</span>
+                <span className="font-medium"><Money value={item.amount} /></span>
                 <form action={deleteFixedAccount}>
                   <input type="hidden" name="id" value={item.id} />
                   <button type="submit" className="text-xs text-red-600 hover:underline dark:text-red-400">

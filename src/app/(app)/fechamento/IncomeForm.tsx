@@ -29,7 +29,7 @@ export function IncomeForm({ currentIncome }: { currentIncome: number }) {
         {pending ? "Salvando..." : "Salvar renda"}
       </button>
       {state && !state.ok && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
-      {state?.ok && <p className="text-sm text-emerald-600 dark:text-emerald-400">Renda atualizada.</p>}
+      {state?.ok && <p className="text-sm text-blue-600 dark:text-blue-400">Renda atualizada.</p>}
     </form>
   );
 }

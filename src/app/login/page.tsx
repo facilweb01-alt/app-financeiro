@@ -26,7 +26,7 @@ export default function LoginPage() {
               type="email"
               required
               autoComplete="email"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
             />
           </div>
           <div>
@@ -42,7 +42,7 @@ export default function LoginPage() {
               type="password"
               required
               autoComplete="current-password"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
             />
           </div>
 
@@ -51,7 +51,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={pending}
-            className="mt-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+            className="mt-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
           >
             {pending ? "Entrando..." : "Entrar"}
           </button>
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
         <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
           Ainda não tem conta?{" "}
-          <Link href="/registrar" className="font-medium text-emerald-700 dark:text-emerald-400">
+          <Link href="/registrar" className="font-medium text-blue-700 dark:text-blue-400">
             Criar conta
           </Link>
         </p>

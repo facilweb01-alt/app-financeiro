@@ -42,11 +42,11 @@ export default async function AceitarTermosPage() {
               type="checkbox"
               name="terms"
               required
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
+              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700"
             />
             <span>
               Li e aceito os{" "}
-              <Link href="/termos" target="_blank" className="font-medium text-emerald-700 underline dark:text-emerald-400">
+              <Link href="/termos" target="_blank" className="font-medium text-blue-700 underline dark:text-blue-400">
                 Termos de Uso e a Política de Privacidade
               </Link>{" "}
               do App Financeiro. Entendo que meus dados são de acesso restrito — não compartilhados com terceiros e
@@ -56,7 +56,7 @@ export default async function AceitarTermosPage() {
 
           <button
             type="submit"
-            className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
           >
             Aceitar e continuar
           </button>

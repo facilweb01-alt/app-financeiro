@@ -2,7 +2,8 @@ import { verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
 import { listCategoriesForUser } from "@/lib/queries/categories";
 import { listTransactionsForUser } from "@/lib/queries/transactions";
-import { formatBRL, formatDateBR } from "@/lib/format";
+import { formatDateBR } from "@/lib/format";
+import { Money } from "@/components/Money";
 import { TransactionForm } from "./TransactionForm";
 import { deleteTransaction } from "@/app/actions/transactions";
 
@@ -60,7 +61,7 @@ export default async function LancamentosPage() {
                       {tx.categoryLabel}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right font-medium whitespace-nowrap">{formatBRL(tx.amount)}</td>
+                  <td className="px-4 py-3 text-right font-medium whitespace-nowrap"><Money value={tx.amount} /></td>
                   <td className="px-4 py-3 text-right">
                     <form action={deleteTransaction}>
                       <input type="hidden" name="id" value={tx.id} />

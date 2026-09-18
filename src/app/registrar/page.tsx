@@ -26,7 +26,7 @@ export default function RegistrarPage() {
                 type="text"
                 required
                 autoComplete="name"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
               />
                 {state?.errors?.name && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{state.errors.name[0]}</p>}
   </div>
@@ -40,7 +40,7 @@ export default function RegistrarPage() {
                 type="email"
                 required
                 autoComplete="email"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
               />
                 {state?.errors?.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{state.errors.email[0]}</p>}
   </div>
@@ -57,7 +57,7 @@ export default function RegistrarPage() {
                 type="password"
                 required
                 autoComplete="new-password"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-950"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
               />
                               <p className="mt-1 text-xs text-slate-400">Pelo menos 8 caracteres, com letra e número.</p>
                 {state?.errors?.password && (
@@ -76,11 +76,11 @@ export default function RegistrarPage() {
                   name="terms"
                   type="checkbox"
                 required
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-700"
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700"
                 />
                                   <span>
                                     Li e aceito os{" "}
-                  <Link href="/termos" target="_blank" className="font-medium text-emerald-700 underline dark:text-emerald-400">
+                  <Link href="/termos" target="_blank" className="font-medium text-blue-700 underline dark:text-blue-400">
                                       Termos de Uso e a Política de Privacidade
                     </Link>
                   . Meus dados são de acesso restrito, não compartilhados com terceiros.
@@ -94,7 +94,7 @@ export default function RegistrarPage() {
             <button
                           type="submit"
                           disabled={pending}
-            className="mt-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+            className="mt-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
           >
             {pending ? "Criando conta..." : "Criar conta"}
 </button>
@@ -102,7 +102,7 @@ export default function RegistrarPage() {
 
           <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
                       Já tem conta?{" "}
-            <Link href="/login" className="font-medium text-emerald-700 dark:text-emerald-400">
+            <Link href="/login" className="font-medium text-blue-700 dark:text-blue-400">
               Entrar
   </Link>
   </p>

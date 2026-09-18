@@ -2,7 +2,8 @@ import { verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
 import { listCardsWithDetailsForUser } from "@/lib/queries/cards";
 import { listCategoriesForUser } from "@/lib/queries/categories";
-import { formatBRL, formatDateBR } from "@/lib/format";
+import { formatDateBR } from "@/lib/format";
+import { Money } from "@/components/Money";
 import { deleteCard, deleteCardPurchase } from "@/app/actions/cards";
 import { NewCardForm } from "./NewCardForm";
 import { PurchaseForm } from "./PurchaseForm";
@@ -82,16 +83,16 @@ export default async function CartoesPage() {
                           </span>
                         )}
                       </td>
-                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap">{formatBRL(p.totalAmount)}</td>
+                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap"><Money value={p.totalAmount} /></td>
                       <td className="px-3 py-2">
                         <ul className="flex flex-col gap-0.5">
                           {p.installments.map((inst) => (
                             <li key={inst.id} className="flex items-center gap-2 text-xs">
                               <span className={inst.paid ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-300"}>
-                                {inst.installmentNumber}/{p.installmentsTotal} · {formatDateBR(inst.dueDate)} · {formatBRL(inst.amount)}
+                                {inst.installmentNumber}/{p.installmentsTotal} · {formatDateBR(inst.dueDate)} · <Money value={inst.amount} />
                               </span>
                               {inst.paid && (
-                                <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                <span className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
                                   na fatura
                                 </span>
                               )}
@@ -127,7 +128,7 @@ export default async function CartoesPage() {
                         {formatDateBR(s.periodStart)} — {formatDateBR(s.periodEnd)} (fechada em{" "}
                         {formatDateBR(s.closingDate)})
                       </span>
-                      <span className="font-medium">{formatBRL(s.totalAmount)}</span>
+                      <span className="font-medium"><Money value={s.totalAmount} /></span>
                     </li>
                   ))}
                 </ul>

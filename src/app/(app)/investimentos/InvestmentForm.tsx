@@ -72,7 +72,7 @@ export function InvestmentForm() {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-60"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-60"
         >
           {pending ? "Salvando..." : "Adicionar investimento"}
         </button>
