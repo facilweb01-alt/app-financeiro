@@ -22,50 +22,50 @@ export function PurchaseForm({ cardId, categories }: { cardId: string; categorie
   }, [state, pending]);
 
   return (
-    <form ref={formRef} action={action} className="grid grid-cols-2 gap-2 rounded-xl bg-slate-50 p-3 md:grid-cols-6 dark:bg-slate-950/50">
+    <form ref={formRef} action={action} className="grid grid-cols-2 gap-2 rounded-xl p-3 md:grid-cols-6 bg-navy-950/50">
       <input type="hidden" name="cardId" value={cardId} />
       <div className="col-span-2 md:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-slate-500">Descrição da compra</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Descrição da compra</label>
         <input
           type="text"
           name="description"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Data da compra</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Data da compra</label>
         <input
           type="date"
           name="purchaseDate"
           defaultValue={todayStr()}
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">1º vencimento</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">1º vencimento</label>
         <input
           type="date"
           name="firstDueDate"
           defaultValue={todayStr()}
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Valor total (R$)</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Valor total (R$)</label>
         <input
           type="number"
           name="totalAmount"
           step="0.01"
           min="0.01"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Parcelas</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Parcelas</label>
         <input
           type="number"
           name="installmentsTotal"
@@ -73,14 +73,14 @@ export function PurchaseForm({ cardId, categories }: { cardId: string; categorie
           max="48"
           defaultValue={1}
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
       </div>
       <div className="col-span-2 md:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-slate-500">Categoria (opcional)</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Categoria (opcional)</label>
         <select
           name="categoryId"
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-900"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         >
           <option value="">Sem categoria</option>
           {categories.map((c) => (
@@ -91,13 +91,13 @@ export function PurchaseForm({ cardId, categories }: { cardId: string; categorie
         </select>
       </div>
 
-      {state && !state.ok && <p className="col-span-2 text-sm text-red-600 md:col-span-6 dark:text-red-400">{state.error}</p>}
+      {state && !state.ok && <p className="col-span-2 text-sm md:col-span-6 text-red-400">{state.error}</p>}
 
       <div className="col-span-2 md:col-span-6">
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900 disabled:opacity-60 dark:bg-slate-700 dark:hover:bg-slate-600"
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-60 bg-navy-700 hover:bg-navy-600"
         >
           {pending ? "Salvando..." : "Adicionar compra"}
         </button>
