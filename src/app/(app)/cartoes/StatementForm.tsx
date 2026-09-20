@@ -15,33 +15,33 @@ export function StatementForm({ cardId }: { cardId: string }) {
   }, [state, pending]);
 
   return (
-    <form ref={formRef} action={action} className="grid grid-cols-2 gap-2 rounded-xl border border-dashed border-slate-300 p-3 md:grid-cols-4 dark:border-slate-700">
+    <form ref={formRef} action={action} className="grid grid-cols-2 gap-2 rounded-xl border border-dashed p-3 md:grid-cols-4 border-navy-700">
       <input type="hidden" name="cardId" value={cardId} />
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Fatura: de</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Fatura: de</label>
         <input
           type="date"
           name="periodStart"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">até</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">até</label>
         <input
           type="date"
           name="periodEnd"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Data do fechamento</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Data do fechamento</label>
         <input
           type="date"
           name="closingDate"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div className="flex items-end">
@@ -53,7 +53,7 @@ export function StatementForm({ cardId }: { cardId: string }) {
           {pending ? "Fechando..." : "Fechar fatura do período"}
         </button>
       </div>
-      {state && !state.ok && <p className="col-span-2 text-sm text-red-600 md:col-span-4 dark:text-red-400">{state.error}</p>}
+      {state && !state.ok && <p className="col-span-2 text-sm md:col-span-4 text-red-400">{state.error}</p>}
     </form>
   );
 }
