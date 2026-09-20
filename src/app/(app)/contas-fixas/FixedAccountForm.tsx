@@ -18,27 +18,27 @@ export function FixedAccountForm() {
     <form
       ref={formRef}
       action={action}
-      className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+      className="flex flex-wrap items-end gap-3 rounded-2xl border p-4 border-navy-800 bg-navy-900"
     >
       <div className="flex-1 min-w-[12rem]">
-        <label className="mb-1 block text-xs font-medium text-slate-500">Descrição</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Descrição</label>
         <input
           type="text"
           name="description"
           placeholder="Ex: Aluguel, internet, plano de saúde..."
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Valor (R$)</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Valor (R$)</label>
         <input
           type="number"
           name="amount"
           step="0.01"
           min="0.01"
           required
-          className="w-40 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-40 rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <button
@@ -48,7 +48,7 @@ export function FixedAccountForm() {
       >
         {pending ? "Adicionando..." : "+ Adicionar conta fixa"}
       </button>
-      {state && !state.ok && <p className="w-full text-sm text-red-600 dark:text-red-400">{state.error}</p>}
+      {state && !state.ok && <p className="w-full text-sm text-red-400">{state.error}</p>}
     </form>
   );
 }
