@@ -42,6 +42,10 @@ export type MonthClosingSnapshot = {
   income: number;
   categoryTotals: CategoryTotal[];
   totalSpent: number;
+  // Gasto variável (categoryTotals) + contas fixas do mês — é sobre esse
+  // total que a % da renda é calculada, já que uma conta fixa também
+  // compromete a renda mensal do usuário.
+  totalCommitted: number;
   totalPercentOfIncome: number | null;
   fixedAccountsTotal: number;
   investmentsTotal: number;
@@ -130,6 +134,10 @@ export function computeMonthClosingSnapshot(params: {
     .sort((a, b) => b.amount - a.amount);
 
   const totalSpent = round2(categoryTotals.reduce((sum, c) => sum + c.amount, 0));
+  // % da renda considera o gasto variável do mês somado às contas fixas —
+  // uma conta fixa (aluguel, assinatura, etc.) também compromete a renda,
+  // então não pode ficar de fora do percentual mostrado no dashboard.
+  const totalCommitted = round2(totalSpent + fixedAccountsTotal);
 
   const pendingByFutureMonth = Array.from(futureBuckets.values()).sort((a, b) =>
     compareYearMonth(a.yearMonth, b.yearMonth)
@@ -140,7 +148,8 @@ export function computeMonthClosingSnapshot(params: {
     income: round2(income),
     categoryTotals,
     totalSpent,
-    totalPercentOfIncome: income > 0 ? round2((totalSpent / income) * 100) : null,
+    totalCommitted,
+    totalPercentOfIncome: income > 0 ? round2((totalCommitted / income) * 100) : null,
     fixedAccountsTotal: round2(fixedAccountsTotal),
     investmentsTotal: round2(investmentsTotal),
     pendingByFutureMonth,
