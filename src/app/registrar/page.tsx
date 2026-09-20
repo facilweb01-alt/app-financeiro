@@ -9,15 +9,15 @@ export default function RegistrarPage() {
 
   return (
         <div className="flex min-h-screen items-center justify-center px-4">
-                <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h1 className="mb-1 text-xl font-semibold text-slate-900 dark:text-slate-100">Criar conta</h1>
-          <p className="mb-6 text-sm text-slate-500 dark:text-slate-400">
+                <div className="w-full max-w-sm rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
+            <h1 className="mb-1 text-xl font-semibold text-navy-100">Criar conta</h1>
+          <p className="mb-6 text-sm text-navy-400">
               Cada pessoa tem seus próprios lançamentos, cartões e investimentos.
     </p>
 
             <form action={action} className="flex flex-col gap-4">
               <div>
-                <label htmlFor="name" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                <label htmlFor="name" className="mb-1 block text-sm font-medium text-navy-300">
                   Nome
     </label>
               <input
@@ -26,12 +26,12 @@ export default function RegistrarPage() {
                 type="text"
                 required
                 autoComplete="name"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 border-navy-700 bg-navy-950"
               />
-                {state?.errors?.name && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{state.errors.name[0]}</p>}
+                {state?.errors?.name && <p className="mt-1 text-xs text-red-400">{state.errors.name[0]}</p>}
   </div>
               <div>
-                <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                <label htmlFor="email" className="mb-1 block text-sm font-medium text-navy-300">
                   E-mail
     </label>
               <input
@@ -40,14 +40,14 @@ export default function RegistrarPage() {
                 type="email"
                 required
                 autoComplete="email"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 border-navy-700 bg-navy-950"
               />
-                {state?.errors?.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{state.errors.email[0]}</p>}
+                {state?.errors?.email && <p className="mt-1 text-xs text-red-400">{state.errors.email[0]}</p>}
   </div>
               <div>
                 <label
                                 htmlFor="password"
-                                className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300"
+                                className="mb-1 block text-sm font-medium text-navy-300"
               >
                   Senha
     </label>
@@ -57,11 +57,11 @@ export default function RegistrarPage() {
                 type="password"
                 required
                 autoComplete="new-password"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-950"
+                className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 border-navy-700 bg-navy-950"
               />
-                              <p className="mt-1 text-xs text-slate-400">Pelo menos 8 caracteres, com letra e número.</p>
+                              <p className="mt-1 text-xs text-navy-500">Pelo menos 8 caracteres, com letra e número.</p>
                 {state?.errors?.password && (
-                                <ul className="mt-1 list-inside list-disc text-xs text-red-600 dark:text-red-400">
+                                <ul className="mt-1 list-inside list-disc text-xs text-red-400">
                                   {state.errors.password.map((err) => (
                                     <li key={err}>{err}</li>
                                                       ))}
@@ -70,26 +70,26 @@ export default function RegistrarPage() {
 </div>
 
               <div>
-              <label className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <label className="flex items-start gap-2 text-xs text-navy-300">
                               <input
                   id="terms"
                   name="terms"
                   type="checkbox"
                 required
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700"
+                  className="mt-0.5 h-4 w-4 rounded text-blue-600 focus:ring-blue-500 border-navy-700"
                 />
                                   <span>
                                     Li e aceito os{" "}
-                  <Link href="/termos" target="_blank" className="font-medium text-blue-700 underline dark:text-blue-400">
+                  <Link href="/termos" target="_blank" className="font-medium underline text-blue-400">
                                       Termos de Uso e a Política de Privacidade
                     </Link>
                   . Meus dados são de acesso restrito, não compartilhados com terceiros.
                     </span>
                     </label>
-                  {state?.errors?.terms && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{state.errors.terms[0]}</p>}
+                  {state?.errors?.terms && <p className="mt-1 text-xs text-red-400">{state.errors.terms[0]}</p>}
 </div>
 
-{state?.message && <p className="text-sm text-red-600 dark:text-red-400">{state.message}</p>}
+{state?.message && <p className="text-sm text-red-400">{state.message}</p>}
 
             <button
                           type="submit"
@@ -100,9 +100,9 @@ export default function RegistrarPage() {
 </button>
   </form>
 
-          <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-4 text-center text-sm text-navy-400">
                       Já tem conta?{" "}
-            <Link href="/login" className="font-medium text-blue-700 dark:text-blue-400">
+            <Link href="/login" className="font-medium text-blue-400">
               Entrar
   </Link>
   </p>
