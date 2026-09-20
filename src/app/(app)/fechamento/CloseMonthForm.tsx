@@ -11,13 +11,13 @@ export function CloseMonthForm() {
   return (
     <form action={action} className="flex flex-wrap items-end gap-3">
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Mês a fechar</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Mês a fechar</label>
         <input
           type="month"
           name="yearMonth"
           defaultValue={currentYearMonth()}
           required
-          className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <button
@@ -27,8 +27,8 @@ export function CloseMonthForm() {
       >
         {pending ? "Fechando..." : "Fechar mês"}
       </button>
-      {state && !state.ok && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
-      {state?.ok && <p className="text-sm text-blue-600 dark:text-blue-400">Mês fechado com sucesso.</p>}
+      {state && !state.ok && <p className="text-sm text-red-400">{state.error}</p>}
+      {state?.ok && <p className="text-sm text-blue-400">Mês fechado com sucesso.</p>}
     </form>
   );
 }
