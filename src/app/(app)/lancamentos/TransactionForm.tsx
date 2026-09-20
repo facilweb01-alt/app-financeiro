@@ -1,4 +1,4 @@
-use client";
+"use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { createTransaction, type TransactionFormState } from "@/app/actions/transactions";
@@ -19,6 +19,10 @@ export function TransactionForm({ categories: initialCategories }: { categories:
   const formRef = useRef<HTMLFormElement>(null);
   const newCategoryInputRef = useRef<HTMLInputElement>(null);
 
+  // Categoria criada agora mesmo, ainda não refletida em `initialCategories`
+  // (que só atualiza quando o servidor revalida a página). Combinada com a
+  // lista vinda do servidor no momento da renderização — sem duplicar
+  // estado nem precisar de um efeito só para "copiar" a prop.
   const [optimisticCategory, setOptimisticCategory] = useState<Category | null>(null);
   const categories =
     optimisticCategory && !initialCategories.some((c) => c.id === optimisticCategory.id)
@@ -29,6 +33,13 @@ export function TransactionForm({ categories: initialCategories }: { categories:
   const [showNewCategory, setShowNewCategory] = useState(false);
   const [categoryError, setCategoryError] = useState<string | null>(null);
   const [categoryPending, startCategoryTransition] = useTransition();
+  // Escolher "+ Nova categoria..." no próprio <select> muda o valor nativo
+  // dele por fora do fluxo controlado do React (é uma opção de verdade,
+  // selecionável). Isso deixa o elemento nativo "fora de sincronia" com o
+  // estado do React, e o React às vezes não força a resincronização de
+  // volta depois (bug conhecido de <select> controlado quando o valor
+  // nativo muda e a lista de opções muda no mesmo instante). Trocar a key
+  // recria o <select> do zero, sempre com o valor certo.
   const [selectKey, setSelectKey] = useState(0);
 
   function handleSaveCategory(formData: FormData) {
@@ -48,6 +59,8 @@ export function TransactionForm({ categories: initialCategories }: { categories:
     });
   }
 
+  // Sucesso (sem erro) depois de enviar: limpa os campos via API do DOM
+  // (não é setState, então não dispara re-render em cascata).
   useEffect(() => {
     if (!pending && state?.ok) {
       formRef.current?.reset();
@@ -129,6 +142,10 @@ export function TransactionForm({ categories: initialCategories }: { categories:
           </button>
         )}
         {showNewCategory && (
+          // Mesmo <form> de fora (HTML não permite <form> aninhado): este
+          // botão usa formAction para chamar uma função diferente da do
+          // lançamento, e formNoValidate pra não exigir os campos
+          // obrigatórios do lançamento nessa submissão.
           <div className="mt-2 flex items-center gap-1.5">
             <input
               ref={newCategoryInputRef}
