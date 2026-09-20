@@ -109,7 +109,8 @@ const dashBody = await page.textContent("body");
 check("dashboard mostra gasto do mês (R$ 400,00)", dashBody.includes("400,00"));
 check("dashboard mostra contas fixas (R$ 1.200,00)", dashBody.includes("1.200,00"));
 check("dashboard mostra investido no mês (R$ 1.000,00)", dashBody.includes("1.000,00"));
-check("dashboard mostra % da renda (8%)", dashBody.includes("8%"));
+// % da renda comprometida = (gasto variável + contas fixas) / renda = (400 + 1200) / 5000 = 32%
+check("dashboard mostra % da renda comprometida (32%)", dashBody.includes("32%"));
 
 // 9. Fechar o mês e checar projeção de parcelas futuras
 await page.goto(`${BASE}/fechamento`);
