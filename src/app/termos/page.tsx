@@ -12,19 +12,19 @@ export default function TermosPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-10">
       <div>
-        <Link href="/" className="text-sm text-blue-700 dark:text-blue-400">
+        <Link href="/" className="text-sm text-blue-400">
           ← Voltar
         </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="mt-2 text-2xl font-semibold text-navy-100">
           Termos de Uso e Política de Privacidade
         </h1>
-        <p className="mt-1 text-xs text-slate-400">Versão: {CURRENT_TERMS_VERSION}</p>
+        <p className="mt-1 text-xs text-navy-500">Versão: {CURRENT_TERMS_VERSION}</p>
       </div>
 
-      <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-relaxed text-slate-700 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+      <div className="flex flex-col gap-5 rounded-2xl border p-6 text-sm leading-relaxed shadow-sm border-navy-800 bg-navy-900 text-navy-300">
         {TERMS_SECTIONS.map((section) => (
           <div key={section.title}>
-            <h2 className="mb-1 font-semibold text-slate-900 dark:text-slate-100">{section.title}</h2>
+            <h2 className="mb-1 font-semibold text-navy-100">{section.title}</h2>
             <p>{section.body}</p>
           </div>
         ))}
