@@ -16,19 +16,19 @@ export default async function LancamentosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Lançamentos</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <h1 className="text-2xl font-semibold text-navy-100">Lançamentos</h1>
+        <p className="mt-1 text-sm text-navy-400">
           Gastos do dia a dia: produto, serviço, lazer, saúde, alimentação, compras pessoais, viagem, gasolina...
         </p>
       </div>
 
       <TransactionForm categories={categories} />
 
-      <div className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-navy-800 bg-navy-900">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              <tr className="border-b text-left text-xs uppercase tracking-wide border-navy-800 text-navy-400">
                 <th className="px-4 py-3">Vencimento</th>
                 <th className="px-4 py-3">Compra</th>
                 <th className="px-4 py-3">Descrição</th>
@@ -40,15 +40,15 @@ export default async function LancamentosPage() {
             <tbody>
               {txs.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-navy-500">
                     Nenhum lançamento ainda.
                   </td>
                 </tr>
               )}
               {txs.map((tx) => (
-                <tr key={tx.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
+                <tr key={tx.id} className="border-b last:border-0 border-navy-800/60">
                   <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(tx.dueDate)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-slate-500">{formatDateBR(tx.purchaseDate)}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-navy-400">{formatDateBR(tx.purchaseDate)}</td>
                   <td className="px-4 py-3">{tx.description}</td>
                   <td className="px-4 py-3">
                     <span
@@ -65,7 +65,7 @@ export default async function LancamentosPage() {
                   <td className="px-4 py-3 text-right">
                     <form action={deleteTransaction}>
                       <input type="hidden" name="id" value={tx.id} />
-                      <button type="submit" className="text-xs text-red-600 hover:underline dark:text-red-400">
+                      <button type="submit" className="text-xs hover:underline text-red-400">
                         excluir
                       </button>
                     </form>
