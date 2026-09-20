@@ -26,13 +26,13 @@ export function AppNav() {
   return (
     <>
       {/* Navegação lateral — telas maiores (computador) */}
-      <nav className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-slate-200 md:bg-white md:p-4 md:gap-1 dark:md:border-slate-800 dark:md:bg-slate-950">
+      <nav className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-navy-800 md:bg-navy-950 md:p-4 md:gap-1">
         <div className="mb-6 flex items-center justify-between px-2">
           <div className="flex items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
               AF
             </span>
-            <span className="text-base font-semibold text-slate-900 dark:text-slate-100">
+            <span className="text-base font-semibold text-navy-100">
               App Financeiro
             </span>
           </div>
@@ -47,7 +47,7 @@ export function AppNav() {
               className={`flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-colors ${
                 active
                   ? "bg-blue-600 text-white shadow-sm shadow-blue-600/30"
-                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700 dark:text-slate-300 dark:hover:bg-slate-900"
+                  : "text-navy-300 hover:bg-navy-900 hover:text-blue-400"
               }`}
             >
               <span aria-hidden>{link.icon}</span>
@@ -58,7 +58,7 @@ export function AppNav() {
         <form action={logout} className="mt-auto">
           <button
             type="submit"
-            className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-900"
+            className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-navy-400 hover:bg-navy-900"
           >
             Sair
           </button>
@@ -66,7 +66,7 @@ export function AppNav() {
       </nav>
 
       {/* Navegação inferior — celular */}
-      <nav className="fixed bottom-0 left-0 right-0 z-10 flex border-t border-slate-200 bg-white/95 backdrop-blur md:hidden dark:border-slate-800 dark:bg-slate-950/95">
+      <nav className="fixed bottom-0 left-0 right-0 z-10 flex border-t backdrop-blur md:hidden border-navy-800 bg-navy-950/95">
         {links.map((link) => {
           const active = pathname === link.href || pathname.startsWith(link.href + "/");
           return (
@@ -74,12 +74,12 @@ export function AppNav() {
               key={link.href}
               href={link.href}
               className={`flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium ${
-                active ? "text-blue-700 dark:text-blue-400" : "text-slate-500 dark:text-slate-400"
+                active ? "text-blue-400" : "text-navy-400"
               }`}
             >
               <span
                 className={`flex h-7 w-10 items-center justify-center rounded-full text-base transition-colors ${
-                  active ? "bg-blue-100 dark:bg-blue-900/40" : ""
+                  active ? "bg-blue-900/40" : ""
                 }`}
                 aria-hidden
               >
@@ -93,7 +93,7 @@ export function AppNav() {
 
       {/* Botão de ocultar valores — só no celular (no desktop já fica no topo da barra lateral) */}
       <div className="fixed right-3 top-3 z-10 md:hidden">
-        <div className="rounded-full bg-white/95 shadow-sm backdrop-blur dark:bg-slate-950/95">
+        <div className="rounded-full shadow-sm backdrop-blur bg-navy-950/95">
           <ValuesVisibilityToggle />
         </div>
       </div>
