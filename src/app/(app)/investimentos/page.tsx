@@ -19,19 +19,19 @@ export default async function InvestimentosPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Investimentos</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Total investido: <span className="font-semibold text-slate-700 dark:text-slate-200"><Money value={total} /></span>
+        <h1 className="text-2xl font-semibold text-navy-100">Investimentos</h1>
+        <p className="mt-1 text-sm text-navy-400">
+          Total investido: <span className="font-semibold text-navy-200"><Money value={total} /></span>
         </p>
       </div>
 
       <InvestmentForm />
 
-      <div className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-2xl border border-navy-800 bg-navy-900">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500 dark:border-slate-800 dark:text-slate-400">
+              <tr className="border-b text-left text-xs uppercase tracking-wide border-navy-800 text-navy-400">
                 <th className="px-4 py-3">Data</th>
                 <th className="px-4 py-3">Descrição</th>
                 <th className="px-4 py-3">Tipo</th>
@@ -42,21 +42,21 @@ export default async function InvestimentosPage() {
             <tbody>
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan={5} className="px-4 py-8 text-center text-navy-500">
                     Nenhum investimento lançado ainda.
                   </td>
                 </tr>
               )}
               {items.map((i) => (
-                <tr key={i.id} className="border-b border-slate-100 last:border-0 dark:border-slate-800/60">
+                <tr key={i.id} className="border-b last:border-0 border-navy-800/60">
                   <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(i.date)}</td>
                   <td className="px-4 py-3">{i.description}</td>
-                  <td className="px-4 py-3 text-slate-500">{i.type ?? "—"}</td>
+                  <td className="px-4 py-3 text-navy-400">{i.type ?? "—"}</td>
                   <td className="px-4 py-3 text-right font-medium whitespace-nowrap"><Money value={i.amount} /></td>
                   <td className="px-4 py-3 text-right">
                     <form action={deleteInvestment}>
                       <input type="hidden" name="id" value={i.id} />
-                      <button type="submit" className="text-xs text-red-600 hover:underline dark:text-red-400">
+                      <button type="submit" className="text-xs hover:underline text-red-400">
                         excluir
                       </button>
                     </form>
@@ -69,10 +69,10 @@ export default async function InvestimentosPage() {
       </div>
 
       <div className="flex flex-col gap-4">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Metas de investimento</h2>
+        <h2 className="text-lg font-semibold text-navy-100">Metas de investimento</h2>
         <InvestmentGoalForm />
         {goals.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-8 text-center text-slate-400 dark:border-slate-800">
+          <p className="rounded-2xl border border-dashed px-4 py-8 text-center text-navy-500 border-navy-800">
             Nenhuma meta cadastrada ainda.
           </p>
         ) : (
