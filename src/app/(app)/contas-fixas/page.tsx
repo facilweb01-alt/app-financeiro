@@ -13,18 +13,18 @@ export default async function ContasFixasPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Contas fixas</h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <h1 className="text-2xl font-semibold text-navy-100">Contas fixas</h1>
+        <p className="mt-1 text-sm text-navy-400">
           Total mensal (contas ativas):{" "}
-          <span className="font-semibold text-slate-700 dark:text-slate-200"><Money value={totalAtivas} /></span>
+          <span className="font-semibold text-navy-200"><Money value={totalAtivas} /></span>
         </p>
       </div>
 
       <FixedAccountForm />
 
-      <div className="rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
-          {items.length === 0 && <li className="px-4 py-8 text-center text-slate-400">Nenhuma conta fixa cadastrada.</li>}
+      <div className="rounded-2xl border border-navy-800 bg-navy-900">
+        <ul className="divide-y divide-navy-800/60">
+          {items.length === 0 && <li className="px-4 py-8 text-center text-navy-500">Nenhuma conta fixa cadastrada.</li>}
           {items.map((item) => (
             <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
               <div className="flex items-center gap-3">
@@ -35,19 +35,17 @@ export default async function ContasFixasPage() {
                     type="submit"
                     title={item.active ? "Marcar como inativa" : "Marcar como ativa"}
                     className={`h-4 w-4 rounded-full border ${
-                      item.active
-                        ? "border-blue-600 bg-blue-500"
-                        : "border-slate-300 bg-transparent dark:border-slate-600"
+                      item.active ? "border-blue-600 bg-blue-500" : "border-navy-600 bg-transparent"
                     }`}
                   />
                 </form>
-                <span className={item.active ? "" : "text-slate-400 line-through"}>{item.description}</span>
+                <span className={item.active ? "" : "text-navy-500 line-through"}>{item.description}</span>
               </div>
               <div className="flex items-center gap-4">
                 <span className="font-medium"><Money value={item.amount} /></span>
                 <form action={deleteFixedAccount}>
                   <input type="hidden" name="id" value={item.id} />
-                  <button type="submit" className="text-xs text-red-600 hover:underline dark:text-red-400">
+                  <button type="submit" className="text-xs hover:underline text-red-400">
                     excluir
                   </button>
                 </form>

@@ -18,39 +18,39 @@ export function InvestmentGoalForm() {
     <form
       ref={formRef}
       action={action}
-      className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-2 md:grid-cols-4 dark:border-slate-800 dark:bg-slate-900"
+      className="grid grid-cols-1 gap-3 rounded-2xl border p-4 sm:grid-cols-2 md:grid-cols-4 border-navy-800 bg-navy-900"
     >
       <div className="sm:col-span-1 md:col-span-2">
-        <label className="mb-1 block text-xs font-medium text-slate-500">Nome da meta</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Nome da meta</label>
         <input
           type="text"
           name="name"
           placeholder="Ex: Reserva de emergência, viagem..."
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Valor alvo (R$)</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Valor alvo (R$)</label>
         <input
           type="number"
           name="targetAmount"
           step="0.01"
           min="0.01"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Data alvo (opcional)</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Data alvo (opcional)</label>
         <input
           type="date"
           name="targetDate"
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
 
-      {state && !state.ok && <p className="text-sm text-red-600 sm:col-span-2 md:col-span-4 dark:text-red-400">{state.error}</p>}
+      {state && !state.ok && <p className="text-sm sm:col-span-2 md:col-span-4 text-red-400">{state.error}</p>}
 
       <div className="sm:col-span-2 md:col-span-4">
         <button

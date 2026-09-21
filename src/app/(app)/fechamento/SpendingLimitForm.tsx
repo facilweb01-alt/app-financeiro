@@ -20,14 +20,14 @@ export function SpendingLimitForm({ categories }: { categories: Category[] }) {
     <form
       ref={formRef}
       action={action}
-      className="grid grid-cols-1 gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:grid-cols-3 dark:border-slate-800 dark:bg-slate-900"
+      className="grid grid-cols-1 gap-3 rounded-2xl border p-4 sm:grid-cols-3 border-navy-800 bg-navy-900"
     >
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Categoria</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Categoria</label>
         <select
           name="categoryId"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         >
           {categories.map((c) => (
             <option key={c.id} value={c.id}>
@@ -37,7 +37,7 @@ export function SpendingLimitForm({ categories }: { categories: Category[] }) {
         </select>
       </div>
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Limite mensal (R$)</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Limite mensal (R$)</label>
         <input
           type="number"
           name="monthlyLimit"
@@ -45,7 +45,7 @@ export function SpendingLimitForm({ categories }: { categories: Category[] }) {
           min="0.01"
           placeholder="0,00"
           required
-          className="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <div className="flex items-end">
@@ -58,7 +58,7 @@ export function SpendingLimitForm({ categories }: { categories: Category[] }) {
         </button>
       </div>
 
-      {state && !state.ok && <p className="text-sm text-red-600 sm:col-span-3 dark:text-red-400">{state.error}</p>}
+      {state && !state.ok && <p className="text-sm sm:col-span-3 text-red-400">{state.error}</p>}
     </form>
   );
 }

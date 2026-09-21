@@ -198,7 +198,8 @@ test("computeMonthClosingSnapshot: caminho feliz com renda informada", () => {
   });
 
   assert.equal(snapshot.totalSpent, 550); // 300 + 150 + 100 (parcela de set)
-  assert.equal(snapshot.totalPercentOfIncome, 11); // 550/5000
+  assert.equal(snapshot.totalCommitted, 1750); // 550 gasto variável + 1200 contas fixas
+  assert.equal(snapshot.totalPercentOfIncome, 35); // 1750/5000 (gasto variável + contas fixas)
 
   const alimentacao = snapshot.categoryTotals.find((c) => c.categoryKey === "alimentacao");
   assert.ok(alimentacao);

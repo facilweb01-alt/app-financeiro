@@ -54,11 +54,12 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
     doc.moveDown(0.4);
 
     const percentText =
-      snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}% da renda`;
+      snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`;
     const summaryRows: [string, string][] = [
       ["Renda mensal informada", formatBRL(income)],
-      ["Total gasto no mês", `${formatBRL(snapshot.totalSpent)} (${percentText})`],
+      ["Total gasto no mês", formatBRL(snapshot.totalSpent)],
       ["Contas fixas", formatBRL(snapshot.fixedAccountsTotal)],
+      ["% da renda comprometida (gastos + contas fixas)", percentText],
       ["Investido no mês", formatBRL(snapshot.investmentsTotal)],
     ];
     for (const [label, value] of summaryRows) {

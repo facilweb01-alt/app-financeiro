@@ -17,13 +17,13 @@ export function NewCardForm() {
   return (
     <form ref={formRef} action={action} className="flex flex-wrap items-end gap-3">
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-500">Novo cartão</label>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Novo cartão</label>
         <input
           type="text"
           name="name"
           placeholder="Ex: Nubank, Itaú..."
           required
-          className="w-56 rounded-lg border border-slate-300 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-950"
+          className="w-56 rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
       <button
@@ -33,7 +33,7 @@ export function NewCardForm() {
       >
         {pending ? "Adicionando..." : "Adicionar cartão"}
       </button>
-      {state && !state.ok && <p className="text-sm text-red-600 dark:text-red-400">{state.error}</p>}
+      {state && !state.ok && <p className="text-sm text-red-400">{state.error}</p>}
     </form>
   );
 }

@@ -8,6 +8,7 @@ import { currentYearMonth } from "@/lib/business/dates";
 import { formatYearMonthBR } from "@/lib/format";
 import { Money } from "@/components/Money";
 import { CategoryPieChart, FutureMonthsBarChart } from "@/components/DashboardCharts";
+import { CircularProgress } from "@/components/CircularProgress";
 
 export default async function DashboardPage() {
   const session = await verifySession();
@@ -31,16 +32,16 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+        <h1 className="text-2xl font-semibold text-navy-100">
           Olá, {user?.name?.split(" ")[0] ?? ""}
         </h1>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+        <p className="mt-1 text-sm text-navy-400">
           Resumo de {formatYearMonthBR(yearMonth)}.
           {income === 0 && (
             <>
               {" "}
               Defina sua renda mensal na aba{" "}
-              <Link href="/fechamento" className="font-medium text-blue-700 dark:text-blue-400">
+              <Link href="/fechamento" className="font-medium text-blue-400">
                 Fechamento
               </Link>{" "}
               para ver os percentuais.
@@ -49,31 +50,35 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <StatCard label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
-        <StatCard
-          label="% da renda"
-          value={snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`}
-          icon="📊"
-        />
-        <StatCard label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
-        <StatCard label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
+      {/* Hero: o indicador mais importante do mês (% da renda comprometida)
+          ganha destaque visual em anel, com as demais métricas ao lado —
+          em vez de 4 caixinhas do mesmo tamanho competindo por atenção. */}
+      <div className="flex flex-col items-center gap-6 rounded-2xl border p-5 sm:flex-row sm:items-stretch sm:gap-8 border-navy-800 bg-navy-900">
+        <div className="flex flex-col items-center justify-center gap-1 sm:border-r sm:border-navy-800 sm:pr-8">
+          <CircularProgress percent={snapshot.totalPercentOfIncome} label="da renda" />
+          <span className="text-xs text-navy-500">Gastos + contas fixas</span>
+        </div>
+        <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3">
+          <MiniStat label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
+          <MiniStat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
+          <MiniStat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">Gastos por categoria</h2>
+        <div className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
+          <h2 className="mb-2 text-sm font-semibold text-navy-300">Gastos por categoria</h2>
           <CategoryPieChart data={snapshot.categoryTotals} />
         </div>
-        <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-          <h2 className="mb-2 text-sm font-semibold text-slate-700 dark:text-slate-300">
+        <div className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
+          <h2 className="mb-2 text-sm font-semibold text-navy-300">
             Parcelas e contas a vencer nos próximos meses
           </h2>
           <FutureMonthsBarChart data={snapshot.pendingByFutureMonth} />
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
+      <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
         <QuickLink href="/lancamentos" label="Novo lançamento" icon="🧾" />
         <QuickLink href="/cartoes" label="Cartões" icon="💳" />
         <QuickLink href="/investimentos" label="Investimentos" icon="📈" />
@@ -83,14 +88,14 @@ export default async function DashboardPage() {
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: ReactNode; icon?: string }) {
+function MiniStat({ label, value, icon }: { label: string; value: ReactNode; icon?: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-none">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+    <div className="flex flex-col justify-center rounded-xl px-3 py-2.5 bg-navy-800/60">
+      <div className="flex items-center gap-1.5 text-xs text-navy-400">
         {icon && <span aria-hidden>{icon}</span>}
         {label}
       </div>
-      <div className="mt-1 text-xl font-semibold text-slate-900 dark:text-slate-100">{value}</div>
+      <div className="mt-0.5 text-base font-semibold text-navy-100">{value}</div>
     </div>
   );
 }
@@ -99,9 +104,14 @@ function QuickLink({ href, label, icon }: { href: string; label: string; icon: s
   return (
     <Link
       href={href}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm shadow-slate-200/50 transition-colors hover:border-blue-400 hover:text-blue-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:shadow-none"
+      className="flex shrink-0 items-center gap-2.5 rounded-xl border px-4 py-2.5 text-sm font-medium transition-colors hover:border-blue-400 hover:text-blue-400 border-navy-800 bg-navy-900 text-navy-300"
     >
-      <span aria-hidden>{icon}</span>
+      <span
+        aria-hidden
+        className="flex h-7 w-7 items-center justify-center rounded-full text-sm bg-blue-950/40"
+      >
+        {icon}
+      </span>
       {label}
     </Link>
   );
