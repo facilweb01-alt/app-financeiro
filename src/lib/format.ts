@@ -3,6 +3,17 @@ export function formatBRL(value: number | string): string {
   return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
+/**
+ * Formata um percentual no padrão brasileiro (separador de milhar), pra
+ * não quebrar o layout quando a renda informada é muito baixa em relação
+ * aos gastos (ex: 36666.67 -> "36.666,67%" em vez de um número corrido
+ * sem separador). Continua mostrando "32%" (sem decimais) quando o valor
+ * já é inteiro, pra não mudar o texto exibido nos casos comuns.
+ */
+export function formatPercentBR(value: number): string {
+  return `${value.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%`;
+}
+
 export function formatDateBR(dateStr: string): string {
   // dateStr no formato "YYYY-MM-DD" (sem hora) — monta a data manualmente
   // para não sofrer o típico bug de fuso horário do `new Date("YYYY-MM-DD")`.
