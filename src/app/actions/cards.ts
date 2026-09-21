@@ -122,6 +122,124 @@ export async function createCardPurchase(_prev: SimpleFormState, formData: FormD
   return result;
 }
 
+// ---------------------------------------------------------------------------
+// Editar compra já lançada (corrigir erro de digitação sem apagar e
+// recriar). Se a compra já tem alguma parcela paga ou já incluída numa
+// fatura fechada, valor e nº de parcelas ficam travados (mexer neles
+// exigiria decidir o que fazer com dinheiro já contabilizado) — só
+// descrição, categoria e data da compra continuam editáveis nesse caso.
+// Sem parcela travada, a edição regenera as parcelas do zero com os novos
+// valores, exatamente como uma compra nova.
+// ---------------------------------------------------------------------------
+const EditCardPurchaseSchema = z.object({
+  id: z.string().min(1),
+  purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data da compra inválida."),
+  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de vencimento inválida."),
+  description: z.string().trim().min(1, "Informe a descrição da compra."),
+  categoryId: z.string().optional(),
+  totalAmount: z.coerce.number().positive("Valor precisa ser maior que zero."),
+  installmentsTotal: z.coerce.number().int().min(1).max(48, "Máximo de 48 parcelas."),
+});
+
+export async function updateCardPurchase(_prev: SimpleFormState, formData: FormData): Promise<SimpleFormState> {
+  const session = await verifySession();
+
+  const parsed = EditCardPurchaseSchema.safeParse({
+    id: formData.get("id"),
+    purchaseDate: formData.get("purchaseDate"),
+    firstDueDate: formData.get("firstDueDate"),
+    description: formData.get("description"),
+    categoryId: formData.get("categoryId") || undefined,
+    totalAmount: formData.get("totalAmount"),
+    installmentsTotal: formData.get("installmentsTotal"),
+  });
+
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+  const data = parsed.data;
+
+  const result = await withRLS(session.userId, async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+    // Garante que a compra pertence a um cartão do usuário logado, e traz o
+    // estado atual pra decidir se dá pra mexer em valor/parcelas.
+    const [purchase] = await db
+      .select({
+        id: cardPurchases.id,
+        totalAmount: cardPurchases.totalAmount,
+        installmentsTotal: cardPurchases.installmentsTotal,
+      })
+      .from(cardPurchases)
+      .innerJoin(creditCards, eq(cardPurchases.cardId, creditCards.id))
+      .where(and(eq(cardPurchases.id, data.id), eq(creditCards.userId, session.userId)))
+      .limit(1);
+
+    if (!purchase) {
+      return { ok: false, error: "Compra não encontrada." };
+    }
+
+    const existingInstallments = await db
+      .select({ id: cardInstallments.id, paid: cardInstallments.paid, statementId: cardInstallments.statementId })
+      .from(cardInstallments)
+      .where(eq(cardInstallments.cardPurchaseId, data.id));
+
+    const hasLockedInstallment = existingInstallments.some((i) => i.paid || i.statementId !== null);
+    const changedValueOrInstallments =
+      Number(purchase.totalAmount) !== data.totalAmount || purchase.installmentsTotal !== data.installmentsTotal;
+
+    if (hasLockedInstallment && changedValueOrInstallments) {
+      return {
+        ok: false,
+        error:
+          "Essa compra já tem parcela paga ou em fatura fechada — não dá pra mudar valor/parcelas. Só descrição, categoria e data podem ser editadas.",
+      };
+    }
+
+    await db
+      .update(cardPurchases)
+      .set({
+        purchaseDate: data.purchaseDate,
+        description: data.description,
+        categoryId: data.categoryId || null,
+        totalAmount: data.totalAmount.toString(),
+        installmentsTotal: data.installmentsTotal,
+      })
+      .where(eq(cardPurchases.id, data.id));
+
+    // Sem parcela travada: regenera todas as parcelas do zero (mesma lógica
+    // de uma compra nova), já que nada foi pago/faturado ainda.
+    if (!hasLockedInstallment) {
+      let generated;
+      try {
+        generated = generateInstallments({
+          totalAmount: data.totalAmount,
+          installmentsTotal: data.installmentsTotal,
+          firstDueDate: data.firstDueDate,
+        });
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : "Não foi possível gerar as parcelas." };
+      }
+
+      await db.delete(cardInstallments).where(eq(cardInstallments.cardPurchaseId, data.id));
+      await db.insert(cardInstallments).values(
+        generated.map((inst) => ({
+          cardPurchaseId: data.id,
+          installmentNumber: inst.installmentNumber,
+          dueDate: inst.dueDate,
+          amount: inst.amount.toString(),
+        }))
+      );
+    }
+
+    return { ok: true };
+  });
+
+  if (result.ok) {
+    revalidatePath("/cartoes");
+    revalidatePath("/dashboard");
+  }
+  return result;
+}
+
 export async function deleteCardPurchase(formData: FormData) {
   const session = await verifySession();
   const id = String(formData.get("id") ?? "");
