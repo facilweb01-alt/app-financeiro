@@ -132,7 +132,7 @@ export function CategoryBarChart({ data }: { data: CategorySlice[] }) {
       </HideableChart>
 
       {/* Painel de detalhe da categoria selecionada — some quando nenhuma
-          coluna está selecionada, aparece com uma leve animação ao tocar. *}
+          coluna está selecionada, aparece com uma leve animação ao tocar. */}
       {selected && (
         <div className="animate-rise-in flex items-center justify-between rounded-xl px-3 py-2 text-sm bg-navy-800/60" style={{ borderLeft: `3px solid ${selected.color}` }}>
           <span className="font-medium text-navy-200">{selected.categoryLabel}</span>
