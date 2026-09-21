@@ -1,20 +1,18 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
-  PieChart,
-  Pie,
   Cell,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   BarChart,
   Bar,
   XAxis,
   YAxis,
   CartesianGrid,
+  LabelList,
 } from "recharts";
-import { formatBRL, formatYearMonthBR } from "@/lib/format";
+import { formatBRL, formatPercentBR, formatYearMonthBR } from "@/lib/format";
 import { useValuesVisibility } from "@/components/ValuesVisibilityProvider";
 
 // Wrapper que borra o gráfico inteiro e mostra um aviso quando o usuário
@@ -53,53 +51,100 @@ const AXIS_TICK = { fill: "#7683ab" };
 type CategorySlice = { categoryKey: string; categoryLabel: string; amount: number; percentOfIncome: number | null };
 type FutureBucket = { yearMonth: string; amount: number };
 
-export function CategoryPieChart({ data }: { data: CategorySlice[] }) {
+// Rótulo curto para caber embaixo de cada coluna sem sobrepor o vizinho —
+// o nome completo continua disponível no tooltip e no painel de detalhe
+// abaixo do gráfico ao tocar/clicar numa coluna.
+function shortLabel(label: string): string {
+  return label.length > 10 ? `${label.slice(0, 9)}…` : label;
+}
+
+/**
+ * Gráfico de colunas (barras verticais) dos gastos por categoria — pedido
+ * explícito do Marcelo pra substituir o donut anterior por um "formato de
+ * coluna", mais fácil de comparar categoria a categoria de relance. Cada
+ * coluna é clicável/tocável: seleciona a categoria e abre um resumo com o
+ * valor exato e o % da renda logo abaixo do gráfico (seção interativa).
+ */
+export function CategoryBarChart({ data }: { data: CategorySlice[] }) {
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+
   if (data.length === 0) {
     return <p className="text-sm text-navy-500">Sem gastos neste mês ainda.</p>;
   }
 
   const total = data.reduce((sum, c) => sum + c.amount, 0);
   const top = data[0]; // já vem ordenado por valor (maior primeiro)
+  const chartData = data.map((c, index) => ({ ...c, label: shortLabel(c.categoryLabel), color: FALLBACK_COLORS[index % FALLBACK_COLORS.length] }));
+  const selected = chartData.find((c) => c.categoryKey === selectedKey) ?? null;
 
   return (
-    <HideableChart>
-      <div className="relative">
-        <ResponsiveContainer width="100%" height={280}>
-          <PieChart>
-            <Pie
-              data={data}
-              dataKey="amount"
-              nameKey="categoryLabel"
-              cx="50%"
-              cy="50%"
-              innerRadius={60}
-              outerRadius={100}
-              paddingAngle={2}
-            >
-              {data.map((entry, index) => (
-                <Cell key={entry.categoryKey} fill={FALLBACK_COLORS[index % FALLBACK_COLORS.length]} />
-              ))}
-            </Pie>
+    <div className="flex flex-col gap-2">
+      <div className="flex items-baseline justify-between">
+        <div>
+          <span className="text-xs text-navy-500">Total no mês</span>
+          <div className="text-lg font-bold text-navy-100">{formatBRL(total)}</div>
+        </div>
+        {top && <span className="text-[11px] text-navy-500">Maior: {top.categoryLabel}</span>}
+      </div>
+
+      <HideableChart>
+        <ResponsiveContainer width="100%" height={260}>
+          <BarChart data={chartData} margin={{ top: 24, right: 8, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" opacity={0.15} />
+            <XAxis dataKey="label" fontSize={11} tickLine={false} tick={AXIS_TICK} interval={0} angle={chartData.length > 5 ? -30 : 0} textAnchor={chartData.length > 5 ? "end" : "middle"} height={chartData.length > 5 ? 46 : 24} />
+            <YAxis fontSize={12} tickLine={false} tickFormatter={(v) => formatBRL(v)} width={72} tick={AXIS_TICK} />
             <Tooltip
+              cursor={{ fill: "rgba(147,160,196,0.08)" }}
               formatter={((value: number, _name: unknown, item: { payload?: CategorySlice }) => {
                 const pct = item?.payload?.percentOfIncome;
                 const label = item?.payload?.categoryLabel ?? "";
-                return [`${formatBRL(value)}${pct !== null && pct !== undefined ? ` (${pct}% da renda)` : ""}`, label];
+                return [`${formatBRL(value)}${pct !== null && pct !== undefined ? ` (${formatPercentBR(pct)} da renda)` : ""}`, label];
               }) as never}
               {...TOOLTIP_STYLE}
             />
-            <Legend verticalAlign="bottom" height={48} wrapperStyle={{ fontSize: 12, color: "#93a0c4" }} />
-          </PieChart>
+            <Bar
+              dataKey="amount"
+              radius={[6, 6, 0, 0]}
+              onClick={(entry: unknown) => {
+                const key = (entry as { categoryKey?: string })?.categoryKey;
+                setSelectedKey((prev) => (prev === key ? null : (key ?? null)));
+              }}
+              className="cursor-pointer"
+              animationDuration={650}
+            >
+              {chartData.map((entry) => (
+                <Cell
+                  key={entry.categoryKey}
+                  fill={entry.color}
+                  opacity={selectedKey === null || selectedKey === entry.categoryKey ? 1 : 0.35}
+                />
+              ))}
+              <LabelList
+                dataKey="amount"
+                position="top"
+                formatter={((v: number) => formatBRL(v)) as never}
+                fontSize={10}
+                fill="#93a0c4"
+              />
+            </Bar>
+          </BarChart>
         </ResponsiveContainer>
-        {/* Total no centro do donut — resume o gráfico sem precisar passar o
-            mouse em cada fatia, e destaca a maior categoria do mês. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex h-[232px] flex-col items-center justify-center">
-          <span className="text-xs text-navy-500">Total no mês</span>
-          <span className="text-lg font-bold text-navy-100">{formatBRL(total)}</span>
-          {top && <span className="mt-0.5 text-[11px] text-navy-500">Maior: {top.categoryLabel}</span>}
+      </HideableChart>
+
+      {/* Painel de detalhe da categoria selecionada — some quando nenhuma
+          coluna está selecionada, aparece com uma leve animação ao tocar. *}
+      {selected && (
+        <div className="animate-rise-in flex items-center justify-between rounded-xl px-3 py-2 text-sm bg-navy-800/60" style={{ borderLeft: `3px solid ${selected.color}` }}>
+          <span className="font-medium text-navy-200">{selected.categoryLabel}</span>
+          <span className="text-navy-300">
+            {formatBRL(selected.amount)}
+            {selected.percentOfIncome !== null && (
+              <span className="ml-1.5 text-xs text-navy-500">({formatPercentBR(selected.percentOfIncome)} da renda)</span>
+            )}
+          </span>
         </div>
-      </div>
-    </HideableChart>
+      )}
+    </div>
   );
 }
 
