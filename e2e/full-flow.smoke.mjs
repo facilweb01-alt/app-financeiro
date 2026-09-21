@@ -82,6 +82,10 @@ await page.fill('input[name="periodEnd"]', periodEnd);
 await page.fill('input[name="closingDate"]', periodEnd);
 await page.click('button:has-text("Fechar fatura do período")');
 await page.waitForTimeout(800);
+// A lista de parcelas vem recolhida por padrão (só "1/3 · R$ 100,00" etc) —
+// o selo "na fatura" só aparece no modo expandido, então precisa abrir
+// "Ver detalhes" antes de checar.
+await page.click('button:has-text("Ver detalhes")');
 cardBody = await page.textContent("body");
 check("fatura fechada mostra 'na fatura' na 1ª parcela e período no histórico", cardBody.includes("na fatura") && cardBody.includes("Faturas já fechadas"));
 
