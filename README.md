@@ -41,6 +41,8 @@ Contra um `next dev` já rodando (ajuste a porta se necessário):
 ```bash
 node e2e/auth.smoke.mjs              # cadastro, login, logout, proteção de rotas, gate de aprovação e suspensão
 node e2e/full-flow.smoke.mjs         # fluxo completo: lançamento, cartão, fatura, investimento, conta fixa, fechamento
+node e2e/new-features.smoke.mjs      # metas de investimento, limites por categoria, PDF do fechamento mensal
+node e2e/dashboard-cards-upgrade.smoke.mjs   # gasto do próximo mês, gráfico de parcelas (3 meses + filtro de 10), editar compra no cartão, PDF por cartão
 WHATSAPP_WEBHOOK_SECRET=... node e2e/whatsapp-webhook.smoke.mjs   # endpoint do WhatsApp (use o mesmo valor do .env.local)
 node e2e/admin-panel.smoke.mjs       # painel /admin: aprovar, suspender, reativar, vencimento, controle de acesso
 ```

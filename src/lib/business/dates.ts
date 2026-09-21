@@ -42,3 +42,15 @@ export function currentYearMonth(): string {
   const now = new Date();
   return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}`;
 }
+
+/**
+ * Soma N meses a um "YYYY-MM" (sem dia) — usado para navegar entre meses de
+ * fechamento/previsão sem depender de nenhum dia específico do mês.
+ */
+export function addMonthsToYearMonth(yearMonth: string, monthsToAdd: number): string {
+  const { year, month } = parseYearMonth(yearMonth);
+  const totalMonths = year * 12 + (month - 1) + monthsToAdd;
+  const targetYear = Math.floor(totalMonths / 12);
+  const targetMonth1To12 = (totalMonths % 12) + 1;
+  return `${targetYear.toString().padStart(4, "0")}-${targetMonth1To12.toString().padStart(2, "0")}`;
+}

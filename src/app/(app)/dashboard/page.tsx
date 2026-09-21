@@ -3,23 +3,27 @@ import Link from "next/link";
 import { getCurrentUser, verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
 import { loadClosingInputsForUser } from "@/lib/queries/monthClosing";
-import { computeMonthClosingSnapshot } from "@/lib/business/monthClosing";
-import { currentYearMonth } from "@/lib/business/dates";
+import { listCardsForUser } from "@/lib/queries/cards";
+import { computeMonthClosingSnapshot, computeFutureMonthsHorizon } from "@/lib/business/monthClosing";
+import { currentYearMonth, addMonthsToYearMonth } from "@/lib/business/dates";
 import { formatYearMonthBR } from "@/lib/format";
 import { Money } from "@/components/Money";
 import { CategoryBarChart, FutureMonthsBarChart } from "@/components/DashboardCharts";
 import { CircularProgress } from "@/components/CircularProgress";
 import { TiltCard } from "@/components/TiltCard";
+import { CardPdfPicker } from "@/components/CardPdfPicker";
 
 export default async function DashboardPage() {
   const session = await verifySession();
-  const [user, inputs] = await Promise.all([
+  const [user, inputs, cards] = await Promise.all([
     getCurrentUser(),
     withRLS(session.userId, () => loadClosingInputsForUser(session.userId)),
+    withRLS(session.userId, () => listCardsForUser(session.userId)),
   ]);
 
   const income = Number(user?.monthlyIncome ?? 0);
   const yearMonth = currentYearMonth();
+  const nextYearMonth = addMonthsToYearMonth(yearMonth, 1);
 
   const snapshot = computeMonthClosingSnapshot({
     yearMonth,
@@ -28,6 +32,27 @@ export default async function DashboardPage() {
     cardInstallments: inputs.cardInstallments,
     fixedAccountsTotal: inputs.fixedAccountsTotal,
     investmentsTotal: inputs.investmentsByYearMonth(yearMonth),
+  });
+
+  // Mesma conta do mês atual, mas pro mês seguinte — só o gasto total importa
+  // aqui (pedido do Marcelo: "fazer um igual aparecendo os gastos do próximo
+  // mês também"), sem precisar computar o snapshot inteiro de novo pra tela.
+  const nextMonthSnapshot = computeMonthClosingSnapshot({
+    yearMonth: nextYearMonth,
+    income,
+    transactions: inputs.transactions,
+    cardInstallments: inputs.cardInstallments,
+    fixedAccountsTotal: inputs.fixedAccountsTotal,
+    investmentsTotal: inputs.investmentsByYearMonth(nextYearMonth),
+  });
+
+  // Horizonte de 10 meses pro filtro do gráfico de parcelas a vencer —
+  // diferente do `snapshot.pendingByFutureMonth` (que só lista meses com
+  // parcela de verdade), esse inclui todo mês do horizonte, mesmo zerado.
+  const futureMonthsHorizon = computeFutureMonthsHorizon({
+    yearMonth,
+    cardInstallments: inputs.cardInstallments,
+    monthsAhead: 10,
   });
 
   return (
@@ -65,8 +90,13 @@ export default async function DashboardPage() {
             <CircularProgress percent={snapshot.totalPercentOfIncome} label="da renda" />
             <span className="text-xs text-navy-500">Gastos + contas fixas</span>
           </div>
-          <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
             <MiniStat label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
+            <MiniStat
+              label="Gasto no mês que vem"
+              value={<Money value={nextMonthSnapshot.totalSpent} />}
+              icon="📅"
+            />
             <MiniStat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
             <MiniStat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
           </div>
@@ -81,11 +111,19 @@ export default async function DashboardPage() {
             <h2 className="mb-2 text-sm font-semibold text-navy-300">
               Parcelas e contas a vencer nos próximos meses
             </h2>
-            <FutureMonthsBarChart data={snapshot.pendingByFutureMonth} />
+            <FutureMonthsBarChart data={futureMonthsHorizon} />
           </TiltCard>
         </div>
 
-        <div className="animate-rise-in stagger-3 -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
+        <TiltCard className="glass-card animate-rise-in stagger-3 rounded-2xl p-4">
+          <h2 className="mb-1 text-sm font-semibold text-navy-300">Relatório em PDF por cartão</h2>
+          <p className="mb-3 text-xs text-navy-500">
+            Escolha um cartão cadastrado para baixar o valor total e a lista de parcelas lançadas.
+          </p>
+          <CardPdfPicker cards={cards} />
+        </TiltCard>
+
+        <div className="animate-rise-in stagger-4 -mx-4 flex gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0">
           <QuickLink href="/lancamentos" label="Novo lançamento" icon="🧾" />
           <QuickLink href="/cartoes" label="Cartões" icon="💳" />
           <QuickLink href="/investimentos" label="Investimentos" icon="📈" />

@@ -49,7 +49,19 @@ const TOOLTIP_STYLE = {
 const AXIS_TICK = { fill: "#7683ab" };
 
 type CategorySlice = { categoryKey: string; categoryLabel: string; amount: number; percentOfIncome: number | null };
-type FutureBucket = { yearMonth: string; amount: number };
+type FutureMonthItem = {
+  cardName: string;
+  purchaseDescription: string;
+  installmentNumber: number;
+  installmentsTotal: number;
+  amount: number;
+};
+type FutureBucket = { yearMonth: string; amount: number; items: FutureMonthItem[] };
+
+// Uma cor fixa por posição (mês mais próximo, +1, +2...) — pedido explícito
+// do Marcelo pra diferenciar visualmente cada mês no gráfico de parcelas
+// futuras, já que antes todas as colunas saíam da mesma cor azul.
+const FUTURE_MONTH_COLORS = ["#2563eb", "#f59e0b", "#14b8a6"];
 
 // Rótulo curto para caber embaixo de cada coluna sem sobrepor o vizinho —
 // o nome completo continua disponível no tooltip e no painel de detalhe
@@ -148,24 +160,86 @@ export function CategoryBarChart({ data }: { data: CategorySlice[] }) {
   );
 }
 
+/**
+ * Gráfico de "parcelas e contas a vencer" — sempre mostra os 3 meses mais
+ * próximos (cada um com uma cor diferente), independente do filtro abaixo.
+ * O filtro deixa escolher qualquer mês dentro do horizonte recebido (o
+ * painel manda até 10 meses à frente, por causa de compras parceladas
+ * longas) e abre um painel com a lista de parcelas + total daquele mês
+ * específico, sem alterar as barras do gráfico — comportamento pedido
+ * explicitamente pelo Marcelo pra não deixar o gráfico "pulando" de mês.
+ */
 export function FutureMonthsBarChart({ data }: { data: FutureBucket[] }) {
-  if (data.length === 0) {
-    return <p className="text-sm text-navy-500">Nenhuma parcela pendente para os próximos meses.</p>;
-  }
+  const [selectedMonth, setSelectedMonth] = useState<string>("");
 
-  const chartData = data.map((d) => ({ ...d, label: formatYearMonthBR(d.yearMonth) }));
+  const chartMonths = data.slice(0, 3);
+  const chartData = chartMonths.map((d, index) => ({
+    ...d,
+    label: formatYearMonthBR(d.yearMonth),
+    color: FUTURE_MONTH_COLORS[index % FUTURE_MONTH_COLORS.length],
+  }));
+  const selected = data.find((d) => d.yearMonth === selectedMonth) ?? null;
 
   return (
-    <HideableChart>
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" opacity={0.15} />
-          <XAxis dataKey="label" fontSize={12} tickLine={false} tick={AXIS_TICK} />
-          <YAxis fontSize={12} tickLine={false} tickFormatter={(v) => formatBRL(v)} width={80} tick={AXIS_TICK} />
-          <Tooltip formatter={((value: number) => formatBRL(value)) as never} {...TOOLTIP_STYLE} />
-          <Bar dataKey="amount" fill="#2563eb" radius={[6, 6, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </HideableChart>
+    <div className="flex flex-col gap-3">
+      <HideableChart>
+        <ResponsiveContainer width="100%" height={240}>
+          <BarChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 8 }}>
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" opacity={0.15} />
+            <XAxis dataKey="label" fontSize={12} tickLine={false} tick={AXIS_TICK} />
+            <YAxis fontSize={12} tickLine={false} tickFormatter={(v) => formatBRL(v)} width={80} tick={AXIS_TICK} />
+            <Tooltip formatter={((value: number) => formatBRL(value)) as never} {...TOOLTIP_STYLE} />
+            <Bar dataKey="amount" radius={[6, 6, 0, 0]}>
+              {chartData.map((entry) => (
+                <Cell key={entry.yearMonth} fill={entry.color} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+      </HideableChart>
+
+      <div className="flex items-center gap-2 text-xs">
+        <label htmlFor="future-month-filter" className="shrink-0 text-navy-400">
+          Ver parcelas de um mês:
+        </label>
+        <select
+          id="future-month-filter"
+          value={selectedMonth}
+          onChange={(e) => setSelectedMonth(e.target.value)}
+          className="w-full rounded-lg border px-2 py-1.5 text-xs border-navy-700 bg-navy-900 text-navy-200"
+        >
+          <option value="">Escolher mês (até 10 à frente)</option>
+          {data.map((d) => (
+            <option key={d.yearMonth} value={d.yearMonth}>
+              {formatYearMonthBR(d.yearMonth)}
+              {d.amount > 0 ? ` — ${formatBRL(d.amount)}` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {selected && (
+        <div className="animate-rise-in rounded-xl p-3 bg-navy-800/60">
+          <div className="flex items-baseline justify-between">
+            <span className="font-medium text-navy-200">{formatYearMonthBR(selected.yearMonth)}</span>
+            <span className="font-semibold text-navy-100">{formatBRL(selected.amount)}</span>
+          </div>
+          {selected.items.length === 0 ? (
+            <p className="mt-1 text-xs text-navy-500">Nenhuma parcela prevista para esse mês.</p>
+          ) : (
+            <ul className="mt-2 flex flex-col gap-1 text-xs text-navy-300">
+              {selected.items.map((item, idx) => (
+                <li key={idx} className="flex items-center justify-between gap-2">
+                  <span>
+                    {item.cardName} · {item.purchaseDescription} ({item.installmentNumber}/{item.installmentsTotal})
+                  </span>
+                  <span className="shrink-0 font-medium text-navy-200">{formatBRL(item.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
