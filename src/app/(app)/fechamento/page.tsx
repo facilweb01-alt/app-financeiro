@@ -8,7 +8,7 @@ import { listSpendingLimitsForUser } from "@/lib/queries/spendingLimits";
 import { listCategoriesForUser } from "@/lib/queries/categories";
 import { computeMonthClosingSnapshot, type MonthClosingSnapshot } from "@/lib/business/monthClosing";
 import { currentYearMonth } from "@/lib/business/dates";
-import { formatYearMonthBR } from "@/lib/format";
+import { formatYearMonthBR, formatPercentBR } from "@/lib/format";
 import { Money } from "@/components/Money";
 import { IncomeForm } from "./IncomeForm";
 import { CloseMonthForm } from "./CloseMonthForm";
@@ -24,7 +24,7 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
         <Stat label="Total gasto" value={<Money value={snapshot.totalSpent} />} />
         <Stat
           label="% da renda comprometida"
-          value={snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`}
+          value={snapshot.totalPercentOfIncome === null ? "—" : formatPercentBR(snapshot.totalPercentOfIncome)}
         />
         <Stat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} />
         <Stat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} />
@@ -42,7 +42,7 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
                 <span>
                   <span className="font-medium"><Money value={c.amount} /></span>
                   {c.percentOfIncome !== null && (
-                    <span className="ml-2 text-xs text-navy-400">({c.percentOfIncome}% da renda)</span>
+                    <span className="ml-2 text-xs text-navy-400">({formatPercentBR(c.percentOfIncome)} da renda)</span>
                   )}
                 </span>
               </li>
