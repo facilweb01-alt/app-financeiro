@@ -1,7 +1,7 @@
 import "server-only";
 import PDFDocument from "pdfkit";
 import type { MonthClosingSnapshot } from "@/lib/business/monthClosing";
-import { formatBRL, formatDateBR, formatYearMonthBR } from "@/lib/format";
+import { formatBRL, formatDateBR, formatYearMonthBR, formatPercentBR } from "@/lib/format";
 
 const BLUE = "#2563eb";
 const SLATE_900 = "#0f172a";
@@ -54,7 +54,7 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
     doc.moveDown(0.4);
 
     const percentText =
-      snapshot.totalPercentOfIncome === null ? "—" : `${snapshot.totalPercentOfIncome}%`;
+      snapshot.totalPercentOfIncome === null ? "—" : formatPercentBR(snapshot.totalPercentOfIncome);
     const summaryRows: [string, string][] = [
       ["Renda mensal informada", formatBRL(income)],
       ["Total gasto no mês", formatBRL(snapshot.totalSpent)],
@@ -81,7 +81,7 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
       doc.fontSize(10).font("Helvetica").fillColor(SLATE_500).text("Sem lançamentos nesse mês.");
     } else {
       for (const c of snapshot.categoryTotals) {
-        const pct = c.percentOfIncome !== null ? ` (${c.percentOfIncome}% da renda)` : "";
+        const pct = c.percentOfIncome !== null ? ` (${formatPercentBR(c.percentOfIncome)} da renda)` : "";
         doc
           .fontSize(10)
           .font("Helvetica")
