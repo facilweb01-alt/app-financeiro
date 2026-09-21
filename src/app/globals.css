@@ -53,3 +53,104 @@ body {
   background: #2c3760;
   color: #eef2fb;
 }
+
+/* ---------------------------------------------------------------------
+   Efeitos de profundidade leve (glassmorphism + tilt) — pedido do
+   Marcelo por um layout "visualmente impressionante" com "elementos 3D",
+   escolhido como efeito leve em CSS puro (confirmado com ele: nada de
+   Three.js/WebGL, o app é mobile-first e precisa carregar rápido).
+   Usado nos cards de destaque do painel (TiltCard.tsx).
+   --------------------------------------------------------------------- */
+
+.glass-card {
+  background: linear-gradient(160deg, rgba(30, 42, 82, 0.78), rgba(13, 20, 46, 0.62));
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(147, 160, 196, 0.14);
+  box-shadow:
+    0 10px 35px -15px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.tilt-card {
+  perspective: 1000px;
+  position: relative;
+}
+
+.tilt-card-inner {
+  position: relative;
+  transform: rotateX(var(--tilt-rx, 0deg)) rotateY(var(--tilt-ry, 0deg));
+  transform-style: preserve-3d;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
+}
+
+.tilt-card-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 1rem;
+  background: radial-gradient(240px circle at var(--glow-x, 50%) var(--glow-y, 50%), rgba(96, 140, 255, 0.2), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+.tilt-card-glow:hover::before,
+.tilt-card-glow:focus-within::before {
+  opacity: 1;
+}
+
+/* Manchas de luz decorativas atrás do conteúdo (fundo "mesh gradient") —
+   estáticas, só cor/blur, custo de performance praticamente zero. */
+.mesh-glow {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.28;
+  pointer-events: none;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger-1 {
+  animation-delay: 0.05s;
+}
+.stagger-2 {
+  animation-delay: 0.1s;
+}
+.stagger-3 {
+  animation-delay: 0.15s;
+}
+.stagger-4 {
+  animation-delay: 0.2s;
+}
+.stagger-5 {
+  animation-delay: 0.25s;
+}
+.stagger-6 {
+  animation-delay: 0.3s;
+}
+
+/* Quem pede menos movimento no sistema operacional não recebe tilt nem
+   animação de entrada — só o conteúdo, sem o efeito. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in,
+  .tilt-card-inner {
+    animation: none !important;
+    transition: none !important;
+  }
+}
