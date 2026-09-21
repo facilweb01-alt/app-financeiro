@@ -4,6 +4,7 @@ import { listCardsWithDetailsForUser } from "@/lib/queries/cards";
 import { listCategoriesForUser } from "@/lib/queries/categories";
 import { formatDateBR } from "@/lib/format";
 import { Money } from "@/components/Money";
+import { InstallmentsList } from "@/components/InstallmentsList";
 import { deleteCard, deleteCardPurchase } from "@/app/actions/cards";
 import { NewCardForm } from "./NewCardForm";
 import { PurchaseForm } from "./PurchaseForm";
@@ -85,20 +86,7 @@ export default async function CartoesPage() {
                       </td>
                       <td className="px-3 py-2 text-right font-medium whitespace-nowrap"><Money value={p.totalAmount} /></td>
                       <td className="px-3 py-2">
-                        <ul className="flex flex-col gap-0.5">
-                          {p.installments.map((inst) => (
-                            <li key={inst.id} className="flex items-center gap-2 text-xs">
-                              <span className={inst.paid ? "text-navy-500 line-through" : "text-navy-300"}>
-                                {inst.installmentNumber}/{p.installmentsTotal} · {formatDateBR(inst.dueDate)} · <Money value={inst.amount} />
-                              </span>
-                              {inst.paid && (
-                                <span className="rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-blue-900/40 text-blue-300">
-                                  na fatura
-                                </span>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
+                        <InstallmentsList installments={p.installments} installmentsTotal={p.installmentsTotal} />
                       </td>
                       <td className="px-3 py-2 text-right">
                         <form action={deleteCardPurchase}>
