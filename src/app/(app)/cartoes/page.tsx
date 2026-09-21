@@ -4,8 +4,8 @@ import { listCardsWithDetailsForUser } from "@/lib/queries/cards";
 import { listCategoriesForUser } from "@/lib/queries/categories";
 import { formatDateBR } from "@/lib/format";
 import { Money } from "@/components/Money";
-import { InstallmentsList } from "@/components/InstallmentsList";
-import { deleteCard, deleteCardPurchase } from "@/app/actions/cards";
+import { CardPurchaseRow } from "@/components/CardPurchaseRow";
+import { deleteCard } from "@/app/actions/cards";
 import { NewCardForm } from "./NewCardForm";
 import { PurchaseForm } from "./PurchaseForm";
 import { StatementForm } from "./StatementForm";
@@ -68,35 +68,7 @@ export default async function CartoesPage() {
                     </tr>
                   )}
                   {card.purchases.map((p) => (
-                    <tr key={p.id} className="border-b align-top last:border-0 border-navy-800/60">
-                      <td className="px-3 py-2 whitespace-nowrap">{formatDateBR(p.purchaseDate)}</td>
-                      <td className="px-3 py-2">
-                        {p.description}
-                        {p.category && (
-                          <span
-                            className="ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                            style={{
-                              backgroundColor: `${p.category.color ?? "#94a3b8"}22`,
-                              color: p.category.color ?? "#475569",
-                            }}
-                          >
-                            {p.category.label}
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-right font-medium whitespace-nowrap"><Money value={p.totalAmount} /></td>
-                      <td className="px-3 py-2">
-                        <InstallmentsList installments={p.installments} installmentsTotal={p.installmentsTotal} />
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <form action={deleteCardPurchase}>
-                          <input type="hidden" name="id" value={p.id} />
-                          <button type="submit" className="text-xs hover:underline text-red-400">
-                            excluir
-                          </button>
-                        </form>
-                      </td>
-                    </tr>
+                    <CardPurchaseRow key={p.id} purchase={p} categories={categories} />
                   ))}
                 </tbody>
               </table>
