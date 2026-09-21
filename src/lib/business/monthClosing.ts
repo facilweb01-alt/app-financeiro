@@ -1,4 +1,4 @@
-import { toYearMonth, compareYearMonth } from "./dates";
+import { toYearMonth, compareYearMonth, addMonthsToYearMonth } from "./dates";
 
 export type TransactionLike = {
   dueDate: string; // "YYYY-MM-DD"
@@ -154,4 +154,50 @@ export function computeMonthClosingSnapshot(params: {
     investmentsTotal: round2(investmentsTotal),
     pendingByFutureMonth,
   };
+}
+
+export type FutureMonthHorizonEntry = {
+  yearMonth: string;
+  amount: number;
+  items: FutureMonthPending["items"];
+};
+
+/**
+ * Diferente de `pendingByFutureMonth` (que só lista os meses que já têm
+ * parcela de verdade, usado no fechamento/PDF), esta função sempre devolve
+ * um mês pra cada posição do horizonte pedido (padrão 10, um "por causa de
+ * ser fatura de cartão" — parcelamentos longos) — inclusive os que ainda
+ * não têm nenhuma parcela (amount 0, items []). É o que permite ao painel
+ * ter um filtro que deixa escolher qualquer mês futuro dentro desse
+ * horizonte e ver o total/lista daquele mês, mesmo que o gráfico em si só
+ * mostre os 3 mais próximos.
+ */
+export function computeFutureMonthsHorizon(params: {
+  yearMonth: string; // mês base (o mês "atual" sendo exibido no painel)
+  cardInstallments: CardInstallmentLike[];
+  monthsAhead?: number;
+}): FutureMonthHorizonEntry[] {
+  const { yearMonth, cardInstallments, monthsAhead = 10 } = params;
+
+  const horizonMonths = Array.from({ length: monthsAhead }, (_, i) => addMonthsToYearMonth(yearMonth, i + 1));
+  const bucketMap = new Map<string, FutureMonthHorizonEntry>();
+  for (const m of horizonMonths) {
+    bucketMap.set(m, { yearMonth: m, amount: 0, items: [] });
+  }
+
+  for (const inst of cardInstallments) {
+    const instYearMonth = toYearMonth(inst.dueDate);
+    const bucket = bucketMap.get(instYearMonth);
+    if (!bucket) continue; // fora do horizonte pedido
+    bucket.amount = round2(bucket.amount + inst.amount);
+    bucket.items.push({
+      cardName: inst.cardName,
+      purchaseDescription: inst.purchaseDescription,
+      installmentNumber: inst.installmentNumber,
+      installmentsTotal: inst.installmentsTotal,
+      amount: inst.amount,
+    });
+  }
+
+  return horizonMonths.map((m) => bucketMap.get(m)!);
 }
