@@ -7,9 +7,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { splitCentsInInstallments, toCents, fromCents } from "../money";
-import { addMonthsClamped, toYearMonth, currentYearMonth } from "../dates";
+import { addMonthsClamped, addMonthsToYearMonth, toYearMonth, currentYearMonth } from "../dates";
 import { generateInstallments } from "../installments";
-import { computeMonthClosingSnapshot } from "../monthClosing";
+import { computeMonthClosingSnapshot, computeFutureMonthsHorizon } from "../monthClosing";
 
 // ---------------------------------------------------------------------------
 // money.ts
@@ -66,6 +66,20 @@ test("toYearMonth extrai ano-mês", () => {
 
 test("currentYearMonth retorna formato YYYY-MM", () => {
   assert.match(currentYearMonth(), /^\d{4}-\d{2}$/);
+});
+
+test("addMonthsToYearMonth: caso normal", () => {
+  assert.equal(addMonthsToYearMonth("2026-09", 1), "2026-10");
+  assert.equal(addMonthsToYearMonth("2026-09", 3), "2026-12");
+});
+
+test("addMonthsToYearMonth: atravessa o ano", () => {
+  assert.equal(addMonthsToYearMonth("2026-11", 2), "2027-01");
+  assert.equal(addMonthsToYearMonth("2026-01", 12), "2027-01");
+});
+
+test("addMonthsToYearMonth: soma zero devolve o mesmo mês", () => {
+  assert.equal(addMonthsToYearMonth("2026-09", 0), "2026-09");
 });
 
 // ---------------------------------------------------------------------------
@@ -269,5 +283,82 @@ test("computeMonthClosingSnapshot: yearMonth em formato errado lança erro", () 
       fixedAccountsTotal: 0,
       investmentsTotal: 0,
     })
+  );
+});
+
+// ---------------------------------------------------------------------------
+// monthClosing.ts — computeFutureMonthsHorizon
+// ---------------------------------------------------------------------------
+
+test("computeFutureMonthsHorizon: devolve um mês por posição do horizonte, mesmo sem parcela (zerado)", () => {
+  const horizon = computeFutureMonthsHorizon({
+    yearMonth: "2026-09",
+    cardInstallments: [],
+    monthsAhead: 10,
+  });
+  assert.equal(horizon.length, 10);
+  assert.equal(horizon[0].yearMonth, "2026-10"); // mês seguinte ao base
+  assert.equal(horizon[9].yearMonth, "2027-07"); // 10º mês à frente
+  for (const bucket of horizon) {
+    assert.equal(bucket.amount, 0);
+    assert.deepEqual(bucket.items, []);
+  }
+});
+
+test("computeFutureMonthsHorizon: soma parcelas por mês dentro do horizonte e ignora fora dele", () => {
+  const horizon = computeFutureMonthsHorizon({
+    yearMonth: "2026-09",
+    cardInstallments: [
+      {
+        dueDate: "2026-10-05",
+        amount: 100,
+        cardName: "Nubank",
+        purchaseDescription: "Mercado",
+        installmentNumber: 1,
+        installmentsTotal: 2,
+      },
+      {
+        dueDate: "2026-10-15",
+        amount: 50,
+        cardName: "Itaú",
+        purchaseDescription: "Farmácia",
+        installmentNumber: 1,
+        installmentsTotal: 1,
+      },
+      // fora do horizonte de 10 meses (mês base + 11) — deve ser ignorada
+      {
+        dueDate: "2027-09-05",
+        amount: 999,
+        cardName: "Nubank",
+        purchaseDescription: "Fora do horizonte",
+        installmentNumber: 2,
+        installmentsTotal: 2,
+      },
+    ],
+    monthsAhead: 10,
+  });
+
+  const outubro = horizon.find((b) => b.yearMonth === "2026-10");
+  assert.ok(outubro);
+  assert.equal(outubro!.amount, 150);
+  assert.equal(outubro!.items.length, 2);
+
+  // mês fora do horizonte não deve gerar nenhum bucket com esse valor
+  const foraDoHorizonte = horizon.find((b) => b.yearMonth === "2027-09");
+  assert.equal(foraDoHorizonte, undefined);
+  const totalGeral = horizon.reduce((sum, b) => sum + b.amount, 0);
+  assert.equal(totalGeral, 150); // os 999 do mês fora do horizonte não entram
+});
+
+test("computeFutureMonthsHorizon: monthsAhead customizado limita o tamanho do horizonte", () => {
+  const horizon = computeFutureMonthsHorizon({
+    yearMonth: "2026-09",
+    cardInstallments: [],
+    monthsAhead: 3,
+  });
+  assert.equal(horizon.length, 3);
+  assert.deepEqual(
+    horizon.map((b) => b.yearMonth),
+    ["2026-10", "2026-11", "2026-12"]
   );
 });
