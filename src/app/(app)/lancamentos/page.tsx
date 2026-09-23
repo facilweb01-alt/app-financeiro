@@ -4,6 +4,7 @@ import { listCategoriesForUser } from "@/lib/queries/categories";
 import { listTransactionsForUser } from "@/lib/queries/transactions";
 import { formatDateBR } from "@/lib/format";
 import { Money } from "@/components/Money";
+import { CollapsibleRows } from "@/components/CollapsibleList";
 import { TransactionForm } from "./TransactionForm";
 import { deleteTransaction } from "@/app/actions/transactions";
 
@@ -45,33 +46,37 @@ export default async function LancamentosPage() {
                   </td>
                 </tr>
               )}
-              {txs.map((tx) => (
-                <tr key={tx.id} className="border-b last:border-0 border-navy-800/60">
-                  <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(tx.dueDate)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-navy-400">{formatDateBR(tx.purchaseDate)}</td>
-                  <td className="px-4 py-3">{tx.description}</td>
-                  <td className="px-4 py-3">
-                    <span
-                      className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
-                      style={{
-                        backgroundColor: `${tx.categoryColor ?? "#94a3b8"}22`,
-                        color: tx.categoryColor ?? "#475569",
-                      }}
-                    >
-                      {tx.categoryLabel}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right font-medium whitespace-nowrap"><Money value={tx.amount} /></td>
-                  <td className="px-4 py-3 text-right">
-                    <form action={deleteTransaction}>
-                      <input type="hidden" name="id" value={tx.id} />
-                      <button type="submit" className="text-xs hover:underline text-red-400">
-                        excluir
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
+              <CollapsibleRows
+                colSpan={6}
+                itemLabel="lançamento"
+                items={txs.map((tx) => (
+                  <tr key={tx.id} className="border-b last:border-0 border-navy-800/60">
+                    <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(tx.dueDate)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap text-navy-400">{formatDateBR(tx.purchaseDate)}</td>
+                    <td className="px-4 py-3">{tx.description}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium"
+                        style={{
+                          backgroundColor: `${tx.categoryColor ?? "#94a3b8"}22`,
+                          color: tx.categoryColor ?? "#475569",
+                        }}
+                      >
+                        {tx.categoryLabel}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium whitespace-nowrap"><Money value={tx.amount} /></td>
+                    <td className="px-4 py-3 text-right">
+                      <form action={deleteTransaction}>
+                        <input type="hidden" name="id" value={tx.id} />
+                        <button type="submit" className="text-xs hover:underline text-red-400">
+                          excluir
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              />
             </tbody>
           </table>
         </div>
