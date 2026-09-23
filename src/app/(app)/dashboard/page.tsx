@@ -12,8 +12,17 @@ import { CategoryBarChart, FutureMonthsBarChart } from "@/components/DashboardCh
 import { CircularProgress } from "@/components/CircularProgress";
 import { TiltCard } from "@/components/TiltCard";
 import { CardPdfPicker } from "@/components/CardPdfPicker";
+import { DashboardMonthSelect } from "@/components/DashboardMonthSelect";
 
-export default async function DashboardPage() {
+// Quantos meses à frente do mês atual o seletor do painel deixa escolher —
+// pedido explícito do Marcelo: "colocar no máximo 3 meses pra frente".
+const MAX_MONTHS_AHEAD = 3;
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mes?: string }>;
+}) {
   const session = await verifySession();
   const [user, inputs, cards] = await Promise.all([
     getCurrentUser(),
@@ -22,7 +31,14 @@ export default async function DashboardPage() {
   ]);
 
   const income = Number(user?.monthlyIncome ?? 0);
-  const yearMonth = currentYearMonth();
+  const currentMonth = currentYearMonth();
+
+  // Opções do seletor: mês atual + até 3 meses à frente. Se o parâmetro
+  // "mes" da URL não bater com nenhuma opção válida (link velho, digitado à
+  // mão, etc.), cai de volta pro mês atual em vez de quebrar a página.
+  const monthOptions = Array.from({ length: MAX_MONTHS_AHEAD + 1 }, (_, i) => addMonthsToYearMonth(currentMonth, i));
+  const requestedMonth = (await searchParams).mes;
+  const yearMonth = monthOptions.includes(requestedMonth ?? "") ? (requestedMonth as string) : currentMonth;
   const nextYearMonth = addMonthsToYearMonth(yearMonth, 1);
 
   const snapshot = computeMonthClosingSnapshot({
@@ -34,9 +50,11 @@ export default async function DashboardPage() {
     investmentsTotal: inputs.investmentsByYearMonth(yearMonth),
   });
 
-  // Mesma conta do mês atual, mas pro mês seguinte — só o gasto total importa
-  // aqui (pedido do Marcelo: "fazer um igual aparecendo os gastos do próximo
-  // mês também"), sem precisar computar o snapshot inteiro de novo pra tela.
+  // Mesma conta do mês exibido, mas pro mês seguinte a ele — pedido do
+  // Marcelo: "fazer um igual aparecendo os gastos do próximo mês também".
+  // Acompanha o mês escolhido no seletor (ex: se o painel está mostrando
+  // outubro, aqui aparece novembro), não fica travado no mês seguinte ao de
+  // hoje.
   const nextMonthSnapshot = computeMonthClosingSnapshot({
     yearMonth: nextYearMonth,
     income,
@@ -46,9 +64,15 @@ export default async function DashboardPage() {
     investmentsTotal: inputs.investmentsByYearMonth(nextYearMonth),
   });
 
+  // Soma dos três valores que o Marcelo pediu pra ver somados de uma vez:
+  // gasto do mês exibido + gasto do mês seguinte + contas fixas — além dos
+  // campos individuais, que continuam aparecendo normalmente.
+  const combinedTotal = snapshot.totalSpent + nextMonthSnapshot.totalSpent + snapshot.fixedAccountsTotal;
+
   // Horizonte de 10 meses pro filtro do gráfico de parcelas a vencer —
   // diferente do `snapshot.pendingByFutureMonth` (que só lista meses com
   // parcela de verdade), esse inclui todo mês do horizonte, mesmo zerado.
+  // Também acompanha o mês escolhido no seletor, como base do horizonte.
   const futureMonthsHorizon = computeFutureMonthsHorizon({
     yearMonth,
     cardInstallments: inputs.cardInstallments,
@@ -63,23 +87,33 @@ export default async function DashboardPage() {
       <div className="mesh-glow bottom-10 -left-10 h-56 w-56 bg-indigo-600" aria-hidden />
 
       <div className="relative flex flex-col gap-6">
-        <div className="animate-rise-in">
-          <h1 className="text-2xl font-semibold text-navy-100">
-            Olá, {user?.name?.split(" ")[0] ?? ""}
-          </h1>
-          <p className="mt-1 text-sm text-navy-400">
-            Resumo de {formatYearMonthBR(yearMonth)}.
-            {income === 0 && (
-              <>
-                {" "}
-                Defina sua renda mensal na aba{" "}
-                <Link href="/fechamento" className="font-medium text-blue-400">
-                  Fechamento
-                </Link>{" "}
-                para ver os percentuais.
-              </>
-            )}
-          </p>
+        <div className="animate-rise-in flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold text-navy-100">
+              Olá, {user?.name?.split(" ")[0] ?? ""}
+            </h1>
+            <p className="mt-1 text-sm text-navy-400">
+              Resumo de {formatYearMonthBR(yearMonth)}
+              {yearMonth === currentMonth ? "" : " (mês selecionado)"}.
+              {income === 0 && (
+                <>
+                  {" "}
+                  Defina sua renda mensal na aba{" "}
+                  <Link href="/fechamento" className="font-medium text-blue-400">
+                    Fechamento
+                  </Link>{" "}
+                  para ver os percentuais.
+                </>
+              )}
+            </p>
+          </div>
+          <DashboardMonthSelect
+            selected={yearMonth}
+            options={monthOptions.map((m, i) => ({
+              value: m,
+              label: i === 0 ? `${formatYearMonthBR(m)} (atual)` : formatYearMonthBR(m),
+            }))}
+          />
         </div>
 
         {/* Hero: o indicador mais importante do mês (% da renda comprometida)
@@ -90,15 +124,31 @@ export default async function DashboardPage() {
             <CircularProgress percent={snapshot.totalPercentOfIncome} label="da renda" />
             <span className="text-xs text-navy-500">Gastos + contas fixas</span>
           </div>
-          <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-4">
-            <MiniStat label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
-            <MiniStat
-              label="Gasto no mês que vem"
-              value={<Money value={nextMonthSnapshot.totalSpent} />}
-              icon="📅"
-            />
-            <MiniStat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
-            <MiniStat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
+          <div className="flex flex-1 flex-col gap-3">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <MiniStat label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
+              <MiniStat
+                label="Gasto no mês que vem"
+                value={<Money value={nextMonthSnapshot.totalSpent} />}
+                icon="📅"
+              />
+              <MiniStat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
+              <MiniStat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
+            </div>
+            {/* Campo com a somatória dos três valores acima (menos o
+                investido, que não é um compromisso de gasto) — pedido do
+                Marcelo pra ver de uma vez o total comprometido entre o mês
+                exibido, o mês seguinte e as contas fixas, sem precisar somar
+                os campos individuais na cabeça. Os campos individuais
+                continuam aparecendo normalmente, acima. */}
+            <div className="flex items-center justify-between rounded-xl border px-3 py-2.5 border-blue-900/50 bg-blue-950/30">
+              <span className="text-xs font-medium text-blue-300">
+                Total (mês + mês que vem + contas fixas)
+              </span>
+              <span className="text-base font-bold text-navy-100">
+                <Money value={combinedTotal} />
+              </span>
+            </div>
           </div>
         </TiltCard>
 
