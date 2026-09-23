@@ -4,6 +4,7 @@ import { listInvestmentsForUser } from "@/lib/queries/investments";
 import { listInvestmentGoalsForUser } from "@/lib/queries/investmentGoals";
 import { formatDateBR } from "@/lib/format";
 import { Money } from "@/components/Money";
+import { CollapsibleRows } from "@/components/CollapsibleList";
 import { deleteInvestment } from "@/app/actions/investments";
 import { InvestmentForm } from "./InvestmentForm";
 import { InvestmentGoalForm } from "./InvestmentGoalForm";
@@ -47,22 +48,26 @@ export default async function InvestimentosPage() {
                   </td>
                 </tr>
               )}
-              {items.map((i) => (
-                <tr key={i.id} className="border-b last:border-0 border-navy-800/60">
-                  <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(i.date)}</td>
-                  <td className="px-4 py-3">{i.description}</td>
-                  <td className="px-4 py-3 text-navy-400">{i.type ?? "—"}</td>
-                  <td className="px-4 py-3 text-right font-medium whitespace-nowrap"><Money value={i.amount} /></td>
-                  <td className="px-4 py-3 text-right">
-                    <form action={deleteInvestment}>
-                      <input type="hidden" name="id" value={i.id} />
-                      <button type="submit" className="text-xs hover:underline text-red-400">
-                        excluir
-                      </button>
-                    </form>
-                  </td>
-                </tr>
-              ))}
+              <CollapsibleRows
+                colSpan={5}
+                itemLabel="investimento"
+                items={items.map((i) => (
+                  <tr key={i.id} className="border-b last:border-0 border-navy-800/60">
+                    <td className="px-4 py-3 whitespace-nowrap">{formatDateBR(i.date)}</td>
+                    <td className="px-4 py-3">{i.description}</td>
+                    <td className="px-4 py-3 text-navy-400">{i.type ?? "—"}</td>
+                    <td className="px-4 py-3 text-right font-medium whitespace-nowrap"><Money value={i.amount} /></td>
+                    <td className="px-4 py-3 text-right">
+                      <form action={deleteInvestment}>
+                        <input type="hidden" name="id" value={i.id} />
+                        <button type="submit" className="text-xs hover:underline text-red-400">
+                          excluir
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                ))}
+              />
             </tbody>
           </table>
         </div>
