@@ -5,6 +5,7 @@ import { listCategoriesForUser } from "@/lib/queries/categories";
 import { formatDateBR } from "@/lib/format";
 import { Money } from "@/components/Money";
 import { CardPurchaseRow } from "@/components/CardPurchaseRow";
+import { CollapsibleRows, CollapsibleItems } from "@/components/CollapsibleList";
 import { deleteCard } from "@/app/actions/cards";
 import { NewCardForm } from "./NewCardForm";
 import { PurchaseForm } from "./PurchaseForm";
@@ -67,9 +68,13 @@ export default async function CartoesPage() {
                       </td>
                     </tr>
                   )}
-                  {card.purchases.map((p) => (
-                    <CardPurchaseRow key={p.id} purchase={p} categories={categories} />
-                  ))}
+                  <CollapsibleRows
+                    colSpan={5}
+                    itemLabel="compra"
+                    items={card.purchases.map((p) => (
+                      <CardPurchaseRow key={p.id} purchase={p} categories={categories} />
+                    ))}
+                  />
                 </tbody>
               </table>
             </div>
@@ -82,15 +87,18 @@ export default async function CartoesPage() {
                   Faturas já fechadas
                 </h3>
                 <ul className="flex flex-col gap-1 text-sm">
-                  {card.statements.map((s) => (
-                    <li key={s.id} className="flex justify-between rounded-lg px-3 py-2 bg-navy-950/50">
-                      <span>
-                        {formatDateBR(s.periodStart)} — {formatDateBR(s.periodEnd)} (fechada em{" "}
-                        {formatDateBR(s.closingDate)})
-                      </span>
-                      <span className="font-medium"><Money value={s.totalAmount} /></span>
-                    </li>
-                  ))}
+                  <CollapsibleItems
+                    itemLabel="fatura"
+                    items={card.statements.map((s) => (
+                      <li key={s.id} className="flex justify-between rounded-lg px-3 py-2 bg-navy-950/50">
+                        <span>
+                          {formatDateBR(s.periodStart)} — {formatDateBR(s.periodEnd)} (fechada em{" "}
+                          {formatDateBR(s.closingDate)})
+                        </span>
+                        <span className="font-medium"><Money value={s.totalAmount} /></span>
+                      </li>
+                    ))}
+                  />
                 </ul>
               </div>
             )}
