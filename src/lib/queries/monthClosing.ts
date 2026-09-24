@@ -11,6 +11,7 @@ export async function loadClosingInputsForUser(userId: string) {
     db
       .select({
         dueDate: transactions.dueDate,
+        description: transactions.description,
         amount: transactions.amount,
         categoryKey: categories.key,
         categoryLabel: categories.label,
@@ -42,6 +43,7 @@ export async function loadClosingInputsForUser(userId: string) {
 
   const txLikes: TransactionLike[] = txRows.map((t) => ({
     dueDate: t.dueDate,
+    description: t.description,
     amount: Number(t.amount),
     categoryKey: t.categoryKey,
     categoryLabel: t.categoryLabel,

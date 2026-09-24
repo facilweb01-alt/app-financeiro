@@ -10,6 +10,7 @@ import { splitCentsInInstallments, toCents, fromCents } from "../money";
 import { addMonthsClamped, addMonthsToYearMonth, toYearMonth, currentYearMonth } from "../dates";
 import { generateInstallments } from "../installments";
 import { computeMonthClosingSnapshot, computeFutureMonthsHorizon } from "../monthClosing";
+import { computeSpendingStatus, spendingStatusSentence } from "../spendingStatus";
 
 // ---------------------------------------------------------------------------
 // money.ts
@@ -159,10 +160,10 @@ test("computeMonthClosingSnapshot: caminho feliz com renda informada", () => {
     yearMonth: "2026-09",
     income: 5000,
     transactions: [
-      { dueDate: "2026-09-05", amount: 300, categoryKey: "alimentacao", categoryLabel: "Alimentação" },
-      { dueDate: "2026-09-20", amount: 150, categoryKey: "lazer", categoryLabel: "Lazer" },
+      { dueDate: "2026-09-05", description: "Mercado", amount: 300, categoryKey: "alimentacao", categoryLabel: "Alimentação" },
+      { dueDate: "2026-09-20", description: "Cinema", amount: 150, categoryKey: "lazer", categoryLabel: "Lazer" },
       // fora do mês fechado — não deve entrar
-      { dueDate: "2026-08-31", amount: 999, categoryKey: "lazer", categoryLabel: "Lazer" },
+      { dueDate: "2026-08-31", description: "Show", amount: 999, categoryKey: "lazer", categoryLabel: "Lazer" },
     ],
     cardInstallments: [
       {
@@ -226,13 +227,32 @@ test("computeMonthClosingSnapshot: caminho feliz com renda informada", () => {
   assert.equal(snapshot.pendingByFutureMonth[0].amount, 100);
   assert.equal(snapshot.pendingByFutureMonth[1].yearMonth, "2026-11");
   assert.equal(snapshot.pendingByFutureMonth[1].amount, 100);
+  // parcela futura carrega a categoria junto (usada pelo filtro por
+  // categoria do painel) — pedido do Marcelo.
+  assert.equal(snapshot.pendingByFutureMonth[0].items[0].categoryKey, "alimentacao");
+  assert.equal(snapshot.pendingByFutureMonth[0].items[0].categoryLabel, "Alimentação");
+
+  // itens individuais do mês fechado, misturando lançamento e cartão, cada
+  // um com sua origem marcada — base da busca+detalhe por categoria.
+  assert.equal(snapshot.categoryItems.length, 3); // 2 lançamentos + 1 parcela de setembro
+  const lancamentoAlimentacao = snapshot.categoryItems.find(
+    (i) => i.origin === "lancamento" && i.categoryKey === "alimentacao"
+  );
+  assert.ok(lancamentoAlimentacao);
+  assert.equal(lancamentoAlimentacao!.description, "Mercado");
+  assert.equal(lancamentoAlimentacao!.amount, 300);
+  const parcelaCartao = snapshot.categoryItems.find((i) => i.origin === "cartao");
+  assert.ok(parcelaCartao);
+  assert.equal(parcelaCartao!.categoryKey, "alimentacao");
+  assert.equal(parcelaCartao!.amount, 100);
+  assert.match(parcelaCartao!.description, /Nubank/);
 });
 
 test("computeMonthClosingSnapshot: sem renda informada não calcula percentual (não quebra dividindo por zero)", () => {
   const snapshot = computeMonthClosingSnapshot({
     yearMonth: "2026-09",
     income: 0,
-    transactions: [{ dueDate: "2026-09-05", amount: 300, categoryKey: "lazer", categoryLabel: "Lazer" }],
+    transactions: [{ dueDate: "2026-09-05", description: "Show", amount: 300, categoryKey: "lazer", categoryLabel: "Lazer" }],
     cardInstallments: [],
     fixedAccountsTotal: 0,
     investmentsTotal: 0,
@@ -260,9 +280,9 @@ test("computeMonthClosingSnapshot: duas categorias diferentes não se misturam (
     yearMonth: "2026-09",
     income: 1000,
     transactions: [
-      { dueDate: "2026-09-01", amount: 50, categoryKey: "saude", categoryLabel: "Saúde" },
-      { dueDate: "2026-09-02", amount: 30, categoryKey: "saude", categoryLabel: "Saúde" },
-      { dueDate: "2026-09-03", amount: 20, categoryKey: "lazer", categoryLabel: "Lazer" },
+      { dueDate: "2026-09-01", description: "Consulta", amount: 50, categoryKey: "saude", categoryLabel: "Saúde" },
+      { dueDate: "2026-09-02", description: "Farmácia", amount: 30, categoryKey: "saude", categoryLabel: "Saúde" },
+      { dueDate: "2026-09-03", description: "Cinema", amount: 20, categoryKey: "lazer", categoryLabel: "Lazer" },
     ],
     cardInstallments: [],
     fixedAccountsTotal: 0,
@@ -316,6 +336,8 @@ test("computeFutureMonthsHorizon: soma parcelas por mês dentro do horizonte e i
         purchaseDescription: "Mercado",
         installmentNumber: 1,
         installmentsTotal: 2,
+        categoryKey: "alimentacao",
+        categoryLabel: "Alimentação",
       },
       {
         dueDate: "2026-10-15",
@@ -324,6 +346,7 @@ test("computeFutureMonthsHorizon: soma parcelas por mês dentro do horizonte e i
         purchaseDescription: "Farmácia",
         installmentNumber: 1,
         installmentsTotal: 1,
+        // sem categoria informada — deve cair no rótulo padrão de cartão
       },
       // fora do horizonte de 10 meses (mês base + 11) — deve ser ignorada
       {
@@ -342,6 +365,11 @@ test("computeFutureMonthsHorizon: soma parcelas por mês dentro do horizonte e i
   assert.ok(outubro);
   assert.equal(outubro!.amount, 150);
   assert.equal(outubro!.items.length, 2);
+  const comCategoria = outubro!.items.find((i) => i.cardName === "Nubank");
+  assert.equal(comCategoria!.categoryKey, "alimentacao");
+  const semCategoria = outubro!.items.find((i) => i.cardName === "Itaú");
+  assert.equal(semCategoria!.categoryKey, "cartao_sem_categoria");
+  assert.equal(semCategoria!.categoryLabel, "Cartão (sem categoria)");
 
   // mês fora do horizonte não deve gerar nenhum bucket com esse valor
   const foraDoHorizonte = horizon.find((b) => b.yearMonth === "2027-09");
@@ -361,4 +389,60 @@ test("computeFutureMonthsHorizon: monthsAhead customizado limita o tamanho do ho
     horizon.map((b) => b.yearMonth),
     ["2026-10", "2026-11", "2026-12"]
   );
+});
+
+// ---------------------------------------------------------------------------
+// spendingStatus.ts — resumo didático do painel (substitui o anel de %)
+// ---------------------------------------------------------------------------
+
+test("computeSpendingStatus: sem renda cadastrada (percent null) não quebra e sinaliza estado neutro", () => {
+  const status = computeSpendingStatus(null);
+  assert.equal(status.level, "sem-renda");
+  assert.equal(status.meterPercent, 0);
+  assert.equal(status.isExtreme, false);
+  assert.equal(status.multiplier, null);
+  assert.match(spendingStatusSentence(status), /Cadastre sua renda/);
+});
+
+test("computeSpendingStatus: abaixo de 70% é 'Sob controle' (verde), mesma faixa de antes", () => {
+  const status = computeSpendingStatus(35);
+  assert.equal(status.level, "controle");
+  assert.equal(status.label, "Sob controle");
+  assert.equal(status.color, "#22c55e");
+  assert.equal(status.meterPercent, 35);
+  assert.equal(status.isExtreme, false);
+});
+
+test("computeSpendingStatus: entre 70% e 99% é 'Atenção' (âmbar)", () => {
+  const status = computeSpendingStatus(85);
+  assert.equal(status.level, "atencao");
+  assert.equal(status.color, "#f59e0b");
+  assert.equal(status.meterPercent, 85);
+});
+
+test("computeSpendingStatus: 100% ou mais é 'Renda estourada' (vermelho), medidor nunca passa de 100", () => {
+  const status = computeSpendingStatus(140);
+  assert.equal(status.level, "estourado");
+  assert.equal(status.color, "#ef4444");
+  assert.equal(status.meterPercent, 100); // limitado, não "dá a volta"
+  assert.equal(status.isExtreme, false);
+});
+
+test("computeSpendingStatus: percentual extremo (>=1000%) vira múltiplo em vez de número gigante — o bug real do Marcelo", () => {
+  // Caso real detectado: renda cadastrada muito baixa (~R$31) gerando
+  // 38266.67% — exatamente o que confundiu o Marcelo no painel.
+  const status = computeSpendingStatus(38266.67);
+  assert.equal(status.level, "estourado");
+  assert.equal(status.meterPercent, 100);
+  assert.equal(status.isExtreme, true);
+  assert.equal(status.multiplier, 383); // Math.round(38266.67 / 100)
+  assert.match(spendingStatusSentence(status), /renda desatualizado/);
+});
+
+test("computeSpendingStatus: limiar exato de 1000% já conta como extremo", () => {
+  const abaixo = computeSpendingStatus(999.9);
+  assert.equal(abaixo.isExtreme, false);
+  const noLimite = computeSpendingStatus(1000);
+  assert.equal(noLimite.isExtreme, true);
+  assert.equal(noLimite.multiplier, 10);
 });

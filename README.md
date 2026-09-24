@@ -43,6 +43,8 @@ node e2e/auth.smoke.mjs              # cadastro, login, logout, proteção de ro
 node e2e/full-flow.smoke.mjs         # fluxo completo: lançamento, cartão, fatura, investimento, conta fixa, fechamento
 node e2e/new-features.smoke.mjs      # metas de investimento, limites por categoria, PDF do fechamento mensal
 node e2e/dashboard-cards-upgrade.smoke.mjs   # gasto do próximo mês, gráfico de parcelas (3 meses + filtro de 10), editar compra no cartão, PDF por cartão
+node e2e/dashboard-mes-filtro-listas.smoke.mjs   # seletor de mês (até 3 à frente), total somado, listas colapsáveis "Ver mais"
+node e2e/dashboard-painel-didatico.smoke.mjs     # resumo didático (frase + barra + composição + investido separado), busca de categoria com detalhe, filtro por categoria nas parcelas futuras
 WHATSAPP_WEBHOOK_SECRET=... node e2e/whatsapp-webhook.smoke.mjs   # endpoint do WhatsApp (use o mesmo valor do .env.local)
 node e2e/admin-panel.smoke.mjs       # painel /admin: aprovar, suspender, reativar, vencimento, controle de acesso
 ```

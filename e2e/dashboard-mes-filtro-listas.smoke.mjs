@@ -127,9 +127,14 @@ if (monthSelectExists) {
   await page.waitForURL((url) => url.searchParams.get("mes") === nextYearMonth, { timeout: 10000 });
   dashBody = await page.textContent("body");
   check("painel indica '(mês selecionado)' após trocar o mês", dashBody.includes("(mês selecionado)"));
+  // A descrição de cada compra só aparece VISIVELMENTE se o usuário buscar/
+  // selecionar a categoria (busca+detalhe da categoria, feature nova) — por
+  // isso usa innerText (texto realmente renderizado) em vez de textContent
+  // (que também pega o payload de hidratação embutido no HTML, invisível).
+  const dashVisibleText = await page.innerText("body");
   check(
-    "painel do mês selecionado mostra as 7 parcelas lançadas para o mês que vem",
-    dashBody.includes("Compra Colapso 1") === false // essas parcelas aparecem na lista de futuros, não na de lançamentos do mês
+    "painel do mês selecionado NÃO mostra de cara a descrição das 7 parcelas (só some ao buscar a categoria)",
+    dashVisibleText.includes("Compra Colapso 1") === false
   );
   // O gasto do mês selecionado (mês que vem) deve refletir as 7 compras de
   // R$50 lançadas no cartão para esse mês = R$ 350,00 (sem o prefixo "R$"
@@ -138,15 +143,15 @@ if (monthSelectExists) {
 }
 
 // ============================================================
-// 2) Campo com a somatória (contas fixas + gasto do mês + gasto do mês
-//    que vem), mantendo os campos individuais
+// 2) Resumo didático do painel mostra o total comprometido (mês + mês que
+//    vem + contas fixas) na frase de abertura do card, mantendo os campos
+//    individuais na barra de composição — substitui o antigo campo solto
+//    "Total (mês + mês que vem + contas fixas)" pedido pelo Marcelo depois
+//    de achar a % difícil de entender.
 // ============================================================
 await page.goto(`${BASE}/dashboard`);
 let dashHomeBody = await page.textContent("body");
-check(
-  "painel mostra o campo de total somado",
-  dashHomeBody.includes("Total (mês + mês que vem + contas fixas)")
-);
+check("painel mostra a frase de resumo com o total comprometido", dashHomeBody.includes("comprometidos este mês"));
 check("painel ainda mostra os campos individuais (Gasto no mês, Contas fixas)", dashHomeBody.includes("Gasto no mês") && dashHomeBody.includes("Contas fixas"));
 // Contas fixas ativas somam R$ 600,00 (6 x R$100) + gasto do mês que vem
 // R$ 350,00 (7 parcelas de R$50) + gasto do mês atual (lançamentos de R$10

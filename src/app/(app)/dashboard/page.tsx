@@ -5,11 +5,11 @@ import { withRLS } from "@/db/client";
 import { loadClosingInputsForUser } from "@/lib/queries/monthClosing";
 import { listCardsForUser } from "@/lib/queries/cards";
 import { computeMonthClosingSnapshot, computeFutureMonthsHorizon } from "@/lib/business/monthClosing";
+import { computeSpendingStatus, spendingStatusSentence } from "@/lib/business/spendingStatus";
 import { currentYearMonth, addMonthsToYearMonth } from "@/lib/business/dates";
-import { formatYearMonthBR } from "@/lib/format";
+import { formatYearMonthBR, formatBRL } from "@/lib/format";
 import { Money } from "@/components/Money";
 import { CategoryBarChart, FutureMonthsBarChart } from "@/components/DashboardCharts";
-import { CircularProgress } from "@/components/CircularProgress";
 import { TiltCard } from "@/components/TiltCard";
 import { CardPdfPicker } from "@/components/CardPdfPicker";
 import { DashboardMonthSelect } from "@/components/DashboardMonthSelect";
@@ -79,6 +79,32 @@ export default async function DashboardPage({
     monthsAhead: 10,
   });
 
+  // Resumo didático do mês (substitui o anel de % + 4 caixinhas) — pedido
+  // do Marcelo depois de achar a % "complicada de entender": uma frase em
+  // português simples, uma barra de progresso que nunca estoura visualmente
+  // e uma barra de composição mostrando de onde vem o total. Ver
+  // src/lib/business/spendingStatus.ts para a lógica (mesmas faixas de
+  // cor/rótulo que já existiam).
+  const spendingStatus = computeSpendingStatus(snapshot.totalPercentOfIncome);
+  const spendingSentence = spendingStatusSentence(spendingStatus);
+  const percentLine =
+    spendingStatus.level === "sem-renda"
+      ? null
+      : spendingStatus.isExtreme
+        ? `Isso é cerca de ${spendingStatus.multiplier}x a renda que você cadastrou.`
+        : `${Math.round(snapshot.totalPercentOfIncome ?? 0)}% da sua renda de ${formatBRL(income)}.`;
+
+  // Composição do total comprometido — usada na barra empilhada. Guarda
+  // contra divisão por zero quando ainda não há nenhum gasto no mês.
+  const mix =
+    combinedTotal > 0
+      ? {
+          gastoMesPct: (snapshot.totalSpent / combinedTotal) * 100,
+          gastoProxPct: (nextMonthSnapshot.totalSpent / combinedTotal) * 100,
+          contasPct: (snapshot.fixedAccountsTotal / combinedTotal) * 100,
+        }
+      : { gastoMesPct: 0, gastoProxPct: 0, contasPct: 0 };
+
   return (
     <div className="relative">
       {/* Manchas de luz decorativas atrás do conteúdo — dão profundidade ao
@@ -116,46 +142,81 @@ export default async function DashboardPage({
           />
         </div>
 
-        {/* Hero: o indicador mais importante do mês (% da renda comprometida)
-            ganha destaque visual em anel, com as demais métricas ao lado —
-            em vez de 4 caixinhas do mesmo tamanho competindo por atenção. */}
-        <TiltCard className="glass-card animate-rise-in flex flex-col items-center gap-6 rounded-2xl p-5 sm:flex-row sm:items-stretch sm:gap-8">
-          <div className="flex flex-col items-center justify-center gap-1 sm:border-r sm:border-navy-800/70 sm:pr-8">
-            <CircularProgress percent={snapshot.totalPercentOfIncome} label="da renda" />
-            <span className="text-xs text-navy-500">Gastos + contas fixas</span>
+        {/* Hero: resumo do mês em português simples — uma frase abrindo o
+            card, uma barra de progresso que nunca estoura visualmente (cor
+            muda pelas mesmas faixas de sempre) e uma barra de composição
+            mostrando de onde vem o total, em vez de 4 caixinhas soltas do
+            mesmo tamanho. O investido fica fora dessa conta (não é gasto). */}
+        <TiltCard className="glass-card animate-rise-in flex flex-col gap-6 rounded-2xl p-5 sm:p-7">
+          <div className="flex flex-col gap-1.5">
+            <span className="text-xs text-navy-500">{formatYearMonthBR(yearMonth)}</span>
+            <span className="text-2xl font-bold text-navy-100 sm:text-3xl">
+              <Money value={combinedTotal} /> comprometidos este mês
+            </span>
+            <span className="text-sm leading-relaxed" style={{ color: spendingStatus.color }}>
+              {spendingSentence}
+            </span>
           </div>
-          <div className="flex flex-1 flex-col gap-3">
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <MiniStat label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} icon="💸" />
-              <MiniStat
+
+          <div className="flex flex-col gap-2">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-navy-500">% da renda comprometida</span>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${spendingStatus.badgeClass}`}>
+                {spendingStatus.label}
+              </span>
+            </div>
+            <div className="h-3.5 w-full overflow-hidden rounded-full bg-navy-800">
+              <div
+                className="h-full rounded-full transition-all"
+                style={{ width: `${spendingStatus.meterPercent}%`, background: spendingStatus.color }}
+              />
+            </div>
+            {percentLine && <span className="text-xs text-navy-500">{percentLine}</span>}
+          </div>
+
+          <div className="border-t border-navy-800/70" />
+
+          <div className="flex flex-col gap-2.5">
+            <span className="text-xs text-navy-500">De onde vem esse total</span>
+            <div className="flex h-5 gap-0.5 overflow-hidden rounded-lg">
+              <div style={{ width: `${mix.gastoMesPct}%`, background: "#60a5fa" }} />
+              <div style={{ width: `${mix.gastoProxPct}%`, background: "#a78bfa" }} />
+              <div style={{ width: `${mix.contasPct}%`, background: "#2dd4bf" }} />
+            </div>
+            <div className="flex flex-wrap gap-x-6 gap-y-2">
+              <CompositionLegendItem color="#60a5fa" label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} />
+              <CompositionLegendItem
+                color="#a78bfa"
                 label="Gasto no mês que vem"
                 value={<Money value={nextMonthSnapshot.totalSpent} />}
-                icon="📅"
               />
-              <MiniStat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} icon="🏠" />
-              <MiniStat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} icon="📈" />
+              <CompositionLegendItem
+                color="#2dd4bf"
+                label="Contas fixas"
+                value={<Money value={snapshot.fixedAccountsTotal} />}
+              />
             </div>
-            {/* Campo com a somatória dos três valores acima (menos o
-                investido, que não é um compromisso de gasto) — pedido do
-                Marcelo pra ver de uma vez o total comprometido entre o mês
-                exibido, o mês seguinte e as contas fixas, sem precisar somar
-                os campos individuais na cabeça. Os campos individuais
-                continuam aparecendo normalmente, acima. */}
-            <div className="flex items-center justify-between rounded-xl border px-3 py-2.5 border-blue-900/50 bg-blue-950/30">
-              <span className="text-xs font-medium text-blue-300">
-                Total (mês + mês que vem + contas fixas)
-              </span>
-              <span className="text-base font-bold text-navy-100">
-                <Money value={combinedTotal} />
+          </div>
+
+          <div className="border-t border-navy-800/70" />
+
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-900/50 bg-emerald-950/20 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" aria-hidden />
+              <span className="text-xs text-emerald-200/90 sm:text-sm">
+                Investido no mês — não entra na conta acima, é dinheiro guardado, não gasto
               </span>
             </div>
+            <span className="shrink-0 text-sm font-bold text-emerald-100">
+              <Money value={snapshot.investmentsTotal} />
+            </span>
           </div>
         </TiltCard>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           <TiltCard className="glass-card animate-rise-in stagger-1 rounded-2xl p-4">
             <h2 className="mb-2 text-sm font-semibold text-navy-300">Gastos por categoria</h2>
-            <CategoryBarChart data={snapshot.categoryTotals} />
+            <CategoryBarChart data={snapshot.categoryTotals} items={snapshot.categoryItems} />
           </TiltCard>
           <TiltCard className="glass-card animate-rise-in stagger-2 rounded-2xl p-4">
             <h2 className="mb-2 text-sm font-semibold text-navy-300">
@@ -184,14 +245,12 @@ export default async function DashboardPage({
   );
 }
 
-function MiniStat({ label, value, icon }: { label: string; value: ReactNode; icon?: string }) {
+function CompositionLegendItem({ color, label, value }: { color: string; label: string; value: ReactNode }) {
   return (
-    <div className="flex flex-col justify-center rounded-xl px-3 py-2.5 transition-transform duration-200 bg-navy-800/60 hover:-translate-y-0.5">
-      <div className="flex items-center gap-1.5 text-xs text-navy-400">
-        {icon && <span aria-hidden>{icon}</span>}
-        {label}
-      </div>
-      <div className="mt-0.5 text-base font-semibold text-navy-100">{value}</div>
+    <div className="flex items-center gap-2">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color }} aria-hidden />
+      <span className="text-xs text-navy-400">{label}</span>
+      <span className="text-xs font-semibold text-navy-100">{value}</span>
     </div>
   );
 }
