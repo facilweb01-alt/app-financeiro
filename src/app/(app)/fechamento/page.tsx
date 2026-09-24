@@ -10,6 +10,7 @@ import { computeMonthClosingSnapshot, type MonthClosingSnapshot } from "@/lib/bu
 import { currentYearMonth } from "@/lib/business/dates";
 import { formatYearMonthBR, formatPercentBR } from "@/lib/format";
 import { Money } from "@/components/Money";
+import { CollapsibleItems } from "@/components/CollapsibleList";
 import { IncomeForm } from "./IncomeForm";
 import { CloseMonthForm } from "./CloseMonthForm";
 import { WhatsappPhoneForm } from "./WhatsappPhoneForm";
@@ -36,17 +37,20 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
           <p className="text-sm text-navy-500">Sem lançamentos nesse mês.</p>
         ) : (
           <ul className="flex flex-col gap-1">
-            {snapshot.categoryTotals.map((c) => (
-              <li key={c.categoryKey} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm bg-navy-950/50">
-                <span>{c.categoryLabel}</span>
-                <span>
-                  <span className="font-medium"><Money value={c.amount} /></span>
-                  {c.percentOfIncome !== null && (
-                    <span className="ml-2 text-xs text-navy-400">({formatPercentBR(c.percentOfIncome)} da renda)</span>
-                  )}
-                </span>
-              </li>
-            ))}
+            <CollapsibleItems
+              itemLabel="categoria"
+              items={snapshot.categoryTotals.map((c) => (
+                <li key={c.categoryKey} className="flex items-center justify-between rounded-lg px-3 py-2 text-sm bg-navy-950/50">
+                  <span>{c.categoryLabel}</span>
+                  <span>
+                    <span className="font-medium"><Money value={c.amount} /></span>
+                    {c.percentOfIncome !== null && (
+                      <span className="ml-2 text-xs text-navy-400">({formatPercentBR(c.percentOfIncome)} da renda)</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            />
           </ul>
         )}
       </div>
@@ -59,22 +63,29 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
           <p className="text-sm text-navy-500">Nenhuma parcela pendente para os próximos meses.</p>
         ) : (
           <ul className="flex flex-col gap-2">
-            {snapshot.pendingByFutureMonth.map((bucket) => (
-              <li key={bucket.yearMonth} className="rounded-lg border p-3 border-navy-800">
-                <div className="flex items-center justify-between text-sm font-medium">
-                  <span>{formatYearMonthBR(bucket.yearMonth)}</span>
-                  <span><Money value={bucket.amount} /></span>
-                </div>
-                <ul className="mt-1 flex flex-col gap-0.5 text-xs text-navy-400">
-                  {bucket.items.map((item, idx) => (
-                    <li key={idx}>
-                      {item.cardName} · {item.purchaseDescription} ({item.installmentNumber}/{item.installmentsTotal}) —{" "}
-                      <Money value={item.amount} />
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
+            <CollapsibleItems
+              itemLabel="mês"
+              items={snapshot.pendingByFutureMonth.map((bucket) => (
+                <li key={bucket.yearMonth} className="rounded-lg border p-3 border-navy-800">
+                  <div className="flex items-center justify-between text-sm font-medium">
+                    <span>{formatYearMonthBR(bucket.yearMonth)}</span>
+                    <span><Money value={bucket.amount} /></span>
+                  </div>
+                  <ul className="mt-1 flex flex-col gap-0.5 text-xs text-navy-400">
+                    <CollapsibleItems
+                      itemLabel="parcela"
+                      initialCount={4}
+                      items={bucket.items.map((item, idx) => (
+                        <li key={idx}>
+                          {item.cardName} · {item.purchaseDescription} ({item.installmentNumber}/
+                          {item.installmentsTotal}) — <Money value={item.amount} />
+                        </li>
+                      ))}
+                    />
+                  </ul>
+                </li>
+              ))}
+            />
           </ul>
         )}
       </div>
