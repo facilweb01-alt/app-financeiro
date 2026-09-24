@@ -2,6 +2,7 @@ import { toYearMonth, compareYearMonth, addMonthsToYearMonth } from "./dates";
 
 export type TransactionLike = {
   dueDate: string; // "YYYY-MM-DD"
+  description: string;
   amount: number;
   categoryKey: string;
   categoryLabel: string;
@@ -25,16 +26,34 @@ export type CategoryTotal = {
   percentOfIncome: number | null; // null quando não há renda informada
 };
 
+// Um lançamento/parcela individual dentro do mês fechado, já marcado com a
+// origem (lançamento manual do dia a dia, ou parcela de cartão) — é o que
+// alimenta a lista de detalhe ao pesquisar/selecionar uma categoria no
+// painel (pedido do Marcelo: "colocar um filtro para saber os gastos"
+// misturando cartão e lançamentos do dia a dia dentro de cada categoria).
+export type MonthCategoryItem = {
+  categoryKey: string;
+  categoryLabel: string;
+  description: string;
+  amount: number;
+  dueDate: string;
+  origin: "lancamento" | "cartao";
+};
+
+export type FutureMonthItemDetail = {
+  cardName: string;
+  purchaseDescription: string;
+  installmentNumber: number;
+  installmentsTotal: number;
+  amount: number;
+  categoryKey: string;
+  categoryLabel: string;
+};
+
 export type FutureMonthPending = {
   yearMonth: string;
   amount: number;
-  items: {
-    cardName: string;
-    purchaseDescription: string;
-    installmentNumber: number;
-    installmentsTotal: number;
-    amount: number;
-  }[];
+  items: FutureMonthItemDetail[];
 };
 
 export type MonthClosingSnapshot = {
@@ -54,6 +73,9 @@ export type MonthClosingSnapshot = {
   // "identificar as demais faltantes e valores a vencer já somando nos
   // próximos meses".
   pendingByFutureMonth: FutureMonthPending[];
+  // Cada lançamento/parcela individual que caiu no mês fechado, um por um
+  // (não agregado) — usado pela busca+detalhe de categoria no painel.
+  categoryItems: MonthCategoryItem[];
 };
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -92,10 +114,20 @@ export function computeMonthClosingSnapshot(params: {
     }
   };
 
+  const categoryItems: MonthCategoryItem[] = [];
+
   // Lançamentos manuais com vencimento dentro do mês fechado.
   for (const tx of transactions) {
     if (toYearMonth(tx.dueDate) === yearMonth) {
       addToCategory(tx.categoryKey, tx.categoryLabel, tx.amount);
+      categoryItems.push({
+        categoryKey: tx.categoryKey,
+        categoryLabel: tx.categoryLabel,
+        description: tx.description,
+        amount: tx.amount,
+        dueDate: tx.dueDate,
+        origin: "lancamento",
+      });
     }
   }
 
@@ -103,8 +135,18 @@ export function computeMonthClosingSnapshot(params: {
   const futureBuckets = new Map<string, FutureMonthPending>();
   for (const inst of cardInstallments) {
     const instYearMonth = toYearMonth(inst.dueDate);
+    const categoryKey = inst.categoryKey ?? "cartao_sem_categoria";
+    const categoryLabel = inst.categoryLabel ?? "Cartão (sem categoria)";
     if (instYearMonth === yearMonth) {
-      addToCategory(inst.categoryKey ?? "cartao_sem_categoria", inst.categoryLabel ?? "Cartão (sem categoria)", inst.amount);
+      addToCategory(categoryKey, categoryLabel, inst.amount);
+      categoryItems.push({
+        categoryKey,
+        categoryLabel,
+        description: `${inst.cardName} — ${inst.purchaseDescription} (${inst.installmentNumber}/${inst.installmentsTotal})`,
+        amount: inst.amount,
+        dueDate: inst.dueDate,
+        origin: "cartao",
+      });
     } else if (compareYearMonth(instYearMonth, yearMonth) > 0) {
       // Parcela ainda não vencida, cai em algum mês futuro: entra na projeção.
       let bucket = futureBuckets.get(instYearMonth);
@@ -119,6 +161,8 @@ export function computeMonthClosingSnapshot(params: {
         installmentNumber: inst.installmentNumber,
         installmentsTotal: inst.installmentsTotal,
         amount: inst.amount,
+        categoryKey,
+        categoryLabel,
       });
     }
     // Parcelas com vencimento em meses já passados (anteriores ao mês
@@ -153,13 +197,14 @@ export function computeMonthClosingSnapshot(params: {
     fixedAccountsTotal: round2(fixedAccountsTotal),
     investmentsTotal: round2(investmentsTotal),
     pendingByFutureMonth,
+    categoryItems,
   };
 }
 
 export type FutureMonthHorizonEntry = {
   yearMonth: string;
   amount: number;
-  items: FutureMonthPending["items"];
+  items: FutureMonthItemDetail[];
 };
 
 /**
@@ -196,6 +241,8 @@ export function computeFutureMonthsHorizon(params: {
       installmentNumber: inst.installmentNumber,
       installmentsTotal: inst.installmentsTotal,
       amount: inst.amount,
+      categoryKey: inst.categoryKey ?? "cartao_sem_categoria",
+      categoryLabel: inst.categoryLabel ?? "Cartão (sem categoria)",
     });
   }
 
