@@ -143,20 +143,34 @@ if (monthSelectExists) {
 }
 
 // ============================================================
-// 2) Resumo didático do painel mostra o total comprometido (mês + mês que
-//    vem + contas fixas) na frase de abertura do card, mantendo os campos
-//    individuais na barra de composição — substitui o antigo campo solto
-//    "Total (mês + mês que vem + contas fixas)" pedido pelo Marcelo depois
-//    de achar a % difícil de entender.
+// 2) Resumo didático do painel mostra o total comprometido (SÓ do mês
+//    exibido: gasto do mês + contas fixas) na frase de abertura do card,
+//    mantendo os campos individuais na barra de composição — substitui o
+//    antigo campo solto "Total" pedido pelo Marcelo depois de achar a %
+//    difícil de entender.
+//
+// Corrigido em 24/09/2026 (bug real reportado pelo Lucas, cliente do
+// Marcelo, em vídeo no WhatsApp): esse total ERA mês + mês que vem +
+// contas fixas, o que inflava o valor do mês exibido com uma fatia do mês
+// seguinte. Agora é só gasto do mês + contas fixas — "Gasto no mês que
+// vem" continua no painel, mas como card informativo separado (não entra
+// nessa soma). Ver comentário do `combinedTotal` em
+// src/app/(app)/dashboard/page.tsx.
 // ============================================================
 await page.goto(`${BASE}/dashboard`);
 let dashHomeBody = await page.textContent("body");
 check("painel mostra a frase de resumo com o total comprometido", dashHomeBody.includes("comprometidos este mês"));
 check("painel ainda mostra os campos individuais (Gasto no mês, Contas fixas)", dashHomeBody.includes("Gasto no mês") && dashHomeBody.includes("Contas fixas"));
-// Contas fixas ativas somam R$ 600,00 (6 x R$100) + gasto do mês que vem
-// R$ 350,00 (7 parcelas de R$50) + gasto do mês atual (lançamentos de R$10
-// x 8 = R$80) = R$ 1.030,00.
-check("total somado bate com o esperado (R$ 1.030,00)", dashHomeBody.includes("1.030,00"));
+// Contas fixas ativas somam R$ 600,00 (6 x R$100) + gasto do mês atual
+// (lançamentos de R$10 x 8 = R$80) = R$ 680,00 — SEM o gasto do mês que
+// vem (R$ 350,00), que agora fica de fora dessa conta.
+check("total do mês bate com o esperado (R$ 680,00), sem somar o mês que vem", dashHomeBody.includes("680,00"));
+check(
+  "painel mostra o gasto do mês que vem (R$ 350,00) separado, com aviso de que não entra na conta",
+  dashHomeBody.includes("Gasto no mês que vem") &&
+    dashHomeBody.includes("não entra na conta acima") &&
+    dashHomeBody.includes("350,00")
+);
 
 // ============================================================
 // 3) Botão de minimizar/expandir em listas de lançamentos por toda a app
