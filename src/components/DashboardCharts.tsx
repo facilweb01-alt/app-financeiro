@@ -169,8 +169,11 @@ export function CategoryBarChart({ data }: { data: CategorySlice[] }) {
  * específico, sem alterar as barras do gráfico — comportamento pedido
  * explicitamente pelo Marcelo pra não deixar o gráfico "pulando" de mês.
  */
+const FUTURE_ITEMS_INITIAL_COUNT = 5;
+
 export function FutureMonthsBarChart({ data }: { data: FutureBucket[] }) {
   const [selectedMonth, setSelectedMonth] = useState<string>("");
+  const [itemsExpanded, setItemsExpanded] = useState(false);
 
   const chartMonths = data.slice(0, 3);
   const chartData = chartMonths.map((d, index) => ({
@@ -205,7 +208,10 @@ export function FutureMonthsBarChart({ data }: { data: FutureBucket[] }) {
         <select
           id="future-month-filter"
           value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
+          onChange={(e) => {
+            setSelectedMonth(e.target.value);
+            setItemsExpanded(false); // troca de mês reseta a lista pro estado recolhido
+          }}
           className="w-full rounded-lg border px-2 py-1.5 text-xs border-navy-700 bg-navy-900 text-navy-200"
         >
           <option value="">Escolher mês (até 10 à frente)</option>
@@ -228,14 +234,31 @@ export function FutureMonthsBarChart({ data }: { data: FutureBucket[] }) {
             <p className="mt-1 text-xs text-navy-500">Nenhuma parcela prevista para esse mês.</p>
           ) : (
             <ul className="mt-2 flex flex-col gap-1 text-xs text-navy-300">
-              {selected.items.map((item, idx) => (
-                <li key={idx} className="flex items-center justify-between gap-2">
-                  <span>
-                    {item.cardName} · {item.purchaseDescription} ({item.installmentNumber}/{item.installmentsTotal})
-                  </span>
-                  <span className="shrink-0 font-medium text-navy-200">{formatBRL(item.amount)}</span>
+              {(itemsExpanded ? selected.items : selected.items.slice(0, FUTURE_ITEMS_INITIAL_COUNT)).map(
+                (item, idx) => (
+                  <li key={idx} className="flex items-center justify-between gap-2">
+                    <span>
+                      {item.cardName} · {item.purchaseDescription} ({item.installmentNumber}/{item.installmentsTotal})
+                    </span>
+                    <span className="shrink-0 font-medium text-navy-200">{formatBRL(item.amount)}</span>
+                  </li>
+                )
+              )}
+              {selected.items.length > FUTURE_ITEMS_INITIAL_COUNT && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => setItemsExpanded((v) => !v)}
+                    className="text-[11px] font-medium text-blue-400 hover:underline"
+                  >
+                    {itemsExpanded
+                      ? "Mostrar menos"
+                      : `Ver mais ${selected.items.length - FUTURE_ITEMS_INITIAL_COUNT} parcela${
+                          selected.items.length - FUTURE_ITEMS_INITIAL_COUNT === 1 ? "" : "s"
+                        }`}
+                  </button>
                 </li>
-              ))}
+              )}
             </ul>
           )}
         </div>
