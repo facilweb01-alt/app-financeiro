@@ -64,10 +64,23 @@ export default async function DashboardPage({
     investmentsTotal: inputs.investmentsByYearMonth(nextYearMonth),
   });
 
-  // Soma dos três valores que o Marcelo pediu pra ver somados de uma vez:
-  // gasto do mês exibido + gasto do mês seguinte + contas fixas — além dos
-  // campos individuais, que continuam aparecendo normalmente.
-  const combinedTotal = snapshot.totalSpent + nextMonthSnapshot.totalSpent + snapshot.fixedAccountsTotal;
+  // Total comprometido do MÊS EXIBIDO (gasto variável + contas fixas do
+  // próprio mês) — igual a `snapshot.totalCommitted`, é sobre esse número
+  // que a % de renda logo abaixo é calculada.
+  //
+  // Bug real reportado pelo Lucas (cliente do Marcelo) em vídeo no
+  // WhatsApp em 24/09/2026, um dia depois do PR #7 ir pro ar: esse total
+  // (rotulado "comprometidos ESTE MÊS") estava somando também o gasto do
+  // mês SEGUINTE, então trocar o seletor de mês inflava o número do mês
+  // escolhido com uma fatia do mês de depois — em alguns casos estourando
+  // a renda de um mês que, sozinho, nem chegava perto disso. Também batia
+  // de frente com a % de renda mostrada bem abaixo, que sempre foi só do
+  // mês exibido (nunca somou o mês seguinte) — os dois números não
+  // conversavam entre si. "Gasto no mês que vem" continua visível no
+  // painel (pedido antigo do Marcelo), mas agora como informação separada,
+  // do mesmo jeito que "Investido no mês" já era — nunca dentro do total
+  // do mês.
+  const combinedTotal = snapshot.totalCommitted;
 
   // Horizonte de 10 meses pro filtro do gráfico de parcelas a vencer —
   // diferente do `snapshot.pendingByFutureMonth` (que só lista meses com
@@ -94,16 +107,17 @@ export default async function DashboardPage({
         ? `Isso é cerca de ${spendingStatus.multiplier}x a renda que você cadastrou.`
         : `${Math.round(snapshot.totalPercentOfIncome ?? 0)}% da sua renda de ${formatBRL(income)}.`;
 
-  // Composição do total comprometido — usada na barra empilhada. Guarda
-  // contra divisão por zero quando ainda não há nenhum gasto no mês.
+  // Composição do total comprometido — usada na barra empilhada. Só o
+  // gasto do MÊS EXIBIDO e as contas fixas (ver comentário do
+  // `combinedTotal` acima); o mês que vem saiu daqui. Guarda contra
+  // divisão por zero quando ainda não há nenhum gasto no mês.
   const mix =
     combinedTotal > 0
       ? {
           gastoMesPct: (snapshot.totalSpent / combinedTotal) * 100,
-          gastoProxPct: (nextMonthSnapshot.totalSpent / combinedTotal) * 100,
           contasPct: (snapshot.fixedAccountsTotal / combinedTotal) * 100,
         }
-      : { gastoMesPct: 0, gastoProxPct: 0, contasPct: 0 };
+      : { gastoMesPct: 0, contasPct: 0 };
 
   return (
     <div className="relative">
@@ -146,7 +160,9 @@ export default async function DashboardPage({
             card, uma barra de progresso que nunca estoura visualmente (cor
             muda pelas mesmas faixas de sempre) e uma barra de composição
             mostrando de onde vem o total, em vez de 4 caixinhas soltas do
-            mesmo tamanho. O investido fica fora dessa conta (não é gasto). */}
+            mesmo tamanho. O total é só do mês exibido (gasto + contas
+            fixas); "Gasto no mês que vem" e "Investido" ficam fora dessa
+            conta, cada um no seu próprio card informativo abaixo. */}
         <TiltCard className="glass-card animate-rise-in flex flex-col gap-6 rounded-2xl p-5 sm:p-7">
           <div className="flex flex-col gap-1.5">
             <span className="text-xs text-navy-500">{formatYearMonthBR(yearMonth)}</span>
@@ -180,16 +196,10 @@ export default async function DashboardPage({
             <span className="text-xs text-navy-500">De onde vem esse total</span>
             <div className="flex h-5 gap-0.5 overflow-hidden rounded-lg">
               <div style={{ width: `${mix.gastoMesPct}%`, background: "#60a5fa" }} />
-              <div style={{ width: `${mix.gastoProxPct}%`, background: "#a78bfa" }} />
               <div style={{ width: `${mix.contasPct}%`, background: "#2dd4bf" }} />
             </div>
             <div className="flex flex-wrap gap-x-6 gap-y-2">
               <CompositionLegendItem color="#60a5fa" label="Gasto no mês" value={<Money value={snapshot.totalSpent} />} />
-              <CompositionLegendItem
-                color="#a78bfa"
-                label="Gasto no mês que vem"
-                value={<Money value={nextMonthSnapshot.totalSpent} />}
-              />
               <CompositionLegendItem
                 color="#2dd4bf"
                 label="Contas fixas"
@@ -199,6 +209,22 @@ export default async function DashboardPage({
           </div>
 
           <div className="border-t border-navy-800/70" />
+
+          {/* Gasto do mês seguinte — informativo, fora da conta do total
+              acima (ver comentário do `combinedTotal`). Mesmo tratamento
+              visual do card "Investido no mês" logo abaixo, só que roxo
+              (mesma cor que esse valor já usava na barra de composição). */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-violet-900/50 bg-violet-950/20 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-violet-400" aria-hidden />
+              <span className="text-xs text-violet-200/90 sm:text-sm">
+                Gasto no mês que vem ({formatYearMonthBR(nextYearMonth)}) — não entra na conta acima, é só um adiantamento do que já está previsto
+              </span>
+            </div>
+            <span className="shrink-0 text-sm font-bold text-violet-100">
+              <Money value={nextMonthSnapshot.totalSpent} />
+            </span>
+          </div>
 
           <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-900/50 bg-emerald-950/20 px-4 py-3">
             <div className="flex items-center gap-2.5">

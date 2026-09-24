@@ -118,17 +118,29 @@ await addCardPurchase({ description: "Posto Combustivel", categoryLabel: "Gasoli
 await page.goto(`${BASE}/dashboard`);
 let dashBody = await page.textContent("body");
 
+// Corrigido em 24/09/2026 (bug real reportado pelo Lucas, cliente do
+// Marcelo, em vídeo no WhatsApp, um dia depois deste painel ir pro ar): o
+// total da frase de abertura ERA gasto do mês + gasto do mês que vem +
+// contas fixas (695,00 = 245 + 450 + 0). Agora é só gasto do mês + contas
+// fixas do mês exibido (245,00 = 245 + 0) — "Gasto no mês que vem"
+// continua aparecendo, só que como card informativo separado, do mesmo
+// jeito que "Investido no mês". Ver comentário do `combinedTotal` em
+// src/app/(app)/dashboard/page.tsx.
 check("painel mostra a frase de resumo com o total comprometido", dashBody.includes("comprometidos este mês"));
-check("painel mostra o total combinado correto (R$ 695,00)", dashBody.includes("695,00"));
+check("painel mostra o total do mês exibido, SEM somar o mês que vem (R$ 245,00)", dashBody.includes("245,00"));
 check("status do medidor é 'Sob controle' (abaixo de 70%)", dashBody.includes("Sob controle"));
 check(
   "frase explicativa de status sob controle aparece",
   dashBody.includes("dentro do que você ganha esse mês")
 );
-check("barra de composição mostra os 3 componentes com valores certos", dashBody.includes("245,00") && dashBody.includes("450,00") && dashBody.includes("0,00"));
+check("barra de composição mostra os 2 componentes do mês exibido (gasto + contas fixas)", dashBody.includes("245,00") && dashBody.includes("0,00"));
 check(
   "card do investido aparece separado, com o aviso de que não entra na conta",
   dashBody.includes("Investido no mês") && dashBody.includes("não entra na conta acima") && dashBody.includes("50,00")
+);
+check(
+  "card do gasto do mês que vem aparece separado (R$ 450,00), com aviso de que não entra na conta",
+  dashBody.includes("Gasto no mês que vem") && dashBody.includes("não entra na conta acima") && dashBody.includes("450,00")
 );
 
 // --- Caso extremo: renda cadastrada muito baixa vira múltiplo, não um
