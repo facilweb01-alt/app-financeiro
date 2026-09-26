@@ -19,6 +19,7 @@ const PROTECTED_PREFIXES = [
     "/admin",
     "/conta-pendente",
     "/aceitar-termos",
+    "/assinatura",
   ];
 const PUBLIC_ROUTES = ["/login", "/registrar"];
 

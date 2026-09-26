@@ -49,8 +49,9 @@ export default async function AceitarTermosPage() {
               <Link href="/termos" target="_blank" className="font-medium underline text-blue-400">
                 Termos de Uso e a Política de Privacidade
               </Link>{" "}
-              do App Financeiro. Entendo que meus dados são de acesso restrito — não compartilhados com terceiros e
-              acessados pela equipe apenas quando estritamente necessário para operar ou dar suporte ao serviço.
+              do App Financeiro. Entendo que meus dados são de acesso restrito — compartilhados apenas com o processador de
+              pagamentos (Asaas) para emitir a cobrança, e acessados pela equipe apenas quando estritamente necessário
+              para operar ou dar suporte ao serviço.
             </span>
           </label>
 

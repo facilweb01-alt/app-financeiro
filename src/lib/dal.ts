@@ -6,6 +6,7 @@ import { db, withRLS } from "@/db/client";
 import { users } from "@/db/schema";
 import { verifySessionInDb } from "@/lib/session";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
+import { computeBillingState, todayInSaoPaulo } from "@/lib/billing/core";
 
 /**
  * Data Access Layer — centraliza a checagem "de verdade" (contra o banco) de
@@ -29,7 +30,23 @@ export const verifySession = cache(async (): Promise<{ userId: string }> => {
           redirect("/login");
     }
     if (session.status !== "active") {
-          redirect("/conta-pendente");
+          // Cadastro pela página de vendas ainda sem o 1º Pix pago -> tela de
+          // pagamento; conta suspensa (ou do fluxo antigo, aguardando
+          // aprovação manual) -> tela de espera.
+          redirect(session.status === "pending" && session.billingEnabled ? "/assinatura" : "/conta-pendente");
+    }
+    // Mensalidade vencida há mais de GRACE_DAYS dias: só a tela de pagamento
+    // abre, até o Pix ser pago (o webhook do Asaas libera na hora). Vale
+    // também para qualquer Server Action, já que todas passam por aqui.
+    if (
+          computeBillingState({
+                billingEnabled: session.billingEnabled,
+                status: session.status,
+                subscriptionDueDate: session.subscriptionDueDate,
+                today: todayInSaoPaulo(),
+          }).kind === "blocked"
+    ) {
+          redirect("/assinatura");
     }
     // Consentimento LGPD ausente ou de uma versão antiga do termo (ver
                                      // src/lib/terms.ts) — barra o resto do app até a pessoa aceitar de novo,
@@ -73,6 +90,8 @@ export const getCurrentUser = cache(async () => {
                                                                                    monthlyIncome: users.monthlyIncome,
                                                                                    role: users.role,
                                                                                    status: users.status,
+                                                                                   billingEnabled: users.billingEnabled,
+                                                                                   subscriptionDueDate: users.subscriptionDueDate,
                                                                          })
                                                                          .from(users)
                                                                          .where(eq(users.id, session.userId))

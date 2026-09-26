@@ -4,6 +4,7 @@ import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, withRLS, withServiceMode } from "@/db/client";
 import { users, categories, transactions } from "@/db/schema";
 import { currentYearMonth } from "@/lib/business/dates";
+import { whatsappPhoneVariants } from "@/lib/billing/core";
 
 // Bug real encontrado testando com mensagens de WhatsApp de verdade: o Z-API
 // entrega o telefone como "55" (DDI) + DDD + 8 dígitos (sem o "9" do celular
@@ -13,21 +14,9 @@ import { currentYearMonth } from "@/lib/business/dates";
 // plausíveis do número recebido (com/sem DDI, com/sem o "9") e comparamos
 // com o que está vinculado usando qualquer uma delas.
 function phoneCandidates(rawDigits: string): string[] {
-  const candidates = new Set<string>([rawDigits]);
-  let d = rawDigits;
-  if (d.length >= 12 && d.startsWith("55")) {
-    d = d.slice(2);
-    candidates.add(d);
-  }
-  if (d.length === 10) {
-    // DDD (2) + 8 dígitos: falta o "9" do celular — adiciona a variante com ele.
-    candidates.add(d.slice(0, 2) + "9" + d.slice(2));
-  } else if (d.length === 11 && d[2] === "9") {
-    // DDD (2) + 9 + 8 dígitos: adiciona a variante sem o "9", caso tenha sido
-    // cadastrado nesse formato mais antigo.
-    candidates.add(d.slice(0, 2) + d.slice(3));
-  }
-  return Array.from(candidates);
+  // Inclui também as formas com "55" na frente, para quem vinculou o número
+  // com DDI (ex.: "5583982004873") — ver billing/core.ts#whatsappPhoneVariants.
+  return whatsappPhoneVariants(rawDigits);
 }
 
 // ---------------------------------------------------------------------------
@@ -86,23 +75,6 @@ export async function POST(request: NextRequest) {
   const authHeader = request.headers.get("authorization") ?? "";
   const providedSecret = authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : "";
   if (providedSecret !== expectedSecret) {
-    // Diagnóstico temporário: nunca loga o segredo inteiro, só o suficiente
-    // (tamanho e alguns caracteres de cada ponta) pra identificar se é um
-    // espaço/quebra de linha a mais, truncamento, ou valor totalmente
-    // diferente. Remover depois de entender a causa da falha real via n8n.
-    console.error(
-      "[whatsapp-auth] segredo não bateu:",
-      JSON.stringify({
-        headerPresente: authHeader.length > 0,
-        comecaComBearer: authHeader.startsWith("Bearer "),
-        tamanhoRecebido: providedSecret.length,
-        tamanhoEsperado: expectedSecret.length,
-        inicioRecebido: providedSecret.slice(0, 6),
-        inicioEsperado: expectedSecret.slice(0, 6),
-        fimRecebido: providedSecret.slice(-6),
-        fimEsperado: expectedSecret.slice(-6),
-      })
-    );
     return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
   }
 
