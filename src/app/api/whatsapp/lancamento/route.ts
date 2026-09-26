@@ -2,9 +2,16 @@ import * as z from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { db, withRLS, withServiceMode } from "@/db/client";
-import { users, categories, transactions } from "@/db/schema";
-import { currentYearMonth } from "@/lib/business/dates";
-import { whatsappPhoneVariants } from "@/lib/billing/core";
+import { users, categories, transactions, creditCards, cardPurchases, cardInstallments } from "@/db/schema";
+import { addMonthsClamped, currentYearMonth } from "@/lib/business/dates";
+import { generateInstallments } from "@/lib/business/installments";
+import {
+  displayCardName,
+  isCardPurchase,
+  matchCard,
+  normalizeFlexibleDate,
+} from "@/lib/business/whatsappInput";
+import { todayInSaoPaulo, whatsappPhoneVariants } from "@/lib/billing/core";
 
 // Bug real encontrado testando com mensagens de WhatsApp de verdade: o Z-API
 // entrega o telefone como "55" (DDI) + DDD + 8 dígitos (sem o "9" do celular
@@ -39,28 +46,38 @@ function phoneCandidates(rawDigits: string): string[] {
 // vinculado ali — nunca por um número enviado "confiando" no payload sozinho
 // sem essa vinculação prévia.
 
+// Campos opcionais aceitam null (a IA do n8n às vezes manda null em vez de
+// omitir) e datas em "YYYY-MM-DD", "15/10" ou "15/10/2026" — a conversão e a
+// validação de data real ficam em lib/business/whatsappInput.ts.
+const optionalText = z
+  .union([z.string(), z.null()])
+  .optional()
+  .transform((v) => (v == null || v.trim() === "" ? undefined : v.trim()));
+
 const BodySchema = z.object({
+  // Telefone ("5583...") ou identificador LID do WhatsApp ("1847...@lid")
   phone: z
     .string()
     .trim()
-    .transform((v) => v.replace(/\D/g, ""))
-    .pipe(z.string().regex(/^\d{10,15}$/, "Telefone inválido.")),
+    .refine((v) => /^\d{10,15}$/.test(v.replace(/\D/g, "")), "Telefone inválido."),
   description: z.string().trim().min(1, "Informe a descrição."),
   amount: z.coerce.number().positive("Valor precisa ser maior que zero."),
-  categoryKey: z.string().trim().optional(),
-  purchaseDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
-  dueDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .optional(),
+  categoryKey: optionalText,
+  purchaseDate: optionalText,
+  dueDate: optionalText,
+  // Compra no cartão (opcional): qualquer um destes indica cartão.
+  paymentMethod: optionalText, // ex.: "cartao", "credito", "pix", "dinheiro"
+  cardName: optionalText, // ex.: "Mercado Pago", "azul"
+  installments: z
+    .union([z.coerce.number().int().min(1, "Parcelas inválidas.").max(48, "Máximo de 48 parcelas."), z.null()])
+    .optional()
+    .transform((v) => v ?? undefined),
 });
 
+// "Hoje" no fuso de São Paulo (o servidor do Render roda em UTC — perto da
+// meia-noite isso mudaria o dia da compra).
 function todayIso(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return todayInSaoPaulo();
 }
 
 export async function POST(request: NextRequest) {
@@ -85,6 +102,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Corpo da requisição precisa ser JSON." }, { status: 400 });
   }
 
+  // "VINCULAR 123456" enviado no WhatsApp (o n8n manda linkCode): grava o
+  // vínculo entre este remetente e a conta que gerou o código no app.
+  if (json && typeof json === "object" && "linkCode" in json && (json as { linkCode?: unknown }).linkCode) {
+    return linkSender(json as Record<string, unknown>);
+  }
+
   const parsed = BodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos." }, { status: 400 });
@@ -94,17 +117,25 @@ export async function POST(request: NextRequest) {
   // Ainda não sabemos de qual usuário é essa mensagem — é justamente o que
   // esta busca por telefone descobre — então roda em modo serviço; quem
   // autoriza essa chamada é o segredo compartilhado já conferido acima.
+  const sender = parseSender(data.phone);
   const [user] = await withServiceMode(() =>
     db
       .select({ id: users.id, status: users.status })
       .from(users)
-      .where(inArray(users.whatsappPhone, phoneCandidates(data.phone)))
+      .where(
+        sender.isLid
+          ? eq(users.whatsappLid, sender.digits)
+          : inArray(users.whatsappPhone, phoneCandidates(sender.digits))
+      )
       .limit(1)
   );
 
   if (!user) {
     return NextResponse.json(
-      { error: "Nenhuma conta vinculada a este número. Vincule o número na aba Fechamento do app primeiro." },
+      {
+        error: "Nenhuma conta vinculada a este WhatsApp. No app, vá na aba Fechamento e toque em \"Vincular pelo WhatsApp\".",
+        needsLink: true,
+      },
       { status: 404 }
     );
   }
@@ -115,49 +146,246 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Acesso a esta conta não está ativo no momento." }, { status: 403 });
   }
 
-  const categoryKey = data.categoryKey?.trim() || "outros";
-  const purchaseDate = data.purchaseDate ?? todayIso();
-  const dueDate = data.dueDate ?? purchaseDate;
+  const categoryKey = data.categoryKey || "outros";
+  const today = todayIso();
+  const purchaseDate = data.purchaseDate ? normalizeFlexibleDate(data.purchaseDate, today) : today;
+  if (!purchaseDate) {
+    return NextResponse.json({ error: `Data da compra inválida: "${data.purchaseDate}".` }, { status: 400 });
+  }
+  const dueDate = data.dueDate ? normalizeFlexibleDate(data.dueDate, today) : null;
+  if (data.dueDate && !dueDate) {
+    return NextResponse.json({ error: `Data de vencimento inválida: "${data.dueDate}".` }, { status: 400 });
+  }
 
-  const result = await withRLS(user.id, async () => {
-    const [category] = await db
-      .select({ id: categories.id, label: categories.label })
-      .from(categories)
-      .where(and(eq(categories.key, categoryKey), or(isNull(categories.userId), eq(categories.userId, user.id))))
-      .limit(1);
-
-    if (!category) {
-      return { error: `Categoria "${categoryKey}" não encontrada.` as const };
+  try {
+    if (isCardPurchase(data)) {
+      return await registerCardPurchase({ userId: user.id, data, categoryKey, purchaseDate, dueDate });
     }
 
-    const [created] = await db
-      .insert(transactions)
-      .values({
-        userId: user.id,
-        purchaseDate,
-        dueDate,
-        description: data.description,
-        categoryId: category.id,
-        amount: data.amount.toString(),
-      })
-      .returning({ id: transactions.id });
+    const result = await withRLS(user.id, async () => {
+      const category = await findCategory(user.id, categoryKey);
+      if (!category) {
+        return { error: `Categoria "${categoryKey}" não encontrada.` as const };
+      }
 
-    return { created, category };
+      const [created] = await db
+        .insert(transactions)
+        .values({
+          userId: user.id,
+          purchaseDate,
+          dueDate: dueDate ?? purchaseDate,
+          description: data.description,
+          categoryId: category.id,
+          amount: data.amount.toString(),
+        })
+        .returning({ id: transactions.id });
+
+      return { created, category };
+    });
+
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+    const { created, category } = result;
+
+    return NextResponse.json(
+      {
+        ok: true,
+        kind: "lancamento",
+        id: created.id,
+        category: category.label,
+        amount: data.amount,
+        description: data.description,
+        dueDate: dueDate ?? purchaseDate,
+        yearMonth: currentYearMonth(),
+      },
+      { status: 201 }
+    );
+  } catch (err) {
+    // Nunca devolver 500 sem corpo: o n8n precisa de um JSON para montar a
+    // resposta ao cliente, e o log do Render precisa do motivo real.
+    console.error("[whatsapp-lancamento] erro ao gravar:", err);
+    return NextResponse.json({ error: "Erro interno ao gravar o lançamento." }, { status: 500 });
+  }
+}
+
+type ParsedBody = z.infer<typeof BodySchema>;
+
+// O Z-API manda o remetente como telefone ("558399...") ou, quando o WhatsApp
+// esconde o número, como LID ("184713742393347@lid").
+function parseSender(raw: string): { isLid: boolean; digits: string } {
+  return { isLid: /@lid\b/i.test(raw), digits: raw.replace(/\D/g, "") };
+}
+
+const LinkSchema = z.object({
+  phone: z.string().trim().min(5, "Remetente inválido."),
+  linkCode: z.coerce.string().trim().regex(/^\d{6}$/, "Código inválido."),
+});
+
+async function linkSender(json: Record<string, unknown>) {
+  const parsed = LinkSchema.safeParse(json);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos." }, { status: 400 });
+  }
+  const sender = parseSender(parsed.data.phone);
+  if (!/^\d{10,20}$/.test(sender.digits)) {
+    return NextResponse.json({ error: "Remetente inválido." }, { status: 400 });
+  }
+
+  try {
+    const result = await withServiceMode(async () => {
+      const [owner] = await db
+        .select({ id: users.id, name: users.name, expiresAt: users.whatsappLinkCodeExpiresAt })
+        .from(users)
+        .where(eq(users.whatsappLinkCode, parsed.data.linkCode))
+        .limit(1);
+      if (!owner || !owner.expiresAt || owner.expiresAt.getTime() < Date.now()) {
+        return null;
+      }
+      // Um WhatsApp só pode estar em uma conta: tira de quem tinha antes.
+      if (sender.isLid) {
+        await db.update(users).set({ whatsappLid: null }).where(eq(users.whatsappLid, sender.digits));
+        await db
+          .update(users)
+          .set({ whatsappLid: sender.digits, whatsappLinkCode: null, whatsappLinkCodeExpiresAt: null })
+          .where(eq(users.id, owner.id));
+      } else {
+        await db
+          .update(users)
+          .set({ whatsappPhone: null })
+          .where(inArray(users.whatsappPhone, phoneCandidates(sender.digits)));
+        await db
+          .update(users)
+          .set({ whatsappPhone: sender.digits, whatsappLinkCode: null, whatsappLinkCodeExpiresAt: null })
+          .where(eq(users.id, owner.id));
+      }
+      return owner;
+    });
+
+    if (!result) {
+      return NextResponse.json(
+        { error: "Código inválido ou expirado. Gere um novo na aba Fechamento do app." },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json({ ok: true, kind: "vinculo", name: result.name }, { status: 200 });
+  } catch (err) {
+    console.error("[whatsapp-vincular] erro:", err);
+    return NextResponse.json({ error: "Erro interno ao vincular." }, { status: 500 });
+  }
+}
+
+async function findCategory(userId: string, categoryKey: string) {
+  const [category] = await db
+    .select({ id: categories.id, label: categories.label })
+    .from(categories)
+    .where(and(eq(categories.key, categoryKey), or(isNull(categories.userId), eq(categories.userId, userId))))
+    .limit(1);
+  return category ?? null;
+}
+
+// Compra no cartão pelo WhatsApp: mesma regra da tela Cartões
+// (src/app/actions/cards.ts#createCardPurchase) — grava a compra e já gera
+// todas as parcelas, uma por mês, a partir do 1º vencimento. Sem vencimento
+// informado, a 1ª parcela vence um mês depois da compra.
+async function registerCardPurchase(params: {
+  userId: string;
+  data: ParsedBody;
+  categoryKey: string;
+  purchaseDate: string;
+  dueDate: string | null;
+}) {
+  const { userId, data, categoryKey, purchaseDate } = params;
+  const installmentsTotal = data.installments ?? 1;
+  const firstDueDate = params.dueDate ?? addMonthsClamped(purchaseDate, 1);
+  const generated = generateInstallments({
+    totalAmount: data.amount,
+    installmentsTotal,
+    firstDueDate,
   });
 
-  if ("error" in result) {
-    return NextResponse.json({ error: result.error }, { status: 400 });
+  const result = await withRLS(userId, async () => {
+    const category = await findCategory(userId, categoryKey);
+    if (!category) {
+      return { status: 400, error: `Categoria "${categoryKey}" não encontrada.` } as const;
+    }
+
+    const cards = await db
+      .select({ id: creditCards.id, name: creditCards.name })
+      .from(creditCards)
+      .where(eq(creditCards.userId, userId));
+
+    let card: { id: string; name: string } | null = null;
+    let cardCreated = false;
+    if (data.cardName) {
+      card = matchCard(cards, data.cardName);
+      if (!card) {
+        // Cartão ainda não cadastrado: cria na hora com o nome falado, para o
+        // cliente não perder o lançamento (ele pode renomear na aba Cartões).
+        const name = displayCardName(data.cardName) || data.cardName;
+        const [created] = await db
+          .insert(creditCards)
+          .values({ userId, name })
+          .returning({ id: creditCards.id, name: creditCards.name });
+        card = created;
+        cardCreated = true;
+      }
+    } else if (cards.length === 1) {
+      card = cards[0];
+    } else if (cards.length === 0) {
+      return {
+        status: 400,
+        error: 'Qual cartão? Diga o nome, por exemplo: "gastei 300 no cartão Nubank em 3x".',
+      } as const;
+    } else {
+      return {
+        status: 400,
+        error: `Qual cartão? Você tem: ${cards.map((c) => c.name).join(", ")}.`,
+      } as const;
+    }
+
+    const [purchase] = await db
+      .insert(cardPurchases)
+      .values({
+        cardId: card.id,
+        purchaseDate,
+        description: data.description,
+        categoryId: category.id,
+        totalAmount: data.amount.toString(),
+        installmentsTotal,
+      })
+      .returning({ id: cardPurchases.id });
+
+    await db.insert(cardInstallments).values(
+      generated.map((inst) => ({
+        cardPurchaseId: purchase.id,
+        installmentNumber: inst.installmentNumber,
+        dueDate: inst.dueDate,
+        amount: inst.amount.toString(),
+      }))
+    );
+
+    return { status: 201, purchaseId: purchase.id, card, cardCreated, category } as const;
+  });
+
+  if (result.status !== 201) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
   }
-  const { created, category } = result;
 
   return NextResponse.json(
     {
       ok: true,
-      id: created.id,
-      category: category.label,
+      kind: "cartao",
+      id: result.purchaseId,
+      category: result.category.label,
       amount: data.amount,
       description: data.description,
-      yearMonth: currentYearMonth(),
+      cardName: result.card.name,
+      cardCreated: result.cardCreated,
+      installments: installmentsTotal,
+      installmentAmount: generated[0].amount,
+      firstDueDate,
+      lastDueDate: generated[generated.length - 1].dueDate,
     },
     { status: 201 }
   );

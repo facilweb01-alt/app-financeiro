@@ -562,3 +562,63 @@ test("whatsappPhoneVariants: casa o número com/sem 55 e com/sem o 9", () => {
   assert.ok(fromSignup.includes("5583982004873"));
   assert.deepEqual(whatsappPhoneVariants(""), []);
 });
+
+
+// ---------------------------------------------------------------------------
+// whatsappInput.ts — bugs reais do teste pelo WhatsApp (26/09/2026)
+// ---------------------------------------------------------------------------
+import {
+  normalizeFlexibleDate,
+  normalizeCardName,
+  displayCardName,
+  matchCard,
+  isCardPurchase,
+} from "../whatsappInput";
+
+test("normalizeFlexibleDate: aceita ISO, dd/mm/aaaa, dd/mm/aa e dd/mm", () => {
+  const today = "2026-09-26";
+  assert.equal(normalizeFlexibleDate("2026-10-15", today), "2026-10-15");
+  assert.equal(normalizeFlexibleDate("15/10/2026", today), "2026-10-15");
+  assert.equal(normalizeFlexibleDate("15-10-26", today), "2026-10-15");
+  assert.equal(normalizeFlexibleDate("15/10", today), "2026-10-15");
+  assert.equal(normalizeFlexibleDate("5/1", "2026-12-20"), "2027-01-05"); // janeiro do ano que vem
+  assert.equal(normalizeFlexibleDate("20/09", today), "2026-09-20"); // passado recente fica no ano atual
+});
+
+test("normalizeFlexibleDate: recusa data que não existe (bug do 'Tive um problema')", () => {
+  const today = "2026-09-26";
+  assert.equal(normalizeFlexibleDate("2026-15-10", today), null); // dia/mês trocados
+  assert.equal(normalizeFlexibleDate("31/02/2026", today), null);
+  assert.equal(normalizeFlexibleDate("amanhã", today), null);
+  assert.equal(normalizeFlexibleDate("", today), null);
+  assert.equal(normalizeFlexibleDate(null, today), null);
+});
+
+test("normalizeCardName/displayCardName: ignora 'cartão', acento e caixa", () => {
+  assert.equal(normalizeCardName("Cartão Mercado Pago"), "mercado pago");
+  assert.equal(normalizeCardName("cartao AZUL"), "azul");
+  assert.equal(normalizeCardName("Nubank"), "nubank");
+  assert.equal(displayCardName("cartão mercado pago"), "Mercado Pago");
+});
+
+test("matchCard: nome igual, parcial único, e nunca chuta quando é ambíguo", () => {
+  const cards = [
+    { id: "1", name: "Nubank" },
+    { id: "2", name: "Mercado Pago" },
+    { id: "3", name: "Itaú Azul" },
+    { id: "4", name: "Itaú Personnalité" },
+  ];
+  assert.equal(matchCard(cards, "cartão mercado pago")?.id, "2");
+  assert.equal(matchCard(cards, "NUBANK")?.id, "1");
+  assert.equal(matchCard(cards, "azul")?.id, "3"); // parcial único
+  assert.equal(matchCard(cards, "itau"), null); // ambíguo: 2 Itaú
+  assert.equal(matchCard(cards, "inter"), null);
+});
+
+test("isCardPurchase: cartão pelo método, pelo nome ou por ter parcelas", () => {
+  assert.equal(isCardPurchase({ paymentMethod: "Cartão de crédito" }), true);
+  assert.equal(isCardPurchase({ cardName: "Nubank" }), true);
+  assert.equal(isCardPurchase({ installments: 3 }), true);
+  assert.equal(isCardPurchase({ paymentMethod: "pix", installments: 1 }), false);
+  assert.equal(isCardPurchase({}), false);
+});

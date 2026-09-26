@@ -47,6 +47,11 @@ export const users = pgTable("users", {
     // mensagem (ver src/app/api/whatsapp/lancamento/route.ts). Vinculado pelo
     // próprio usuário logado no app — nunca por verificação externa.
     whatsappPhone: text("whatsapp_phone"),
+    // Identificador "LID" do WhatsApp (quando o telefone vem escondido) e o
+    // código temporário usado para vinculá-lo — ver migração 0009.
+    whatsappLid: text("whatsapp_lid"),
+    whatsappLinkCode: text("whatsapp_link_code"),
+    whatsappLinkCodeExpiresAt: timestamp("whatsapp_link_code_expires_at", { withTimezone: true }),
     // --- Painel administrativo / SaaS pago (ver drizzle/migrations/0004) -----
     // role: quem pode acessar /admin. status: controla se a conta consegue
     // usar o app de verdade — contas novas nascem "pending" e ficam bloqueadas
@@ -84,6 +89,8 @@ export const users = pgTable("users", {
 }, (t) => ({
     emailUnique: uniqueIndex("users_email_unique").on(t.email),
     whatsappPhoneUnique: uniqueIndex("users_whatsapp_phone_unique").on(t.whatsappPhone),
+    whatsappLidUnique: uniqueIndex("users_whatsapp_lid_unique").on(t.whatsappLid),
+    whatsappLinkCodeUnique: uniqueIndex("users_whatsapp_link_code_unique").on(t.whatsappLinkCode),
     asaasCustomerUnique: uniqueIndex("users_asaas_customer_unique").on(t.asaasCustomerId),
     asaasSubscriptionUnique: uniqueIndex("users_asaas_subscription_unique").on(t.asaasSubscriptionId),
 }));

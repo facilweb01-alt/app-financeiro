@@ -14,6 +14,7 @@ import { CollapsibleItems } from "@/components/CollapsibleList";
 import { IncomeForm } from "./IncomeForm";
 import { CloseMonthForm } from "./CloseMonthForm";
 import { WhatsappPhoneForm } from "./WhatsappPhoneForm";
+import { WhatsappLinkCode } from "./WhatsappLinkCode";
 import { SpendingLimitForm } from "./SpendingLimitForm";
 import { SpendingLimitRow } from "./SpendingLimitRow";
 import { deleteMonthClosing } from "@/app/actions/monthClosing";
@@ -108,7 +109,7 @@ export default async function FechamentoPage() {
   const [user, inputs, closings, spendingLimits, categories] = await withRLS(session.userId, () =>
     Promise.all([
       db
-        .select({ monthlyIncome: users.monthlyIncome, whatsappPhone: users.whatsappPhone })
+        .select({ monthlyIncome: users.monthlyIncome, whatsappPhone: users.whatsappPhone, whatsappLid: users.whatsappLid })
         .from(users)
         .where(eq(users.id, session.userId))
         .limit(1),
@@ -148,12 +149,13 @@ export default async function FechamentoPage() {
 
       <div className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
         <h2 className="mb-3 text-sm font-semibold text-navy-300">
-          Comando por WhatsApp <span className="font-normal text-navy-500">(em preparação)</span>
+          Comando por WhatsApp
         </h2>
         <p className="mb-3 text-sm text-navy-400">
-          Vincule seu número para permitir lançar gastos por mensagem quando a integração estiver ativa.
+          Mande seus gastos por mensagem para o WhatsApp do app — ex.: &quot;gastei 50 no mercado&quot; ou &quot;300 no cartão Nubank em 3x&quot;.
         </p>
         <WhatsappPhoneForm currentPhone={user[0]?.whatsappPhone ?? null} />
+        <WhatsappLinkCode linkedByCode={Boolean(user[0]?.whatsappLid)} />
       </div>
 
       <div className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
