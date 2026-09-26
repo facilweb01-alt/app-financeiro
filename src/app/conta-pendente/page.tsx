@@ -16,6 +16,10 @@ export default async function ContaPendentePage() {
   if (session.status === "active") {
     redirect("/dashboard");
   }
+  // Cadastro pela página de vendas: a "espera" é o pagamento do 1º Pix.
+  if (session.status === "pending" && session.billingEnabled) {
+    redirect("/assinatura");
+  }
 
   const isSuspended = session.status === "suspended";
 

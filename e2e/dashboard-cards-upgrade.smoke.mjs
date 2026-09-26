@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
 import { activateUser, closeTestDb } from "./helpers/testDb.mjs";
+import { randomCpf, randomPhone } from "./helpers/signup.mjs";
 
 // Teste de fumaça do pacote de melhorias pedido pelo Marcelo: (1) "Gasto no
 // mês que vem" ao lado de "Gasto no mês" no dashboard, (2) gráfico de
@@ -36,6 +37,8 @@ function nextYearMonth() {
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Teste Dashboard Upgrade");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", randomPhone());
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.check("#terms");
 await page.click('button[type="submit"]');

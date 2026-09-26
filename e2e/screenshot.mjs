@@ -1,5 +1,6 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
+import { randomCpf, randomPhone } from "./helpers/signup.mjs";
 
 const BASE = process.env.SMOKE_BASE_URL || "http://localhost:3100";
 const outDir = process.argv[2] || "/tmp";
@@ -16,6 +17,8 @@ const password = "SenhaForte123";
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo Screenshot");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", randomPhone());
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.click('button[type="submit"]');
 await page.waitForURL(`${BASE}/dashboard`, { timeout: 10000 });

@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
 import { activateUser, suspendUser, closeTestDb } from "./helpers/testDb.mjs";
+import { randomCpf } from "./helpers/signup.mjs";
 
 // Testa o endpoint POST /api/whatsapp/lancamento de ponta a ponta:
 // cria usuário, vincula um número de WhatsApp pela UI, chama o endpoint
@@ -32,16 +33,16 @@ const phone = `5583${Date.now().toString().slice(-9)}`;
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo WhatsApp");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", phone); // o WhatsApp agora já vem do cadastro
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.check("#terms");
 await page.click('button[type="submit"]');
 await page.waitForURL(`${BASE}/conta-pendente`, { timeout: 10000 });
 await activateUser(email); // simula aprovação do admin, como nos outros smoke tests
 await page.goto(`${BASE}/fechamento`);
-await page.fill('input[name="whatsappPhone"]', phone);
-await page.click('button:has-text("Vincular número")');
-await page.waitForTimeout(600);
-check("número vinculado aparece na página", (await page.textContent("body")).includes(`+${phone}`));
+// O cadastro guarda DDD + número (sem o 55) — o webhook casa as duas formas.
+check("número do cadastro já aparece vinculado na aba Fechamento", (await page.textContent("body")).includes(`+${phone.slice(2)}`));
 
 // 1. Chamada sem secret -> 401
 const noAuthRes = await fetch(`${BASE}/api/whatsapp/lancamento`, {

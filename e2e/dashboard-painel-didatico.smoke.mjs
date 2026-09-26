@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
 import { activateUser, closeTestDb } from "./helpers/testDb.mjs";
+import { randomCpf, randomPhone } from "./helpers/signup.mjs";
 
 // Teste de fumaça do pacote "painel mais didático" pedido pelo Marcelo depois
 // de achar a % de renda comprometida "um pouco complicada de intender":
@@ -51,6 +52,8 @@ const farYearMonth = yearMonthOf(farMonthDate);
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Teste Painel Didatico");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", randomPhone());
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.check("#terms");
 await page.click('button[type="submit"]');

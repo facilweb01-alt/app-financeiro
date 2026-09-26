@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
 import { activateUser, closeTestDb } from "./helpers/testDb.mjs";
+import { randomCpf, randomPhone } from "./helpers/signup.mjs";
 
 // Teste de fumaça da funcionalidade "+ Nova categoria" em /lancamentos:
 // o usuário cria uma categoria própria direto do formulário, sem sair da
@@ -25,6 +26,8 @@ function check(label, cond, extra) {
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo Categorias");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", randomPhone());
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.check("#terms");
 await page.click('button[type="submit"]');

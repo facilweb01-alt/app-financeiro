@@ -1,7 +1,7 @@
 "use server";
 
 import bcrypt from "bcryptjs";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db, withRLS, withServiceMode } from "@/db/client";
 import { users } from "@/db/schema";
@@ -9,11 +9,15 @@ import { createSession, deleteSession } from "@/lib/session";
 import { getRawSession } from "@/lib/dal";
 import { LoginFormSchema, SignupFormSchema, type AuthFormState } from "@/lib/definitions";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
+import { isAsaasConfigured } from "@/lib/billing/asaas";
+import { whatsappPhoneVariants } from "@/lib/billing/core";
 
 export async function signup(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {
     const validated = SignupFormSchema.safeParse({
           name: formData.get("name"),
           email: formData.get("email"),
+          whatsappPhone: formData.get("whatsappPhone") ?? "",
+          cpf: formData.get("cpf") ?? "",
           password: formData.get("password"),
           terms: formData.get("terms"),
     });
@@ -22,7 +26,7 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
         return { errors: validated.error.flatten().fieldErrors };
   }
 
-  const { name, email, password } = validated.data;
+  const { name, email, password, whatsappPhone, cpf } = validated.data;
 
   // Ainda não existe um usuário logado (é literalmente o que este passo
   // cria) — busca de e-mail duplicado e criação da conta rodam em modo
@@ -35,6 +39,21 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
           return { errors: { email: ["Já existe uma conta com esse e-mail."] } };
     }
 
+  // O mesmo WhatsApp não pode ficar em duas contas (é ele que identifica o
+  // dono de cada lançamento enviado por WhatsApp).
+  const phoneTaken = await withServiceMode(() =>
+        db.select({ id: users.id }).from(users).where(inArray(users.whatsappPhone, whatsappPhoneVariants(whatsappPhone))).limit(1)
+  );
+  if (phoneTaken[0]) {
+        return { errors: { whatsappPhone: ["Esse WhatsApp já está vinculado a outra conta."] } };
+  }
+
+  // Com a cobrança automática (Asaas) configurada, a conta nasce aguardando
+  // o primeiro Pix e é liberada sozinha quando ele é pago (ver
+  // src/lib/billing/). Sem ela, segue o fluxo antigo: aguarda aprovação
+  // manual no painel admin.
+  const billingEnabled = isAsaasConfigured();
+
   const passwordHash = await bcrypt.hash(password, 10);
 
   // Aceite dos termos gravado no mesmo insert (data/hora + versão do texto
@@ -46,6 +65,9 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
                                                           name,
                                                           email,
                                                           passwordHash,
+                                                          whatsappPhone,
+                                                          cpf,
+                                                          billingEnabled,
                                                           termsAcceptedAt: new Date(),
                                                           termsVersion: CURRENT_TERMS_VERSION,
                                                 })
@@ -57,7 +79,7 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
   }
 
   await createSession(created.id);
-    redirect("/dashboard");
+    redirect(billingEnabled ? "/assinatura" : "/dashboard");
 }
 
 export async function login(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logout } from "@/app/actions/auth";
 import { ValuesVisibilityToggle } from "@/components/ValuesVisibilityToggle";
+import { Logo } from "@/components/Logo";
 
 const LINKS = [
   { href: "/dashboard", label: "Painel", icon: "📊" },
@@ -19,7 +20,7 @@ const LINKS = [
 // reduzir o que um eventual problema neste app conseguiria alcançar. Não
 // há mais link nem rota /admin aqui.
 
-export function AppNav() {
+export function AppNav({ showBilling = false }: { showBilling?: boolean }) {
   const pathname = usePathname();
   const links = LINKS;
 
@@ -28,14 +29,7 @@ export function AppNav() {
       {/* Navegação lateral — telas maiores (computador) */}
       <nav className="hidden md:flex md:w-60 md:flex-col md:border-r md:border-navy-800 md:bg-navy-950 md:p-4 md:gap-1">
         <div className="mb-6 flex items-center justify-between px-2">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
-              AF
-            </span>
-            <span className="text-base font-semibold text-navy-100">
-              App Financeiro
-            </span>
-          </div>
+          <Logo size={30} textClassName="text-[15px]" />
           <ValuesVisibilityToggle />
         </div>
         {links.map((link) => {
@@ -55,7 +49,16 @@ export function AppNav() {
             </Link>
           );
         })}
-        <form action={logout} className="mt-auto">
+        {showBilling && (
+        <Link
+          href="/assinatura"
+          className="mt-auto flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-navy-400 hover:bg-navy-900 hover:text-blue-400"
+        >
+          <span aria-hidden>💠</span>
+          Minha assinatura
+        </Link>
+        )}
+        <form action={logout} className={showBilling ? "" : "mt-auto"}>
           <button
             type="submit"
             className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-navy-400 hover:bg-navy-900"

@@ -70,13 +70,55 @@ export const users = pgTable("users", {
     // ônus da prova do consentimento é de quem trata o dado).
     termsAcceptedAt: timestamp("terms_accepted_at", { withTimezone: true }),
     termsVersion: text("terms_version"),
+    // --- Cobrança mensal automática via Pix (Asaas) — ver
+    // drizzle/migrations/0008_add_billing.sql e src/lib/billing/ ------------
+    // billingEnabled = true só para quem se cadastrou pela página de vendas
+    // (contas antigas ficam false e seguem com o controle manual do admin).
+    cpf: text("cpf"), // só dígitos — o Asaas exige CPF para emitir o Pix
+    billingEnabled: boolean("billing_enabled").notNull().default(false),
+    asaasCustomerId: text("asaas_customer_id"),
+    asaasSubscriptionId: text("asaas_subscription_id"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
 }, (t) => ({
     emailUnique: uniqueIndex("users_email_unique").on(t.email),
     whatsappPhoneUnique: uniqueIndex("users_whatsapp_phone_unique").on(t.whatsappPhone),
+    asaasCustomerUnique: uniqueIndex("users_asaas_customer_unique").on(t.asaasCustomerId),
+    asaasSubscriptionUnique: uniqueIndex("users_asaas_subscription_unique").on(t.asaasSubscriptionId),
 }));
+
+// ---------------------------------------------------------------------------
+// Cobranças mensais (espelho local das cobranças Pix geradas no Asaas).
+// Quem grava é só o modo serviço (webhook / tela de pagamento); o cliente só
+// lê as próprias — ver RLS na migração 0008.
+// ---------------------------------------------------------------------------
+export const billingPayments = pgTable("billing_payments", {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    asaasPaymentId: text("asaas_payment_id").notNull(),
+    dueDate: date("due_date").notNull(),
+    value: numeric("value", { precision: 12, scale: 2 }).notNull(),
+    status: text("status").notNull(), // status do Asaas: PENDING, RECEIVED, CONFIRMED, OVERDUE, REFUNDED...
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    invoiceUrl: text("invoice_url"),
+    pixPayload: text("pix_payload"), // Pix copia-e-cola
+    pixQrImage: text("pix_qr_image"), // PNG em base64
+    pixExpiresAt: timestamp("pix_expires_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+    asaasUnique: uniqueIndex("billing_payments_asaas_unique").on(t.asaasPaymentId),
+    userIdx: index("billing_payments_user_idx").on(t.userId),
+}));
+
+// Ids de eventos de webhook já processados (o Asaas entrega "pelo menos uma vez").
+export const billingWebhookEvents = pgTable("billing_webhook_events", {
+    id: text("id").primaryKey(),
+    event: text("event").notNull(),
+    paymentId: text("payment_id"),
+    receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ---------------------------------------------------------------------------
 // Sessões de login (database sessions). O cookie do navegador guarda só um
@@ -329,6 +371,11 @@ export const usersRelations = relations(users, ({ many }) => ({
     adminSessions: many(adminSessions),
     spendingLimits: many(spendingLimits),
     investmentGoals: many(investmentGoals),
+    billingPayments: many(billingPayments),
+}));
+
+export const billingPaymentsRelations = relations(billingPayments, ({ one }) => ({
+    user: one(users, { fields: [billingPayments.userId], references: [users.id] }),
 }));
 
 export const spendingLimitsRelations = relations(spendingLimits, ({ one }) => ({

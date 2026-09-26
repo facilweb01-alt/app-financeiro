@@ -47,6 +47,9 @@ node e2e/dashboard-mes-filtro-listas.smoke.mjs   # seletor de mês (até 3 à fr
 node e2e/dashboard-painel-didatico.smoke.mjs     # resumo didático (frase + barra + composição + investido separado), busca de categoria com detalhe, filtro por categoria nas parcelas futuras
 WHATSAPP_WEBHOOK_SECRET=... node e2e/whatsapp-webhook.smoke.mjs   # endpoint do WhatsApp (use o mesmo valor do .env.local)
 node e2e/admin-panel.smoke.mjs       # painel /admin: aprovar, suspender, reativar, vencimento, controle de acesso
+# Página de vendas + cobrança Pix, contra um Asaas FALSO (e2e/helpers/fakeAsaas.mjs). Suba o app assim antes:
+#   ASAAS_API_KEY='$aact_hmlg_teste' ASAAS_BASE_URL=http://localhost:3998/v3 ASAAS_WEBHOOK_TOKEN=token-teste-webhook npx next start -p 3100
+node e2e/billing-pix.smoke.mjs       # landing, cadastro com CPF/WhatsApp, QR Pix, webhook, aviso de vencimento, bloqueio após 3 dias, desbloqueio
 ```
 
 Precisam do Chromium do Playwright instalado (`npx playwright install chromium`, se ainda não tiver). Os testes que criam usuários usam `e2e/helpers/testDb.mjs` (conecta direto no banco com `DATABASE_URL`) para simular ações que só um admin faria em `/admin` — sem isso, todo teste de outra funcionalidade teria que primeiro passar pela UI do painel administrativo.
@@ -105,6 +108,22 @@ O que falta, e que exige uma conta/número de verdade (por isso não foi feito n
 1. **Um número de WhatsApp Business** (ou reaproveitar um que você já tenha).
 2. **Uma automação que receba as mensagens e entenda o comando** — o caminho mais rápido, já que você tem o n8n rodando para o Webfacilita, é criar um fluxo novo (nó dedicado, sem mexer no que já existe — como manda o método) que: recebe a mensagem do WhatsApp → usa IA para extrair `description`, `amount`, `categoryKey` → chama `POST /api/whatsapp/lancamento` com o segredo.
 3. Isso é testável localmente antes de qualquer coisa em produção (dispara a chamada com `curl`/Postman simulando o n8n, sem precisar de WhatsApp de verdade rodando).
+
+## Página de vendas e cobrança mensal via Pix (Asaas)
+
+- `/` (visitante) é a página de vendas: destaque para o lançamento pelo WhatsApp, todos os recursos, preço (R$ 29,90/mês) e o botão **Quero esse app**, que leva ao cadastro (`/registrar`: nome, e-mail, WhatsApp, CPF, senha).
+- Com `ASAAS_API_KEY` configurada, o cadastro cria o cliente e uma assinatura mensal **Pix** no Asaas, com o 1º vencimento no dia do cadastro — e a pessoa cai em `/assinatura`, com QR Code e Pix copia-e-cola. Pagou → o webhook `POST /api/asaas/webhook` (ou a checagem automática da tela) libera o acesso sozinho.
+- Todo mês, no mesmo dia do cadastro, o Asaas gera o novo Pix. Dentro do app aparece um aviso 5 dias antes ("vence em N dias — Pagar com Pix"), aviso vermelho quando vence, e **o acesso é pausado 3 dias depois do vencimento** (redireciona para `/assinatura`). Pagou, volta na hora.
+- Contas antigas (antes da cobrança) ficam isentas (`billing_enabled = false`) e continuam no controle manual do painel admin.
+- O painel admin (app separado) mostra "Aguardando 1º Pix", "Pix automático — em dia / vence em / vencido / bloqueado", último Pix pago e o total recebido no mês.
+- Regras em `src/lib/billing/core.ts` (puro, com testes em `run-tests.ts`); chamadas à API em `asaas.ts`; sincronização em `service.ts`; tabelas na migração `0008_add_billing.sql` (com RLS).
+
+### Para ligar em produção (passo a passo)
+
+1. Criar a conta no Asaas (começar pelo **sandbox**) e cadastrar uma chave Pix.
+2. Gerar a chave de API e colar no Render como `ASAAS_API_KEY`.
+3. Em Integrações > Webhooks: URL `https://<seu-app>/api/asaas/webhook`, eventos de **Cobranças**, e um token de autenticação — o mesmo valor vai no Render como `ASAAS_WEBHOOK_TOKEN`.
+4. Fazer um cadastro de teste pela página de vendas e pagar o Pix no sandbox; conferir a liberação e o painel admin.
 
 ## Termos de Uso / Política de Privacidade (LGPD)
 

@@ -1,6 +1,7 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
 import { activateUser, suspendUser, closeTestDb } from "./helpers/testDb.mjs";
+import { randomCpf, randomPhone } from "./helpers/signup.mjs";
 
 // Teste de fumaça ponta a ponta do fluxo de autenticação, contra um servidor
 // `next dev` já rodando e um banco Postgres local descartável.
@@ -29,6 +30,8 @@ function check(label, cond) {
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo Teste");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", randomPhone());
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.check("#terms");
 await page.click('button[type="submit"]');
@@ -79,6 +82,8 @@ check("login com senha errada mostra erro e não redireciona", page.url() === `$
 await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Outra Pessoa");
 await page.fill("#email", email);
+await page.fill("#whatsappPhone", randomPhone());
+await page.fill("#cpf", randomCpf());
 await page.fill("#password", "OutraSenha123");
 await page.check("#terms");
 await page.click('button[type="submit"]');

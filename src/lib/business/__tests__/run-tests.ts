@@ -446,3 +446,119 @@ test("computeSpendingStatus: limiar exato de 1000% já conta como extremo", () =
   assert.equal(noLimite.isExtreme, true);
   assert.equal(noLimite.multiplier, 10);
 });
+
+// ---------------------------------------------------------------------------
+// billing/core.ts — cobrança mensal via Pix (Asaas)
+// ---------------------------------------------------------------------------
+import {
+  todayInSaoPaulo,
+  daysBetween,
+  addDays,
+  nextCycleDate,
+  computeSubscriptionDueDate,
+  computeBillingState,
+  isValidCpf,
+  normalizeSignupPhone,
+  whatsappPhoneVariants,
+  GRACE_DAYS,
+} from "../../billing/core";
+
+test("todayInSaoPaulo: 01:30 UTC ainda é o dia anterior em São Paulo", () => {
+  assert.equal(todayInSaoPaulo(new Date("2026-09-27T01:30:00Z")), "2026-09-26");
+  assert.equal(todayInSaoPaulo(new Date("2026-09-27T15:00:00Z")), "2026-09-27");
+});
+
+test("daysBetween / addDays", () => {
+  assert.equal(daysBetween("2026-09-26", "2026-10-01"), 5);
+  assert.equal(daysBetween("2026-10-01", "2026-09-26"), -5);
+  assert.equal(addDays("2026-02-27", 3), "2026-03-02");
+});
+
+test("nextCycleDate: mantém o dia do contrato mesmo depois de um mês curto", () => {
+  assert.equal(nextCycleDate("2026-01-31", 31), "2026-02-28");
+  assert.equal(nextCycleDate("2026-02-28", 31), "2026-03-31");
+  assert.equal(nextCycleDate("2026-09-26", 26), "2026-10-26");
+  assert.equal(nextCycleDate("2026-12-10", 10), "2027-01-10");
+});
+
+test("computeSubscriptionDueDate: sem cobranças -> null", () => {
+  assert.equal(computeSubscriptionDueDate([]), null);
+});
+
+test("computeSubscriptionDueDate: primeira cobrança em aberto -> vencimento dela", () => {
+  assert.equal(computeSubscriptionDueDate([{ dueDate: "2026-09-26", status: "PENDING" }]), "2026-09-26");
+});
+
+test("computeSubscriptionDueDate: tudo pago -> próximo ciclo no dia do contrato", () => {
+  assert.equal(
+    computeSubscriptionDueDate([
+      { dueDate: "2026-01-31", status: "RECEIVED" },
+      { dueDate: "2026-02-28", status: "CONFIRMED" },
+    ]),
+    "2026-03-31"
+  );
+});
+
+test("computeSubscriptionDueDate: em aberto tem prioridade (o mais antigo)", () => {
+  assert.equal(
+    computeSubscriptionDueDate([
+      { dueDate: "2026-09-26", status: "RECEIVED" },
+      { dueDate: "2026-11-26", status: "PENDING" },
+      { dueDate: "2026-10-26", status: "OVERDUE" },
+    ]),
+    "2026-10-26"
+  );
+});
+
+test("computeSubscriptionDueDate: só canceladas/estornadas -> null", () => {
+  assert.equal(computeSubscriptionDueDate([{ dueDate: "2026-09-26", status: "REFUNDED" }]), null);
+});
+
+test("computeBillingState: conta sem cobrança automática é isenta", () => {
+  const s = computeBillingState({ billingEnabled: false, status: "active", subscriptionDueDate: "2020-01-01", today: "2026-09-26" });
+  assert.equal(s.kind, "exempt");
+});
+
+test("computeBillingState: cadastro pendente aguarda o primeiro pagamento", () => {
+  const s = computeBillingState({ billingEnabled: true, status: "pending", subscriptionDueDate: "2026-09-26", today: "2026-09-26" });
+  assert.equal(s.kind, "awaiting_first_payment");
+});
+
+test("computeBillingState: faixas ok / vence logo / vencido / bloqueado", () => {
+  const base = { billingEnabled: true, status: "active", subscriptionDueDate: "2026-10-26" };
+  assert.equal(computeBillingState({ ...base, today: "2026-10-10" }).kind, "ok");
+  assert.equal(computeBillingState({ ...base, today: "2026-10-21" }).kind, "due_soon"); // 5 dias antes
+  assert.equal(computeBillingState({ ...base, today: "2026-10-26" }).kind, "due_soon"); // no dia
+  assert.equal(computeBillingState({ ...base, today: "2026-10-27" }).kind, "overdue");
+  assert.equal(computeBillingState({ ...base, today: "2026-10-29" }).kind, "overdue"); // 3º dia de tolerância
+  assert.equal(computeBillingState({ ...base, today: "2026-10-30" }).kind, "blocked"); // 4º dia -> bloqueia
+  assert.equal(GRACE_DAYS, 3);
+  assert.equal(computeBillingState({ ...base, today: "2026-10-27" }).blockDate, "2026-10-30");
+});
+
+test("isValidCpf: aceita CPF válido (com ou sem máscara) e recusa inválidos", () => {
+  assert.equal(isValidCpf("529.982.247-25"), true);
+  assert.equal(isValidCpf("52998224725"), true);
+  assert.equal(isValidCpf("529.982.247-24"), false);
+  assert.equal(isValidCpf("111.111.111-11"), false);
+  assert.equal(isValidCpf("123"), false);
+});
+
+test("normalizeSignupPhone: aceita vários formatos e guarda DDD + número", () => {
+  assert.equal(normalizeSignupPhone("(83) 98200-4873"), "83982004873");
+  assert.equal(normalizeSignupPhone("+55 83 98200-4873"), "83982004873");
+  assert.equal(normalizeSignupPhone("5583982004873"), "83982004873");
+  assert.equal(normalizeSignupPhone("8382004873"), "8382004873");
+  assert.equal(normalizeSignupPhone("98200-4873"), null); // sem DDD
+});
+
+test("whatsappPhoneVariants: casa o número com/sem 55 e com/sem o 9", () => {
+  const fromZapi = whatsappPhoneVariants("558382004873");
+  assert.ok(fromZapi.includes("83982004873")); // cadastro sem DDI
+  assert.ok(fromZapi.includes("5583982004873")); // vinculado com DDI
+  assert.ok(fromZapi.includes("8382004873"));
+  const fromSignup = whatsappPhoneVariants("83982004873");
+  assert.ok(fromSignup.includes("558382004873"));
+  assert.ok(fromSignup.includes("5583982004873"));
+  assert.deepEqual(whatsappPhoneVariants(""), []);
+});
