@@ -64,6 +64,13 @@
       "when": 1790000000000,
       "tag": "0008_add_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790100000000,
+      "tag": "0009_whatsapp_lid_link",
+      "breakpoints": true
     }
   ]
 }
