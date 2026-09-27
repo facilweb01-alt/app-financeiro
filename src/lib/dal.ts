@@ -38,14 +38,15 @@ export const verifySession = cache(async (): Promise<{ userId: string }> => {
     // Mensalidade vencida há mais de GRACE_DAYS dias: só a tela de pagamento
     // abre, até o Pix ser pago (o webhook do Asaas libera na hora). Vale
     // também para qualquer Server Action, já que todas passam por aqui.
-    if (
-          computeBillingState({
-                billingEnabled: session.billingEnabled,
-                status: session.status,
-                subscriptionDueDate: session.subscriptionDueDate,
-                today: todayInSaoPaulo(),
-          }).kind === "blocked"
-    ) {
+    const billingKind = computeBillingState({
+          billingEnabled: session.billingEnabled,
+          status: session.status,
+          subscriptionDueDate: session.subscriptionDueDate,
+          today: todayInSaoPaulo(),
+          canceledAt: session.billingCanceledAt,
+    }).kind;
+    // Assinatura cancelada e período pago encerrado: mesma tela, que explica.
+    if (billingKind === "blocked" || billingKind === "canceled") {
           redirect("/assinatura");
     }
     // Consentimento LGPD ausente ou de uma versão antiga do termo (ver
@@ -92,6 +93,7 @@ export const getCurrentUser = cache(async () => {
                                                                                    status: users.status,
                                                                                    billingEnabled: users.billingEnabled,
                                                                                    subscriptionDueDate: users.subscriptionDueDate,
+                                                                                   billingCanceledAt: users.billingCanceledAt,
                                                                          })
                                                                          .from(users)
                                                                          .where(eq(users.id, session.userId))

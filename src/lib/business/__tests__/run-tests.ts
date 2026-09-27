@@ -622,3 +622,26 @@ test("isCardPurchase: cartão pelo método, pelo nome ou por ter parcelas", () =
   assert.equal(isCardPurchase({ paymentMethod: "pix", installments: 1 }), false);
   assert.equal(isCardPurchase({}), false);
 });
+
+// ---------------------------------------------------------------------------
+// Cancelamento de assinatura (painel admin) — acesso até o fim do período pago
+// ---------------------------------------------------------------------------
+test("computeBillingState: cancelada dentro do período pago = canceled_active; no vencimento = canceled", () => {
+  const base = { billingEnabled: true, status: "active", subscriptionDueDate: "2026-10-26", canceledAt: new Date("2026-09-27T12:00:00Z") };
+  assert.equal(computeBillingState({ ...base, today: "2026-09-27" }).kind, "canceled_active");
+  assert.equal(computeBillingState({ ...base, today: "2026-10-25" }).kind, "canceled_active");
+  assert.equal(computeBillingState({ ...base, today: "2026-10-26" }).kind, "canceled"); // acaba no dia
+  assert.equal(computeBillingState({ ...base, today: "2026-11-30" }).kind, "canceled");
+});
+
+test("computeBillingState: cancelada sem nenhum pagamento (ou pendente) encerra na hora", () => {
+  const c = new Date("2026-09-27T12:00:00Z");
+  assert.equal(computeBillingState({ billingEnabled: true, status: "active", subscriptionDueDate: null, today: "2026-09-27", canceledAt: c }).kind, "canceled");
+  assert.equal(computeBillingState({ billingEnabled: true, status: "pending", subscriptionDueDate: "2026-09-27", today: "2026-09-27", canceledAt: c }).kind, "canceled");
+});
+
+test("computeBillingState: conta isenta ignora cancelamento; sem cancelamento nada muda", () => {
+  const c = new Date();
+  assert.equal(computeBillingState({ billingEnabled: false, status: "active", subscriptionDueDate: null, today: "2026-09-27", canceledAt: c }).kind, "exempt");
+  assert.equal(computeBillingState({ billingEnabled: true, status: "active", subscriptionDueDate: "2026-10-26", today: "2026-09-27", canceledAt: null }).kind, "ok");
+});
