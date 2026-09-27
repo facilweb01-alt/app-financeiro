@@ -103,7 +103,18 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       createPayment(sub, json.nextDueDate);
       return send(200, sub);
     }
-    let m = path.match(/^\/v3\/subscriptions\/([^/]+)\/payments$/);
+    let m = path.match(/^\/v3\/subscriptions\/([^/]+)$/);
+    if (req.method === "DELETE" && m) {
+      const sub = state.subscriptions.get(m[1]);
+      if (!sub) return send(404, { errors: [{ description: "not found" }] });
+      sub.deleted = true;
+      // como o Asaas: apagar a assinatura remove as cobranças ainda não pagas
+      for (const p of state.payments.values()) {
+        if (p.subscription === sub.id && (p.status === "PENDING" || p.status === "OVERDUE")) p.deleted = true;
+      }
+      return send(200, { deleted: true, id: sub.id });
+    }
+    m = path.match(/^\/v3\/subscriptions\/([^/]+)\/payments$/);
     if (req.method === "GET" && m) {
       const data = [...state.payments.values()].filter((p) => p.subscription === m[1]);
       return send(200, { object: "list", hasMore: false, totalCount: data.length, data });

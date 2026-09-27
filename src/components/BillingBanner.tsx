@@ -10,12 +10,24 @@ export function BillingBanner({
   billingEnabled,
   status,
   subscriptionDueDate,
+  canceledAt = null,
 }: {
   billingEnabled: boolean;
   status: string;
   subscriptionDueDate: string | null;
+  canceledAt?: Date | null;
 }) {
-  const state = computeBillingState({ billingEnabled, status, subscriptionDueDate, today: todayInSaoPaulo() });
+  const state = computeBillingState({ billingEnabled, status, subscriptionDueDate, today: todayInSaoPaulo(), canceledAt });
+  if (state.kind === "canceled_active" && state.dueDate) {
+    return (
+      <div className="mb-5 rounded-2xl border border-navy-600 bg-navy-800/60 p-4 text-sm" role="status">
+        <div className="font-semibold text-navy-100">Sua assinatura foi cancelada</div>
+        <div className="mt-0.5 text-navy-300">
+          Você continua com acesso até {formatDateBR(state.dueDate)}. Para voltar a assinar, fale com o suporte.
+        </div>
+      </div>
+    );
+  }
   if (state.kind !== "due_soon" && state.kind !== "overdue") return null;
   if (!state.dueDate || state.daysUntilDue === null) return null;
 

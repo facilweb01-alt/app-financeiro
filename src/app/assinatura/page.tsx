@@ -44,14 +44,24 @@ export default async function AssinaturaPage() {
     status: user.status,
     subscriptionDueDate: user.subscriptionDueDate,
     today: todayInSaoPaulo(),
+    canceledAt: user.billingCanceledAt,
   });
+  const canceled = state.kind === "canceled" || state.kind === "canceled_active";
 
-  const waiting = user.status === "pending" || state.kind === "blocked";
-  const canUseApp = user.status === "active" && state.kind !== "blocked";
+  const waiting = !canceled && (user.status === "pending" || state.kind === "blocked");
+  const canUseApp = user.status === "active" && state.kind !== "blocked" && state.kind !== "canceled";
 
   let title: string;
   let subtitle: string;
-  if (state.kind === "awaiting_first_payment") {
+  if (state.kind === "canceled") {
+    title = "Assinatura cancelada";
+    subtitle = state.dueDate
+      ? `Seu acesso ao App Financeiro terminou em ${formatDateBR(state.dueDate)}. Seus dados continuam guardados — para voltar a usar, fale com o suporte.`
+      : "Sua assinatura foi cancelada. Seus dados continuam guardados — para voltar a usar, fale com o suporte.";
+  } else if (state.kind === "canceled_active") {
+    title = "Assinatura cancelada";
+    subtitle = `Não haverá novas cobranças. Você continua com acesso até ${formatDateBR(state.dueDate!)}.`;
+  } else if (state.kind === "awaiting_first_payment") {
     title = "Falta só o Pix para liberar seu acesso";
     subtitle = "Pague com o QR Code ou o código copia-e-cola abaixo. A liberação é automática, em poucos segundos.";
   } else if (state.kind === "blocked") {
@@ -104,7 +114,7 @@ export default async function AssinaturaPage() {
               <div className="text-xs text-navy-400">por mês, via Pix</div>
             </div>
           </div>
-          {user.subscriptionDueDate && user.status === "active" && (
+          {user.subscriptionDueDate && user.status === "active" && !canceled && (
             <div className="mt-3 border-t border-navy-700/60 pt-3 text-sm text-navy-300">
               {state.kind === "ok" || state.kind === "due_soon"
                 ? `Próximo vencimento: ${formatDateBR(user.subscriptionDueDate)}`
@@ -164,9 +174,9 @@ export default async function AssinaturaPage() {
         {/* Fora dos blocos condicionais de propósito: precisa continuar
             montado quando o Pix some da tela (pago), para detectar a
             mudança "esperando -> pago" e levar a pessoa para o app. */}
-        {configured && <PaymentWatcher waiting={waiting} justPaidRedirect="/dashboard" />}
+        {configured && !canceled && <PaymentWatcher waiting={waiting} justPaidRedirect="/dashboard" />}
 
-        {!openPayment && !waiting && user.status === "active" && !error && (
+        {!openPayment && !waiting && !canceled && user.status === "active" && !error && (
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
             ✅ Nenhuma mensalidade em aberto. O Pix do próximo mês aparece aqui alguns dias antes do vencimento.
           </div>

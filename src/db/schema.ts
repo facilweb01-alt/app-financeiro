@@ -83,6 +83,8 @@ export const users = pgTable("users", {
     billingEnabled: boolean("billing_enabled").notNull().default(false),
     asaasCustomerId: text("asaas_customer_id"),
     asaasSubscriptionId: text("asaas_subscription_id"),
+    // Assinatura cancelada pelo painel admin (ver migração 0010).
+    billingCanceledAt: timestamp("billing_canceled_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

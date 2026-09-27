@@ -41,6 +41,7 @@ export type BillingOverview = {
     status: string;
     billingEnabled: boolean;
     subscriptionDueDate: string | null;
+    billingCanceledAt: Date | null;
   };
   openPayment: OpenPayment | null;
   history: { dueDate: string; value: string; status: string; paidAt: Date | null }[];
@@ -303,6 +304,7 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
           billingEnabled: users.billingEnabled,
           subscriptionDueDate: users.subscriptionDueDate,
           asaasSubscriptionId: users.asaasSubscriptionId,
+          billingCanceledAt: users.billingCanceledAt,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -316,7 +318,9 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
   let error: string | null = null;
   let openPayment: OpenPayment | null = null;
 
-  if (user.billingEnabled && configured) {
+  // Assinatura cancelada: não cria nem consulta mais nada no Asaas (a
+  // assinatura de lá foi apagada); só mostra o histórico.
+  if (user.billingEnabled && configured && !user.billingCanceledAt) {
     try {
       if (!user.asaasSubscriptionId) {
         await ensureSubscription(userId);
@@ -355,6 +359,7 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
       status: user.status,
       billingEnabled: user.billingEnabled,
       subscriptionDueDate: user.subscriptionDueDate,
+      billingCanceledAt: user.billingCanceledAt,
     },
     openPayment: openPayment && isOpenStatus(openPayment.status) ? openPayment : null,
     history: history.reverse(),

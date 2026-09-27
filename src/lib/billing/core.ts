@@ -95,7 +95,9 @@ export type BillingStateKind =
   | "ok" // em dia, vencimento longe
   | "due_soon" // vence em até REMIND_DAYS dias
   | "overdue" // venceu, dentro da tolerância — ainda usa o app, com aviso
-  | "blocked"; // venceu há mais de GRACE_DAYS dias — só a tela de pagamento abre
+  | "blocked" // venceu há mais de GRACE_DAYS dias — só a tela de pagamento abre
+  | "canceled_active" // assinatura cancelada, mas ainda dentro do período já pago
+  | "canceled"; // assinatura cancelada e período pago encerrado — acesso encerrado
 
 export type BillingState = {
   kind: BillingStateKind;
@@ -111,10 +113,24 @@ export function computeBillingState(input: {
   status: string;
   subscriptionDueDate: string | null;
   today: string;
+  /** assinatura cancelada pelo admin (users.billing_canceled_at) */
+  canceledAt?: Date | string | null;
 }): BillingState {
   const { billingEnabled, status, subscriptionDueDate, today } = input;
   if (!billingEnabled) {
     return { kind: "exempt", dueDate: subscriptionDueDate, daysUntilDue: null, blockDate: null };
+  }
+  if (input.canceledAt) {
+    // Cancelada: usa até o fim do período já pago (o vencimento seguinte) e
+    // o acesso termina NESSE dia. Sem nenhum pagamento, termina na hora.
+    const daysUntilDue = subscriptionDueDate ? daysBetween(today, subscriptionDueDate) : null;
+    const active = status === "active" && daysUntilDue !== null && daysUntilDue > 0;
+    return {
+      kind: active ? "canceled_active" : "canceled",
+      dueDate: subscriptionDueDate,
+      daysUntilDue,
+      blockDate: subscriptionDueDate,
+    };
   }
   if (status === "pending") {
     return {
