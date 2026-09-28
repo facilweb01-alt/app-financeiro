@@ -215,3 +215,26 @@ export function checkoutPageUrl(checkout: AsaasCheckout): string {
     ((process.env.ASAAS_API_KEY ?? "").startsWith("$aact_hmlg_") ? "https://sandbox.asaas.com" : "https://asaas.com");
   return `${base}/checkoutSession/show?id=${encodeURIComponent(checkout.id)}`;
 }
+
+export type AsaasBillingAddress = {
+  postalCode: string; // só dígitos (8)
+  address: string; // rua
+  addressNumber: string;
+  complement?: string | null;
+  province: string; // bairro
+};
+
+/**
+ * Grava o endereço de cobrança no cliente do Asaas. O Checkout de cartão
+ * recusa cliente sem endereço ("O campo address deve existir para o customer
+ * informado") — descoberto no 1º teste real no sandbox (28/09/2026).
+ */
+export function updateCustomerAddress(customerId: string, addr: AsaasBillingAddress): Promise<AsaasCustomer> {
+  return request("POST", `/customers/${encodeURIComponent(customerId)}`, {
+    postalCode: addr.postalCode,
+    address: addr.address,
+    addressNumber: addr.addressNumber,
+    complement: addr.complement || undefined,
+    province: addr.province,
+  });
+}

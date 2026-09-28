@@ -162,7 +162,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Meus dados financeiros ficam seguros?",
-    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão de crédito são digitados direto na página segura do Asaas — o App Financeiro não vê nem guarda.",
+    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento (no cartão, também o endereço de cobrança). Os dados do cartão de crédito são digitados direto na página segura do Asaas — o App Financeiro não vê nem guarda.",
   },
 ];
 

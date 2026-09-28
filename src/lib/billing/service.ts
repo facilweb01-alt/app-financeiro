@@ -16,6 +16,8 @@ import {
   isAsaasConfigured,
   listCustomerSubscriptions,
   listSubscriptionPayments,
+  updateCustomerAddress,
+  type AsaasBillingAddress,
   type AsaasPayment,
 } from "./asaas";
 import {
@@ -464,7 +466,11 @@ export class CardCheckoutError extends Error {}
  * trocar (a 1ª cobrança no cartão cai no vencimento que já existe, ver
  * core.ts#cardFirstDueDate).
  */
-export async function startCardCheckout(userId: string, origin: string): Promise<string> {
+export async function startCardCheckout(
+  userId: string,
+  origin: string,
+  billingAddress: AsaasBillingAddress
+): Promise<string> {
   if (!isAsaasConfigured()) throw new CardCheckoutError("A cobrança automática ainda não foi configurada. Avise o suporte.");
   // garante o cliente no Asaas (e a assinatura Pix, que vira reserva até o cartão ser aprovado)
   await ensureSubscription(userId);
@@ -486,6 +492,17 @@ export async function startCardCheckout(userId: string, origin: string): Promise
   if (!user || !user.billingEnabled) throw new CardCheckoutError("Esta conta não tem cobrança automática.");
   if (user.billingCanceledAt) throw new CardCheckoutError("Sua assinatura foi cancelada. Para voltar a assinar, fale com o suporte.");
   if (!user.asaasCustomerId) throw new CardCheckoutError("Não foi possível preparar o pagamento agora. Tente de novo em instantes.");
+
+  // O Checkout de cartão exige endereço no cliente do Asaas. Não guardamos o
+  // endereço no nosso banco — vai direto para o cliente no Asaas.
+  try {
+    await updateCustomerAddress(user.asaasCustomerId, billingAddress);
+  } catch (err) {
+    if (err instanceof AsaasError && err.status === 400) {
+      throw new CardCheckoutError(`Confira o endereço: ${err.message}`);
+    }
+    throw err;
+  }
 
   const firstDue = cardFirstDueDate({
     status: user.status,
