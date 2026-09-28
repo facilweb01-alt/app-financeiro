@@ -1,7 +1,10 @@
 // Servidor FALSO da API do Asaas, só para os testes automatizados (nunca
 // usado em produção). Implementa apenas os endpoints que o app usa
 // (src/lib/billing/asaas.ts) e alguns atalhos de teste (/__test/*) para
-// simular "o cliente pagou o Pix" ou "o Asaas gerou a cobrança do mês".
+// simular "o cliente pagou o Pix", "o Asaas gerou a cobrança do mês",
+// "o cliente concluiu o Checkout do cartão" ou "o cartão foi recusado".
+// A página do Checkout falsa fica em /__checkout/checkoutSession/show?id=...
+// (no app: ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout).
 //
 // Uso: const fake = await startFakeAsaas(3998); ... fake.close()
 // No app: ASAAS_BASE_URL=http://localhost:3998/v3 ASAAS_API_KEY=$aact_hmlg_teste
@@ -17,19 +20,23 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
     customers: new Map(),
     subscriptions: new Map(),
     payments: new Map(),
+    checkouts: new Map(),
     seq: 0,
     requests: [],
   };
   const nextId = (prefix) => `${prefix}_${++state.seq}${Date.now().toString(36)}`;
 
-  function createPayment(sub, dueDate) {
+  const todaySP = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+
+  function createPayment(sub, dueDate, status = "PENDING") {
     const p = {
       id: nextId("pay"),
       customer: sub.customer,
       subscription: sub.id,
       value: sub.value,
       netValue: sub.value - 1.99,
-      status: "PENDING",
+      billingType: sub.billingType,
+      status,
       dueDate,
       paymentDate: null,
       clientPaymentDate: null,
@@ -69,6 +76,37 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
         if (!sub) return send(404, { error: "no sub" });
         return send(200, createPayment(sub, json.dueDate));
       }
+      // cliente concluiu o Checkout do cartão: cria a assinatura de cartão e a
+      // 1ª cobrança (já confirmada se vence hoje, como o Asaas cobra na hora)
+      if (action === "checkout") {
+        const co = state.checkouts.get(id);
+        if (!co) return send(404, { error: "no checkout" });
+        const due = co.subscription.nextDueDate.slice(0, 10);
+        const sub = {
+          id: nextId("sub"),
+          customer: co.customer,
+          billingType: "CREDIT_CARD",
+          cycle: co.subscription.cycle,
+          value: co.items[0].value,
+          nextDueDate: due,
+          status: "ACTIVE",
+          dateCreated: todaySP(),
+          deleted: false,
+          description: co.items[0].name,
+        };
+        state.subscriptions.set(sub.id, sub);
+        const pay = createPayment(sub, due, due <= todaySP() ? "CONFIRMED" : "PENDING");
+        if (pay.status === "CONFIRMED") pay.paymentDate = pay.clientPaymentDate = todaySP();
+        co.status = "PAID";
+        return send(200, { checkout: co, subscription: sub, payment: pay });
+      }
+      if (action === "decline") {
+        const p = state.payments.get(id);
+        if (!p) return send(404, { error: "no payment" });
+        p.status = "OVERDUE";
+        if (json?.dueDate) p.dueDate = json.dueDate;
+        return send(200, p);
+      }
       if (action === "setDue") {
         const p = state.payments.get(id);
         p.dueDate = json.dueDate;
@@ -76,6 +114,13 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
         return send(200, p);
       }
       return send(404, {});
+    }
+
+    // --- página do Checkout falsa (o navegador do cliente abre esta) --------
+    if (req.method === "GET" && path === "/__checkout/checkoutSession/show") {
+      const co = state.checkouts.get(url.searchParams.get("id"));
+      res.writeHead(co ? 200 : 404, { "Content-Type": "text/html; charset=utf-8" });
+      return res.end(`<html><body><h1>Checkout falso do Asaas</h1><p id="co">${co ? co.id : "não existe"}</p></body></html>`);
     }
 
     // --- API "de verdade" ---------------------------------------------------
@@ -94,11 +139,35 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       state.customers.set(c.id, c);
       return send(200, c);
     }
+    if (req.method === "POST" && path === "/v3/checkouts") {
+      const errs = [];
+      if (JSON.stringify(json?.billingTypes) !== '["CREDIT_CARD"]') errs.push("billingTypes");
+      if (JSON.stringify(json?.chargeTypes) !== '["RECURRENT"]') errs.push("chargeTypes");
+      if (!json?.customer || !state.customers.has(json.customer)) errs.push("customer");
+      if (json?.customerData) errs.push("customer e customerData juntos");
+      if (!json?.callback?.successUrl || !json?.callback?.cancelUrl || !json?.callback?.expiredUrl) errs.push("callback");
+      const item = json?.items?.[0];
+      if (!item?.name || !item?.value || !item?.quantity || !item?.imageBase64) errs.push("items");
+      if (json?.subscription?.cycle !== "MONTHLY" || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(json?.subscription?.nextDueDate ?? "")) errs.push("subscription");
+      if (errs.length) return send(400, { errors: errs.map((e) => ({ code: "invalid", description: `campo inválido: ${e}` })) });
+      const co = { id: `co_${++state.seq}${Date.now().toString(36)}`, status: "ACTIVE", ...json };
+      state.checkouts.set(co.id, co);
+      // o Asaas real devolve o id (o link é montado a partir dele)
+      return send(200, { id: co.id, status: co.status });
+    }
+    if (req.method === "GET" && path === "/v3/subscriptions") {
+      const customer = url.searchParams.get("customer");
+      const status = url.searchParams.get("status");
+      const data = [...state.subscriptions.values()].filter(
+        (s) => s.customer === customer && !s.deleted && (!status || (s.status ?? "ACTIVE") === status)
+      );
+      return send(200, { object: "list", hasMore: false, totalCount: data.length, data });
+    }
     if (req.method === "POST" && path === "/v3/subscriptions") {
       if (json.billingType !== "PIX" || json.cycle !== "MONTHLY") {
         return send(400, { errors: [{ code: "invalid", description: "tipo/ciclo inválido" }] });
       }
-      const sub = { id: nextId("sub"), ...json };
+      const sub = { id: nextId("sub"), status: "ACTIVE", dateCreated: todaySP(), deleted: false, ...json };
       state.subscriptions.set(sub.id, sub);
       createPayment(sub, json.nextDueDate);
       return send(200, sub);
@@ -108,6 +177,7 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       const sub = state.subscriptions.get(m[1]);
       if (!sub) return send(404, { errors: [{ description: "not found" }] });
       sub.deleted = true;
+      sub.status = "INACTIVE";
       // como o Asaas: apagar a assinatura remove as cobranças ainda não pagas
       for (const p of state.payments.values()) {
         if (p.subscription === sub.id && (p.status === "PENDING" || p.status === "OVERDUE")) p.deleted = true;
@@ -140,6 +210,8 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
   return {
     state,
     url: `http://localhost:${port}/v3`,
+    checkoutsOf: (customer) => [...state.checkouts.values()].filter((c) => c.customer === customer),
+    subsOf: (customer) => [...state.subscriptions.values()].filter((s) => s.customer === customer),
     paymentsOf: (subId) => [...state.payments.values()].filter((p) => p.subscription === subId),
     close: () => new Promise((resolve) => server.close(resolve)),
   };

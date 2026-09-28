@@ -1,7 +1,7 @@
 import "server-only";
 
-// Cliente mínimo da API v3 do Asaas — só o que a cobrança mensal via Pix
-// precisa. Documentação: https://docs.asaas.com
+// Cliente mínimo da API v3 do Asaas — só o que a cobrança mensal (Pix ou
+// cartão de crédito recorrente) precisa. Documentação: https://docs.asaas.com
 //
 // Variáveis de ambiente (produção: painel do Render; nunca no código):
 // - ASAAS_API_KEY: chave da API (produção começa com $aact_prod_, sandbox
@@ -12,6 +12,8 @@ import "server-only";
 // - ASAAS_BASE_URL (opcional): sobrescreve a URL da API — usado nos testes
 //   automatizados (servidor falso local). Sem ela, a URL é escolhida pelo
 //   prefixo da chave (sandbox ou produção).
+// - ASAAS_CHECKOUT_BASE_URL (opcional): sobrescreve o endereço da página de
+//   Checkout (cartão) — só para os testes automatizados.
 
 export function isAsaasConfigured(): boolean {
   return Boolean(process.env.ASAAS_API_KEY);
@@ -34,7 +36,7 @@ export class AsaasError extends Error {
   }
 }
 
-async function request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+async function request<T>(method: "GET" | "POST" | "DELETE", path: string, body?: unknown): Promise<T> {
   const apiKey = process.env.ASAAS_API_KEY;
   if (!apiKey) throw new AsaasError("ASAAS_API_KEY não configurada.", 0);
 
@@ -47,7 +49,8 @@ async function request<T>(method: "GET" | "POST", path: string, body?: unknown):
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
+    // o Asaas recomenda timeout de pelo menos 60s em operações com cartão
+    signal: AbortSignal.timeout(60_000),
   });
 
   const text = await res.text();
@@ -68,13 +71,22 @@ async function request<T>(method: "GET" | "POST", path: string, body?: unknown):
 }
 
 export type AsaasCustomer = { id: string };
-export type AsaasSubscription = { id: string; nextDueDate?: string; status?: string };
+export type AsaasSubscription = {
+  id: string;
+  customer?: string;
+  billingType?: string;
+  nextDueDate?: string;
+  status?: string;
+  dateCreated?: string;
+  deleted?: boolean;
+};
 export type AsaasPayment = {
   id: string;
   customer: string;
   subscription?: string | null;
   value: number;
   netValue?: number;
+  billingType?: string | null;
   status: string;
   dueDate: string;
   paymentDate?: string | null;
@@ -129,4 +141,77 @@ export function getPayment(paymentId: string): Promise<AsaasPayment> {
 
 export function getPixQrCode(paymentId: string): Promise<AsaasPixQrCode> {
   return request("GET", `/payments/${encodeURIComponent(paymentId)}/pixQrCode`);
+}
+
+export function deleteSubscription(subscriptionId: string): Promise<{ deleted: boolean; id: string }> {
+  return request("DELETE", `/subscriptions/${encodeURIComponent(subscriptionId)}`);
+}
+
+/** Assinaturas ativas de um cliente (usado para achar a de cartão criada pelo Checkout). */
+export async function listCustomerSubscriptions(customerId: string): Promise<AsaasSubscription[]> {
+  const res = await request<{ data: AsaasSubscription[] }>(
+    "GET",
+    `/subscriptions?customer=${encodeURIComponent(customerId)}&status=ACTIVE&limit=100`
+  );
+  return res.data ?? [];
+}
+
+export type AsaasCheckout = { id: string; link?: string | null; url?: string | null };
+
+/**
+ * Cria uma página de Checkout do Asaas para assinatura com cartão de crédito
+ * recorrente. O cliente digita o cartão NA PÁGINA DO ASAAS (os dados do
+ * cartão nunca passam pelo nosso servidor); ao concluir, o Asaas cria uma
+ * assinatura nova (billingType CREDIT_CARD) para o mesmo cliente, e o app
+ * adota essa assinatura (ver service.ts#syncCardSubscription).
+ * Docs: "Checkout com Assinatura (recorrente)" — POST /v3/checkouts.
+ */
+export function createCardCheckout(input: {
+  customer: string;
+  value: number;
+  /** primeira cobrança no cartão, "YYYY-MM-DD HH:mm:ss" (ver core.ts#checkoutDueDateTime) */
+  nextDueDateTime: string;
+  itemName: string;
+  itemDescription: string;
+  imageBase64: string;
+  externalReference: string;
+  successUrl: string;
+  cancelUrl: string;
+  expiredUrl: string;
+}): Promise<AsaasCheckout> {
+  return request("POST", "/checkouts", {
+    billingTypes: ["CREDIT_CARD"],
+    chargeTypes: ["RECURRENT"],
+    minutesToExpire: 60,
+    externalReference: input.externalReference,
+    customer: input.customer,
+    callback: {
+      successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl,
+      expiredUrl: input.expiredUrl,
+    },
+    items: [
+      {
+        name: input.itemName,
+        description: input.itemDescription,
+        quantity: 1,
+        value: input.value,
+        imageBase64: input.imageBase64,
+      },
+    ],
+    subscription: {
+      cycle: "MONTHLY",
+      nextDueDate: input.nextDueDateTime,
+    },
+  });
+}
+
+/** Endereço da página do Checkout para mandar o cliente. */
+export function checkoutPageUrl(checkout: AsaasCheckout): string {
+  if (checkout.link) return checkout.link;
+  if (checkout.url) return checkout.url;
+  const base =
+    process.env.ASAAS_CHECKOUT_BASE_URL?.replace(/\/$/, "") ??
+    ((process.env.ASAAS_API_KEY ?? "").startsWith("$aact_hmlg_") ? "https://sandbox.asaas.com" : "https://asaas.com");
+  return `${base}/checkoutSession/show?id=${encodeURIComponent(checkout.id)}`;
 }

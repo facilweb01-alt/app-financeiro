@@ -94,6 +94,7 @@ export const getCurrentUser = cache(async () => {
                                                                                    billingEnabled: users.billingEnabled,
                                                                                    subscriptionDueDate: users.subscriptionDueDate,
                                                                                    billingCanceledAt: users.billingCanceledAt,
+                                                                                   billingMethod: users.billingMethod,
                                                                          })
                                                                          .from(users)
                                                                          .where(eq(users.id, session.userId))

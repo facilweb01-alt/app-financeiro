@@ -78,12 +78,22 @@ export type PaymentLike = { dueDate: string; status: string };
  * conhecidas: o mais antigo em aberto; se não houver nenhum em aberto, o
  * ciclo seguinte ao último pago; sem nenhuma cobrança, null.
  */
-export function computeSubscriptionDueDate(payments: PaymentLike[]): string | null {
+export function computeSubscriptionDueDate(
+  payments: PaymentLike[],
+  opts: {
+    /**
+     * 1º vencimento da assinatura ATUAL (ex.: a de cartão depois de trocar de
+     * Pix para cartão) — define o "dia do contrato" dos próximos ciclos.
+     * Sem ele, vale o vencimento mais antigo de todos.
+     */
+    anchorDate?: string | null;
+  } = {}
+): string | null {
   if (payments.length === 0) return null;
   const open = payments.filter((p) => isOpenStatus(p.status)).map((p) => p.dueDate).sort();
   if (open.length > 0) return open[0];
   const all = payments.map((p) => p.dueDate).sort();
-  const anchorDay = Number(all[0].slice(8, 10));
+  const anchorDay = Number((opts.anchorDate ?? all[0]).slice(8, 10));
   const paid = payments.filter((p) => isPaidStatus(p.status)).map((p) => p.dueDate).sort();
   if (paid.length === 0) return null; // só cobranças canceladas/estornadas
   return nextCycleDate(paid[paid.length - 1], anchorDay);
@@ -151,6 +161,75 @@ export function computeBillingState(input: {
   else if (daysUntilDue <= REMIND_DAYS) kind = "due_soon";
   else kind = "ok";
   return { kind, dueDate: subscriptionDueDate, daysUntilDue, blockDate };
+}
+
+// --- Cartão de crédito recorrente (Checkout do Asaas) ----------------------
+
+export type BillingMethod = "PIX" | "CREDIT_CARD";
+
+export function normalizeBillingMethod(value: string | null | undefined): BillingMethod {
+  return value === "CREDIT_CARD" ? "CREDIT_CARD" : "PIX";
+}
+
+/**
+ * Data da 1ª cobrança no cartão quando o cliente troca (ou começa) pelo
+ * cartão. Regra: ninguém paga duas vezes pelo mesmo mês e ninguém ganha mês
+ * de graça.
+ * - Ainda não pagou nada (conta 'pending'): cobra hoje.
+ * - Já tem um vencimento futuro (em dia, pago até lá, ou com a mensalidade
+ *   do mês gerada mas ainda não vencida): a 1ª cobrança do cartão é nesse
+ *   mesmo dia — a assinatura Pix antiga é apagada junto com a cobrança
+ *   em aberto.
+ * - Vencido (ou sem vencimento): cobra hoje.
+ */
+export function cardFirstDueDate(input: { status: string; subscriptionDueDate: string | null; today: string }): string {
+  const { status, subscriptionDueDate, today } = input;
+  if (status === "pending" || !subscriptionDueDate) return today;
+  return subscriptionDueDate > today ? subscriptionDueDate : today;
+}
+
+/**
+ * Converte a data da 1ª cobrança para o formato que o Checkout do Asaas pede
+ * ("YYYY-MM-DD HH:mm:ss", horário de Brasília). Para hoje, usa o horário
+ * atual + 10 min (uma data/hora no passado seria recusada); para dias
+ * futuros, meio-dia.
+ */
+export function checkoutDueDateTime(date: string, now: Date = new Date()): string {
+  if (date !== todayInSaoPaulo(now)) return `${date} 12:00:00`;
+  const later = new Date(now.getTime() + 10 * 60_000);
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).format(later);
+  // passou da meia-noite com os 10 min? fica no último segundo do dia
+  if (todayInSaoPaulo(later) !== date) return `${date} 23:59:59`;
+  return `${date} ${parts}`;
+}
+
+/**
+ * Escolhe, entre as assinaturas ATIVAS do cliente no Asaas, a de cartão que
+ * o app deve adotar: a mais recente com billingType CREDIT_CARD que ainda
+ * não é a atual. Null quando não há nada para trocar.
+ */
+export function pickCardSubscription<T extends { id: string; billingType?: string; dateCreated?: string; deleted?: boolean; status?: string }>(
+  subscriptions: T[],
+  currentSubscriptionId: string | null
+): T | null {
+  const cards = subscriptions
+    .filter((s) => s.billingType === "CREDIT_CARD" && !s.deleted && (s.status ?? "ACTIVE") === "ACTIVE")
+    // o Asaas informa só a DATA de criação: no empate (mesmo dia), a que não
+    // é a atual é a mais nova (a atual já existia antes do novo Checkout)
+    .sort(
+      (a, b) =>
+        (b.dateCreated ?? "").localeCompare(a.dateCreated ?? "") ||
+        (a.id === currentSubscriptionId ? 1 : 0) - (b.id === currentSubscriptionId ? 1 : 0)
+    );
+  const newest = cards[0];
+  if (!newest || newest.id === currentSubscriptionId) return null;
+  return newest;
 }
 
 /** Só dígitos. */

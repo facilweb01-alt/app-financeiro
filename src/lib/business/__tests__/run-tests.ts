@@ -461,6 +461,10 @@ import {
   normalizeSignupPhone,
   whatsappPhoneVariants,
   GRACE_DAYS,
+  cardFirstDueDate,
+  checkoutDueDateTime,
+  pickCardSubscription,
+  normalizeBillingMethod,
 } from "../../billing/core";
 
 test("todayInSaoPaulo: 01:30 UTC ainda é o dia anterior em São Paulo", () => {
@@ -644,4 +648,63 @@ test("computeBillingState: conta isenta ignora cancelamento; sem cancelamento na
   const c = new Date();
   assert.equal(computeBillingState({ billingEnabled: false, status: "active", subscriptionDueDate: null, today: "2026-09-27", canceledAt: c }).kind, "exempt");
   assert.equal(computeBillingState({ billingEnabled: true, status: "active", subscriptionDueDate: "2026-10-26", today: "2026-09-27", canceledAt: null }).kind, "ok");
+});
+
+// ---------------------------------------------------------------------------
+// Cartão de crédito recorrente (Checkout do Asaas)
+// ---------------------------------------------------------------------------
+test("cardFirstDueDate: sem pagar ainda cobra hoje; em dia cobra no vencimento que já existe; vencido cobra hoje", () => {
+  const today = "2026-09-28";
+  assert.equal(cardFirstDueDate({ status: "pending", subscriptionDueDate: "2026-09-28", today }), today);
+  assert.equal(cardFirstDueDate({ status: "active", subscriptionDueDate: "2026-10-26", today }), "2026-10-26");
+  assert.equal(cardFirstDueDate({ status: "active", subscriptionDueDate: "2026-09-25", today }), today); // vencido
+  assert.equal(cardFirstDueDate({ status: "active", subscriptionDueDate: today, today }), today); // vence hoje
+  assert.equal(cardFirstDueDate({ status: "active", subscriptionDueDate: null, today }), today);
+});
+
+test("checkoutDueDateTime: hoje = agora + 10 min (horário de Brasília); futuro = meio-dia", () => {
+  // 28/09/2026 15:00 UTC = 12:00 em São Paulo
+  const now = new Date("2026-09-28T15:00:00Z");
+  assert.equal(checkoutDueDateTime("2026-09-28", now), "2026-09-28 12:10:00");
+  assert.equal(checkoutDueDateTime("2026-10-26", now), "2026-10-26 12:00:00");
+  // 23:55 em São Paulo: +10 min viraria o dia seguinte -> último segundo de hoje
+  const late = new Date("2026-09-29T02:55:00Z");
+  assert.equal(checkoutDueDateTime("2026-09-28", late), "2026-09-28 23:59:59");
+});
+
+test("pickCardSubscription: adota a assinatura de cartão mais nova que ainda não é a atual", () => {
+  const subs = [
+    { id: "sub_pix", billingType: "PIX", dateCreated: "2026-09-26", status: "ACTIVE" },
+    { id: "sub_card1", billingType: "CREDIT_CARD", dateCreated: "2026-09-27", status: "ACTIVE" },
+    { id: "sub_card2", billingType: "CREDIT_CARD", dateCreated: "2026-09-28", status: "ACTIVE" },
+  ];
+  assert.equal(pickCardSubscription(subs, "sub_pix")?.id, "sub_card2");
+  assert.equal(pickCardSubscription(subs, "sub_card2"), null); // já é a atual
+  assert.equal(pickCardSubscription([subs[0]], "sub_pix"), null); // só Pix: nada a trocar
+  assert.equal(pickCardSubscription([{ ...subs[1], deleted: true }], "sub_pix"), null);
+  assert.equal(pickCardSubscription([{ ...subs[1], status: "INACTIVE" }], "sub_pix"), null);
+  // trocou de cartão no mesmo dia (o Asaas só informa a data): fica com a nova
+  const sameDay = [
+    { id: "sub_cardA", billingType: "CREDIT_CARD", dateCreated: "2026-09-28", status: "ACTIVE" },
+    { id: "sub_cardB", billingType: "CREDIT_CARD", dateCreated: "2026-09-28", status: "ACTIVE" },
+  ];
+  assert.equal(pickCardSubscription(sameDay, "sub_cardA")?.id, "sub_cardB");
+  assert.equal(pickCardSubscription([...sameDay].reverse(), "sub_cardA")?.id, "sub_cardB");
+});
+
+test("computeSubscriptionDueDate: depois de trocar para o cartão, o dia do contrato é o da assinatura nova", () => {
+  const payments = [
+    { dueDate: "2026-09-05", status: "RECEIVED" }, // Pix antigo, dia 5
+    { dueDate: "2026-10-05", status: "DELETED" }, // Pix em aberto, cancelado na troca
+    { dueDate: "2026-10-20", status: "CONFIRMED" }, // 1ª do cartão, dia 20
+  ];
+  assert.equal(computeSubscriptionDueDate(payments), "2026-11-05"); // sem âncora: dia antigo (errado para o cartão)
+  assert.equal(computeSubscriptionDueDate(payments, { anchorDate: "2026-10-20" }), "2026-11-20");
+});
+
+test("normalizeBillingMethod: só CREDIT_CARD vira cartão; o resto é Pix", () => {
+  assert.equal(normalizeBillingMethod("CREDIT_CARD"), "CREDIT_CARD");
+  assert.equal(normalizeBillingMethod("PIX"), "PIX");
+  assert.equal(normalizeBillingMethod(null), "PIX");
+  assert.equal(normalizeBillingMethod("BOLETO"), "PIX");
 });

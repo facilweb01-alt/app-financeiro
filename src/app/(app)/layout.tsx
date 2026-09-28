@@ -22,6 +22,7 @@ export default async function AppShellLayout({ children }: { children: React.Rea
                 status={user.status}
                 subscriptionDueDate={user.subscriptionDueDate}
                 canceledAt={user.billingCanceledAt}
+                billingMethod={user.billingMethod}
               />
             )}
             {children}

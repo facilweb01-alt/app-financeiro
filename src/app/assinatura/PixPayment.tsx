@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { refreshBillingStatus } from "@/app/actions/billing";
+import { payWithCard, refreshBillingStatus } from "@/app/actions/billing";
 
 // Parte interativa da tela de pagamento: copiar o Pix copia-e-cola, botão
 // "Já paguei" e checagem automática (a cada 6s relê a página — o webhook do
@@ -101,5 +101,30 @@ export function PaymentWatcher({ waiting, justPaidRedirect }: { waiting: boolean
       </p>
       {message && <p className="text-center text-xs text-amber-300">{message}</p>}
     </div>
+  );
+}
+
+/**
+ * Botão "Pagar com cartão de crédito": chama a Server Action que cria o
+ * Checkout do Asaas e redireciona para a página segura do Asaas, onde o
+ * cliente digita o cartão (os dados do cartão nunca passam pelo app).
+ */
+export function CardCheckoutButton({ label, variant = "primary" }: { label: string; variant?: "primary" | "secondary" }) {
+  const [state, formAction, pending] = useActionState(payWithCard, { error: null });
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <button
+        type="submit"
+        disabled={pending}
+        className={
+          variant === "primary"
+            ? "w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
+            : "w-full rounded-xl border border-navy-600 px-4 py-2.5 text-sm font-medium text-navy-100 transition-colors hover:bg-navy-800 disabled:opacity-60"
+        }
+      >
+        {pending ? "Abrindo pagamento seguro..." : label}
+      </button>
+      {state.error && <p className="text-center text-xs text-red-300">{state.error}</p>}
+    </form>
   );
 }

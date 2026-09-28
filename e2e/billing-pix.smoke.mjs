@@ -69,7 +69,7 @@ try {
   await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
   await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
   const payTxt = await page.textContent("body");
-  check("tela de pagamento pede o Pix", payTxt.includes("Falta só o Pix"));
+  check("tela de pagamento pede o Pix", payTxt.includes("Falta só o pagamento") && payTxt.includes("Pagar com Pix"));
   const payload = await page.inputValue("#pix-payload");
   check("mostra o Pix copia-e-cola", payload.startsWith("000201"), payload.slice(0, 20));
 

@@ -50,6 +50,7 @@ node e2e/admin-panel.smoke.mjs       # painel /admin: aprovar, suspender, reativ
 # Página de vendas + cobrança Pix, contra um Asaas FALSO (e2e/helpers/fakeAsaas.mjs). Suba o app assim antes:
 #   ASAAS_API_KEY='$aact_hmlg_teste' ASAAS_BASE_URL=http://localhost:3998/v3 ASAAS_WEBHOOK_TOKEN=token-teste-webhook npx next start -p 3100
 node e2e/billing-pix.smoke.mjs       # landing, cadastro com CPF/WhatsApp, QR Pix, webhook, aviso de vencimento, bloqueio após 3 dias, desbloqueio
+node e2e/billing-card.smoke.mjs      # cartão recorrente: Checkout, troca Pix->cartão, cartão recusado, trocar cartão (app também com ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout)
 ```
 
 Precisam do Chromium do Playwright instalado (`npx playwright install chromium`, se ainda não tiver). Os testes que criam usuários usam `e2e/helpers/testDb.mjs` (conecta direto no banco com `DATABASE_URL`) para simular ações que só um admin faria em `/admin` — sem isso, todo teste de outra funcionalidade teria que primeiro passar pela UI do painel administrativo.
@@ -118,11 +119,19 @@ O que falta, e que exige uma conta/número de verdade (por isso não foi feito n
 - O painel admin (app separado) mostra "Aguardando 1º Pix", "Pix automático — em dia / vence em / vencido / bloqueado", último Pix pago e o total recebido no mês.
 - Regras em `src/lib/billing/core.ts` (puro, com testes em `run-tests.ts`); chamadas à API em `asaas.ts`; sincronização em `service.ts`; tabelas na migração `0008_add_billing.sql` (com RLS).
 
+### Cartão de crédito recorrente (migração 0011)
+
+- Em `/assinatura` o cliente escolhe **Pix** ou **cartão de crédito**. "Pagar com cartão de crédito" cria um **Checkout do Asaas** (`POST /v3/checkouts`, `chargeTypes: RECURRENT`, `billingTypes: CREDIT_CARD`) para o cliente que já existe no Asaas e manda a pessoa para a página segura do Asaas — **os dados do cartão nunca passam pelo app** (sem PCI do nosso lado).
+- Ao concluir, o Asaas cria uma assinatura nova de cartão. O app a adota (`service.ts#syncCardSubscription`): apaga a assinatura anterior (a Pix — e a cobrança Pix em aberto, que fica "Cancelada" no histórico), troca `users.asaas_subscription_id` e grava `users.billing_method = 'CREDIT_CARD'`. Descobre isso por qualquer um de três caminhos: o cliente volta para `/assinatura?cartao=ok`; webhook `SUBSCRIPTION_CREATED`/`CHECKOUT_PAID`; ou o webhook da 1ª cobrança do cartão.
+- 1ª cobrança no cartão (`core.ts#cardFirstDueDate`): conta sem pagamento ou vencida → hoje; em dia → no vencimento que já existia (ninguém paga duas vezes o mesmo mês).
+- Cartão: sem aviso de "vence em N dias" (é automático). Cartão recusado (cobrança vencida) → aviso vermelho, `/assinatura` oferece "Pagar esta mensalidade" (fatura do Asaas) ou "Cadastrar outro cartão"; mesma regra de bloqueio (3 dias).
+- Teste: `node e2e/billing-card.smoke.mjs` (suba o app também com `ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout`).
+
 ### Para ligar em produção (passo a passo)
 
 1. Criar a conta no Asaas (começar pelo **sandbox**) e cadastrar uma chave Pix.
 2. Gerar a chave de API e colar no Render como `ASAAS_API_KEY`.
-3. Em Integrações > Webhooks: URL `https://<seu-app>/api/asaas/webhook`, eventos de **Cobranças**, e um token de autenticação — o mesmo valor vai no Render como `ASAAS_WEBHOOK_TOKEN`.
+3. Em Integrações > Webhooks: URL `https://<seu-app>/api/asaas/webhook`, eventos de **Cobranças** (e, para o cartão, também **Assinaturas** e **Checkout** — recomendados, não obrigatórios), e um token de autenticação — o mesmo valor vai no Render como `ASAAS_WEBHOOK_TOKEN`.
 4. Fazer um cadastro de teste pela página de vendas e pagar o Pix no sandbox; conferir a liberação e o painel admin.
 
 ## Termos de Uso / Política de Privacidade (LGPD)
