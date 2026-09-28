@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getRawSession } from "@/lib/dal";
 import { CardCheckoutError, getBillingOverview, startCardCheckout } from "@/lib/billing/service";
+import { validateBillingAddress } from "@/lib/billing/core";
 
 /**
  * "Já paguei" / checagem periódica da tela /assinatura: consulta o Asaas
@@ -37,15 +38,24 @@ async function appOrigin(): Promise<string> {
  * e manda o cliente para lá. Mesma regra de sessão do refresh acima — tem que
  * funcionar para quem ainda está aguardando o 1º pagamento ou bloqueado.
  */
-export async function payWithCard(): Promise<{ error: string | null }> {
+export async function payWithCard(_prev: { error: string | null }, formData: FormData): Promise<{ error: string | null }> {
   const session = await getRawSession();
   if (!session) redirect("/login");
   if (!session.billingEnabled) return { error: "Esta conta não tem cobrança automática." };
   if (session.status === "suspended") return { error: "Conta suspensa. Fale com o suporte." };
 
+  const addr = validateBillingAddress({
+    postalCode: formData.get("postalCode")?.toString(),
+    address: formData.get("address")?.toString(),
+    addressNumber: formData.get("addressNumber")?.toString(),
+    complement: formData.get("complement")?.toString(),
+    province: formData.get("province")?.toString(),
+  });
+  if (!addr.ok) return { error: addr.error };
+
   let url: string;
   try {
-    url = await startCardCheckout(session.userId, await appOrigin());
+    url = await startCardCheckout(session.userId, await appOrigin(), addr.data);
   } catch (err) {
     console.error("[billing] erro ao criar checkout do cartão:", err);
     return {

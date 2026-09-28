@@ -139,11 +139,26 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       state.customers.set(c.id, c);
       return send(200, c);
     }
+    let mc = path.match(/^\/v3\/customers\/([^/]+)$/);
+    if (req.method === "POST" && mc) {
+      const cus = state.customers.get(mc[1]);
+      if (!cus) return send(404, { errors: [{ description: "not found" }] });
+      if (json.postalCode && !/^\d{8}$/.test(json.postalCode)) return send(400, { errors: [{ description: "CEP inválido" }] });
+      Object.assign(cus, json);
+      return send(200, cus);
+    }
     if (req.method === "POST" && path === "/v3/checkouts") {
       const errs = [];
       if (JSON.stringify(json?.billingTypes) !== '["CREDIT_CARD"]') errs.push("billingTypes");
       if (JSON.stringify(json?.chargeTypes) !== '["RECURRENT"]') errs.push("chargeTypes");
       if (!json?.customer || !state.customers.has(json.customer)) errs.push("customer");
+      else {
+        // como o Asaas real (descoberto no 1º teste no sandbox): o cliente precisa ter endereço
+        const cus = state.customers.get(json.customer);
+        if (!cus.address || !cus.addressNumber || !cus.postalCode) {
+          return send(400, { errors: [{ code: "invalid_customer", description: "O campo address deve existir para o customer informado." }] });
+        }
+      }
       if (json?.customerData) errs.push("customer e customerData juntos");
       if (!json?.callback?.successUrl || !json?.callback?.cancelUrl || !json?.callback?.expiredUrl) errs.push("callback");
       const item = json?.items?.[0];

@@ -465,6 +465,7 @@ import {
   checkoutDueDateTime,
   pickCardSubscription,
   normalizeBillingMethod,
+  validateBillingAddress,
 } from "../../billing/core";
 
 test("todayInSaoPaulo: 01:30 UTC ainda é o dia anterior em São Paulo", () => {
@@ -707,4 +708,14 @@ test("normalizeBillingMethod: só CREDIT_CARD vira cartão; o resto é Pix", () 
   assert.equal(normalizeBillingMethod("PIX"), "PIX");
   assert.equal(normalizeBillingMethod(null), "PIX");
   assert.equal(normalizeBillingMethod("BOLETO"), "PIX");
+});
+
+test("validateBillingAddress: limpa os campos e recusa endereço incompleto (o Asaas exige endereço para o cartão)", () => {
+  const ok = validateBillingAddress({ postalCode: "58.310-000", address: "  Rua das  Flores ", addressNumber: " 12 ", complement: "", province: "Centro" });
+  assert.deepEqual(ok, { ok: true, data: { postalCode: "58310000", address: "Rua das Flores", addressNumber: "12", complement: null, province: "Centro" } });
+  assert.equal(validateBillingAddress({ postalCode: "5831", address: "Rua A", addressNumber: "1", province: "Centro" }).ok, false);
+  assert.equal(validateBillingAddress({ postalCode: "58310000", address: "", addressNumber: "1", province: "Centro" }).ok, false);
+  assert.equal(validateBillingAddress({ postalCode: "58310000", address: "Rua A", addressNumber: "", province: "Centro" }).ok, false);
+  assert.equal(validateBillingAddress({ postalCode: "58310000", address: "Rua A", addressNumber: "S/N", province: "" }).ok, false);
+  assert.equal(validateBillingAddress({ postalCode: "58310000", address: "Rua A", addressNumber: "S/N", province: "Centro" }).ok, true);
 });

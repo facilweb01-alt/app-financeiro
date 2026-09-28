@@ -232,6 +232,36 @@ export function pickCardSubscription<T extends { id: string; billingType?: strin
   return newest;
 }
 
+/**
+ * Valida o endereço de cobrança pedido antes do Checkout do cartão (o Asaas
+ * exige endereço no cliente para cobrar no cartão). Devolve os campos limpos
+ * ou a mensagem de erro para mostrar ao cliente.
+ */
+export function validateBillingAddress(input: {
+  postalCode?: string | null;
+  address?: string | null;
+  addressNumber?: string | null;
+  complement?: string | null;
+  province?: string | null;
+}):
+  | { ok: true; data: { postalCode: string; address: string; addressNumber: string; complement: string | null; province: string } }
+  | { ok: false; error: string } {
+  const clean = (v: string | null | undefined) => (v ?? "").replace(/\s+/g, " ").trim();
+  const postalCode = onlyDigits(input.postalCode ?? "");
+  const address = clean(input.address);
+  const addressNumber = clean(input.addressNumber);
+  const complement = clean(input.complement);
+  const province = clean(input.province);
+  if (postalCode.length !== 8) return { ok: false, error: "Informe o CEP com 8 números." };
+  if (address.length < 3) return { ok: false, error: "Informe a rua do endereço de cobrança." };
+  if (!addressNumber) return { ok: false, error: "Informe o número (ou S/N)." };
+  if (province.length < 2) return { ok: false, error: "Informe o bairro." };
+  if (address.length > 120 || addressNumber.length > 20 || complement.length > 60 || province.length > 80) {
+    return { ok: false, error: "Endereço muito longo — confira os campos." };
+  }
+  return { ok: true, data: { postalCode, address, addressNumber, complement: complement || null, province } };
+}
+
 /** Só dígitos. */
 export function onlyDigits(value: string): string {
   return value.replace(/\D/g, "");
