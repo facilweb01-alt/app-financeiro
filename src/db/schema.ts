@@ -85,6 +85,8 @@ export const users = pgTable("users", {
     asaasSubscriptionId: text("asaas_subscription_id"),
     // Assinatura cancelada pelo painel admin (ver migração 0010).
     billingCanceledAt: timestamp("billing_canceled_at", { withTimezone: true }),
+    // Forma da assinatura atual no Asaas: 'PIX' ou 'CREDIT_CARD' (migração 0011).
+    billingMethod: text("billing_method").notNull().default("PIX"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -111,6 +113,8 @@ export const billingPayments = pgTable("billing_payments", {
     status: text("status").notNull(), // status do Asaas: PENDING, RECEIVED, CONFIRMED, OVERDUE, REFUNDED...
     paidAt: timestamp("paid_at", { withTimezone: true }),
     invoiceUrl: text("invoice_url"),
+    billingType: text("billing_type"), // PIX / CREDIT_CARD (migração 0011); nula = PIX
+    asaasSubscriptionId: text("asaas_subscription_id"), // assinatura de origem (migração 0011)
     pixPayload: text("pix_payload"), // Pix copia-e-cola
     pixQrImage: text("pix_qr_image"), // PNG em base64
     pixExpiresAt: timestamp("pix_expires_at", { withTimezone: true }),

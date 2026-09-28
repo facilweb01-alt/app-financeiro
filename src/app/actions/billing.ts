@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getRawSession } from "@/lib/dal";
-import { getBillingOverview } from "@/lib/billing/service";
+import { CardCheckoutError, getBillingOverview, startCardCheckout } from "@/lib/billing/service";
 
 /**
  * "Já paguei" / checagem periódica da tela /assinatura: consulta o Asaas
@@ -20,4 +21,39 @@ export async function refreshBillingStatus(): Promise<{ waiting: boolean }> {
   revalidatePath("/assinatura");
   const waiting = overview.user.status === "pending" || overview.openPayment !== null;
   return { waiting };
+}
+
+/** Endereço público do app (para o Asaas mandar o cliente de volta depois do Checkout). */
+async function appOrigin(): Promise<string> {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+  return `${proto}://${host}`;
+}
+
+/**
+ * "Pagar com cartão de crédito": cria o Checkout do Asaas (cartão recorrente)
+ * e manda o cliente para lá. Mesma regra de sessão do refresh acima — tem que
+ * funcionar para quem ainda está aguardando o 1º pagamento ou bloqueado.
+ */
+export async function payWithCard(): Promise<{ error: string | null }> {
+  const session = await getRawSession();
+  if (!session) redirect("/login");
+  if (!session.billingEnabled) return { error: "Esta conta não tem cobrança automática." };
+  if (session.status === "suspended") return { error: "Conta suspensa. Fale com o suporte." };
+
+  let url: string;
+  try {
+    url = await startCardCheckout(session.userId, await appOrigin());
+  } catch (err) {
+    console.error("[billing] erro ao criar checkout do cartão:", err);
+    return {
+      error:
+        err instanceof CardCheckoutError
+          ? err.message
+          : "Não foi possível abrir o pagamento com cartão agora. Tente de novo em instantes ou pague com Pix.",
+    };
+  }
+  redirect(url);
 }

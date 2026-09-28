@@ -135,7 +135,7 @@ const FEATURES: { icon: string; title: string; text: string }[] = [
   {
     icon: "⚡",
     title: "Liberação imediata",
-    text: "Pagou o Pix, o acesso é liberado automaticamente em segundos — sem esperar ninguém aprovar.",
+    text: "Pagou no Pix ou no cartão, o acesso é liberado automaticamente em segundos — sem esperar ninguém aprovar.",
   },
 ];
 
@@ -150,7 +150,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Como é feita a cobrança?",
-    a: `${PRICE} por mês, via Pix. A cobrança se repete todo mês no mesmo dia em que você contratou. Alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar.`,
+    a: `${PRICE} por mês, no Pix ou no cartão de crédito — você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar de Pix para cartão a qualquer momento.`,
   },
   {
     q: "E se eu atrasar o pagamento?",
@@ -162,7 +162,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Meus dados financeiros ficam seguros?",
-    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o Pix.",
+    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão de crédito são digitados direto na página segura do Asaas — o App Financeiro não vê nem guarda.",
   },
 ];
 
@@ -275,7 +275,7 @@ export function LandingPage() {
               </a>
             </div>
             <p className="mt-4 text-sm text-navy-400">
-              {PRICE}/mês · pagamento via Pix · sem fidelidade · acesso liberado na hora
+              {PRICE}/mês · Pix ou cartão de crédito · sem fidelidade · acesso liberado na hora
             </p>
           </div>
           <div className="animate-rise-in stagger-2">
@@ -295,8 +295,8 @@ export function LandingPage() {
               },
               {
                 n: "2",
-                t: "Pague o Pix",
-                d: `${PRICE} por mês. Pagou, o acesso é liberado automaticamente em segundos.`,
+                t: "Pague com Pix ou cartão",
+                d: `${PRICE} por mês. No cartão de crédito a mensalidade é cobrada sozinha todo mês. Pagou, o acesso é liberado em segundos.`,
               },
               {
                 n: "3",
@@ -418,7 +418,9 @@ export function LandingPage() {
                 <span className="text-5xl font-extrabold tracking-tight text-navy-50">{PRICE}</span>
                 <span className="mb-1.5 text-navy-400">/mês</span>
               </div>
-              <p className="mt-1 text-sm text-navy-400">Pago via Pix, todo mês no dia em que você contratou.</p>
+              <p className="mt-1 text-sm text-navy-400">
+                Pix ou cartão de crédito (cobrança automática), todo mês no dia em que você contratou.
+              </p>
               <ul className="mt-6 flex flex-col gap-2.5 text-sm text-navy-200">
                 {[
                   "Lançamento de gastos pelo WhatsApp",
@@ -428,7 +430,8 @@ export function LandingPage() {
                   "Limites por categoria com alertas",
                   "Gráficos, fechamento mensal e PDF",
                   "Celular e computador",
-                  "Acesso liberado na hora após o Pix",
+                  "Pix ou cartão de crédito recorrente",
+                  "Acesso liberado na hora após o pagamento",
                 ].map((item) => (
                   <li key={item} className="flex gap-2.5">
                     <span className="text-emerald-400" aria-hidden>
@@ -470,7 +473,7 @@ export function LandingPage() {
               Comece hoje a ter controle do seu dinheiro
             </h2>
             <p className="relative mx-auto mt-3 max-w-xl text-blue-100">
-              Crie sua conta, pague o Pix e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.
+              Crie sua conta, pague com Pix ou cartão e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.
             </p>
             <CtaButton className="relative mt-8" />
           </div>

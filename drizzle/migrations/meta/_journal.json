@@ -78,6 +78,13 @@
       "when": 1790200000000,
       "tag": "0010_billing_cancel",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0011_billing_method",
+      "breakpoints": true
     }
   ]
 }

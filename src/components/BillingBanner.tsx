@@ -3,20 +3,25 @@ import { computeBillingState, PLAN_PRICE, todayInSaoPaulo } from "@/lib/billing/
 import { formatBRL, formatDateBR } from "@/lib/format";
 
 // Aviso de mensalidade no topo do app (só para contas com cobrança
-// automática). Aparece REMIND_DAYS dias antes do vencimento, no dia, e em
-// vermelho depois de vencido (com a data em que o acesso será pausado).
+// automática). Pix: aparece REMIND_DAYS dias antes do vencimento, no dia, e
+// em vermelho depois de vencido (com a data em que o acesso será pausado).
+// Cartão recorrente: não avisa antes (a cobrança é automática); só avisa se
+// o cartão foi recusado (mensalidade vencida).
 
 export function BillingBanner({
   billingEnabled,
   status,
   subscriptionDueDate,
   canceledAt = null,
+  billingMethod = "PIX",
 }: {
   billingEnabled: boolean;
   status: string;
   subscriptionDueDate: string | null;
   canceledAt?: Date | null;
+  billingMethod?: string;
 }) {
+  const card = billingMethod === "CREDIT_CARD";
   const state = computeBillingState({ billingEnabled, status, subscriptionDueDate, today: todayInSaoPaulo(), canceledAt });
   if (state.kind === "canceled_active" && state.dueDate) {
     return (
@@ -29,6 +34,7 @@ export function BillingBanner({
     );
   }
   if (state.kind !== "due_soon" && state.kind !== "overdue") return null;
+  if (card && state.kind === "due_soon") return null; // o cartão é cobrado sozinho
   if (!state.dueDate || state.daysUntilDue === null) return null;
 
   const overdue = state.kind === "overdue";
@@ -44,14 +50,18 @@ export function BillingBanner({
     >
       <div className="text-sm">
         <div className={`font-semibold ${overdue ? "text-red-300" : "text-amber-200"}`}>
-          {overdue
+          {overdue && card
+            ? `Não conseguimos cobrar a mensalidade de ${formatDateBR(state.dueDate)} no seu cartão`
+            : overdue
             ? `Sua mensalidade venceu em ${formatDateBR(state.dueDate)}`
             : `Sua mensalidade de ${formatBRL(PLAN_PRICE)} ${when} (${formatDateBR(state.dueDate)})`}
         </div>
         <div className="mt-0.5 text-navy-300">
-          {overdue && state.blockDate
+          {overdue && card && state.blockDate
+            ? `Pague a fatura ou cadastre outro cartão até ${formatDateBR(state.blockDate)} para não ter o acesso pausado.`
+            : overdue && state.blockDate
             ? `Pague o Pix até ${formatDateBR(state.blockDate)} para não ter o acesso pausado. A liberação é automática.`
-            : "O Pix já está disponível — pague quando quiser, a confirmação é automática."}
+            : "O Pix já está disponível — pague quando quiser, a confirmação é automática. Se preferir, passe a pagar no cartão."}
         </div>
       </div>
       <Link
@@ -60,7 +70,7 @@ export function BillingBanner({
           overdue ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
         }`}
       >
-        Pagar com Pix
+        {card ? "Resolver pagamento" : "Pagar com Pix"}
       </Link>
     </div>
   );
