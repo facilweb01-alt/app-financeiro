@@ -18,7 +18,7 @@
 import { addMonthsClamped } from "@/lib/business/dates";
 
 export const PLAN_PRICE = 29.9;
-export const PLAN_NAME = "App Financeiro — plano mensal";
+export const PLAN_NAME = "Contay — plano mensal";
 export const GRACE_DAYS = 3; // dias de tolerância depois do vencimento
 export const REMIND_DAYS = 5; // começa a avisar no app X dias antes de vencer
 

@@ -514,7 +514,7 @@ export async function startCardCheckout(
     customer: user.asaasCustomerId,
     value: PLAN_PRICE,
     nextDueDateTime: checkoutDueDateTime(firstDue),
-    itemName: "App Financeiro",
+    itemName: "Contay",
     itemDescription: "Plano mensal — cobrança automática no cartão de crédito",
     imageBase64: planImageBase64(),
     externalReference: user.id,

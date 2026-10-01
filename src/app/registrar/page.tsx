@@ -27,7 +27,7 @@ export default function RegistrarPage() {
         </Link>
 
         <div className="rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
-          <h1 className="mb-1 text-xl font-semibold text-navy-100">Quero o App Financeiro</h1>
+          <h1 className="mb-1 text-xl font-semibold text-navy-100">Quero o Contay</h1>
           <p className="mb-5 text-sm text-navy-400">
             Preencha seus dados. No passo seguinte aparece o Pix de <strong className="text-navy-200">R$ 29,90</strong>{" "}
             — pagou, o acesso é liberado na hora.

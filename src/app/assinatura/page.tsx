@@ -77,7 +77,7 @@ export default async function AssinaturaPage({
   if (state.kind === "canceled") {
     title = "Assinatura cancelada";
     subtitle = state.dueDate
-      ? `Seu acesso ao App Financeiro terminou em ${formatDateBR(state.dueDate)}. Seus dados continuam guardados — para voltar a usar, fale com o suporte.`
+      ? `Seu acesso ao Contay terminou em ${formatDateBR(state.dueDate)}. Seus dados continuam guardados — para voltar a usar, fale com o suporte.`
       : "Sua assinatura foi cancelada. Seus dados continuam guardados — para voltar a usar, fale com o suporte.";
   } else if (state.kind === "canceled_active") {
     title = "Assinatura cancelada";
@@ -134,7 +134,7 @@ export default async function AssinaturaPage({
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-xs uppercase tracking-wide text-navy-400">Plano</div>
-              <div className="font-semibold text-navy-50">App Financeiro — mensal</div>
+              <div className="font-semibold text-navy-50">Contay — mensal</div>
             </div>
             <div className="text-right">
               <div className="text-2xl font-extrabold text-navy-50">{formatBRL(PLAN_PRICE)}</div>
@@ -277,7 +277,7 @@ export default async function AssinaturaPage({
             </p>
             <CardCheckoutButton label={user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"} />
             <p className="text-center text-xs text-navy-500">
-              🔒 Você digita o cartão na página segura do Asaas. O App Financeiro não vê nem guarda os dados do cartão.
+              🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.
             </p>
           </div>
         )}

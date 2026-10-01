@@ -32,7 +32,7 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
     doc.on("error", reject);
 
     // Cabeçalho
-    doc.fillColor(BLUE).fontSize(20).font("Helvetica-Bold").text("App Financeiro");
+    doc.fillColor(BLUE).fontSize(20).font("Helvetica-Bold").text("Contay");
     doc.fillColor(SLATE_500).fontSize(10).font("Helvetica").text(`Fechamento mensal — ${userName}`);
     doc.moveDown(0.3);
     doc
@@ -125,7 +125,7 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
       .fontSize(8)
       .font("Helvetica")
       .fillColor(SLATE_500)
-      .text(`Documento gerado automaticamente pelo App Financeiro em ${formatDateBR(toIsoDate(generatedAt))}.`);
+      .text(`Documento gerado automaticamente pelo Contay em ${formatDateBR(toIsoDate(generatedAt))}.`);
 
     doc.end();
   });

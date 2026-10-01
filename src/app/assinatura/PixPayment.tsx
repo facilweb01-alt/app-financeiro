@@ -159,7 +159,7 @@ export function CardCheckoutButton({ label, variant = "primary" }: { label: stri
   return (
     <form action={formAction} className="flex flex-col gap-2.5">
       <div className="text-sm font-medium text-navy-100">Endereço de cobrança do cartão</div>
-      <p className="-mt-1 text-xs text-navy-400">O Asaas pede o endereço para cobrar no cartão. Ele não fica guardado no App Financeiro.</p>
+      <p className="-mt-1 text-xs text-navy-400">O Asaas pede o endereço para cobrar no cartão. Ele não fica guardado no Contay.</p>
       <div>
         <label htmlFor="card-cep" className="mb-1 block text-xs text-navy-400">
           CEP

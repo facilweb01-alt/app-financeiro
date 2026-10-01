@@ -33,7 +33,7 @@ export default async function AceitarTermosPage() {
         <p className="mb-6 text-sm text-navy-400">
           {isUpdate
             ? "Precisamos que você confirme o aceite da versão mais recente dos Termos de Uso e da Política de Privacidade para continuar usando o app."
-            : "Para usar o App Financeiro, é preciso aceitar os Termos de Uso e a Política de Privacidade."}
+            : "Para usar o Contay, é preciso aceitar os Termos de Uso e a Política de Privacidade."}
         </p>
 
         <form action={acceptTerms} className="flex flex-col gap-4">
@@ -49,7 +49,7 @@ export default async function AceitarTermosPage() {
               <Link href="/termos" target="_blank" className="font-medium underline text-blue-400">
                 Termos de Uso e a Política de Privacidade
               </Link>{" "}
-              do App Financeiro. Entendo que meus dados são de acesso restrito — compartilhados apenas com o processador de
+              do Contay. Entendo que meus dados são de acesso restrito — compartilhados apenas com o processador de
               pagamentos (Asaas) para emitir a cobrança, e acessados pela equipe apenas quando estritamente necessário
               para operar ou dar suporte ao serviço.
             </span>

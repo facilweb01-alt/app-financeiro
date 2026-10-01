@@ -1,6 +1,6 @@
-# App Financeiro
+# Contay
 
-App financeiro pessoal (web, funciona no celular e no computador — pode ser "instalado" como PWA) com lançamentos manuais, cartões com parcelas e fechamento de fatura manual, investimentos, contas fixas, fechamento mensal com projeção de parcelas futuras, e gráficos de gasto por categoria em % da renda.
+Contay — app financeiro pessoal (web, funciona no celular e no computador — pode ser "instalado" como PWA) com lançamentos manuais, cartões com parcelas e fechamento de fatura manual, investimentos, contas fixas, fechamento mensal com projeção de parcelas futuras, e gráficos de gasto por categoria em % da renda.
 
 ## Stack
 

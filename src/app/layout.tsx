@@ -3,7 +3,7 @@ import "./globals.css";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
 
 export const metadata: Metadata = {
-  title: "App Financeiro",
+  title: "Contay",
   description: "Controle financeiro pessoal — lançamentos, cartões, investimentos e contas fixas.",
   manifest: "/manifest.webmanifest",
   icons: {
@@ -16,7 +16,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "App Financeiro",
+    title: "Contay",
   },
 };
 
