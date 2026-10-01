@@ -4,11 +4,11 @@ import { getOptionalSession } from "@/lib/dal";
 import { LandingPage } from "@/components/landing/LandingPage";
 
 export const metadata: Metadata = {
-  title: "App Financeiro — controle financeiro pelo WhatsApp",
+  title: "Contay — controle financeiro pelo WhatsApp",
   description:
     "Mande seus gastos pelo WhatsApp e veja tudo organizado: categorias, cartões e parcelas, contas fixas, investimentos, gráficos e fechamento do mês. R$ 29,90/mês via Pix.",
   openGraph: {
-    title: "App Financeiro — mandou mensagem, tá lançado",
+    title: "Contay — mandou mensagem, tá lançado",
     description: "Controle financeiro pessoal com lançamento pelo WhatsApp. R$ 29,90/mês via Pix, sem fidelidade.",
     images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
     locale: "pt_BR",

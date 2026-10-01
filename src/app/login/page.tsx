@@ -12,7 +12,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
         <h1 className="mb-1 text-xl font-semibold text-navy-100">Entrar</h1>
         <p className="mb-6 text-sm text-navy-400">
-          Acesse seu app financeiro.
+          Acesse sua conta no Contay.
         </p>
 
         <form action={action} className="flex flex-col gap-4">

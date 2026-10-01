@@ -1,4 +1,4 @@
-// Logomarca do App Financeiro: um balão de conversa (o lançamento chega por
+// Logomarca do Contay: um balão de conversa (o lançamento chega por
 // mensagem de WhatsApp) com barras subindo (o dinheiro organizado/crescendo).
 // Símbolo em SVG puro, sem fonte externa — renderiza igual em qualquer tela
 // e serve de base para os ícones do app (public/icons/*, gerados a partir de
@@ -16,7 +16,7 @@ export function LogoSymbol({ size = 36, className = "" }: { size?: number; class
       height={size}
       viewBox="0 0 64 64"
       role="img"
-      aria-label="App Financeiro"
+      aria-label="Contay"
       className={className}
     >
       <defs>
@@ -56,9 +56,9 @@ export function Logo({
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <LogoSymbol size={size} />
       <span className={`whitespace-nowrap font-semibold leading-none tracking-tight text-navy-50 ${textClassName}`}>
-        App{" "}
+        Cont
         <span className="bg-linear-to-r from-blue-400 to-emerald-300 bg-clip-text font-extrabold text-transparent">
-          Financeiro
+          ay
         </span>
       </span>
     </span>

@@ -1,6 +1,6 @@
 {
-  "name": "App Financeiro",
-  "short_name": "Financeiro",
+  "name": "Contay",
+  "short_name": "Contay",
   "description": "Controle financeiro pessoal — lançamentos, cartões, investimentos e contas fixas.",
   "start_url": "/dashboard",
   "scope": "/",

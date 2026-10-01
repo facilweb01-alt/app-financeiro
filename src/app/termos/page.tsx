@@ -5,7 +5,7 @@ import { CURRENT_TERMS_VERSION, TERMS_SECTIONS } from "@/lib/terms";
 // / Política de Privacidade — linkada no checkbox de /registrar e em
 // /aceitar-termos. Ver src/lib/terms.ts para o conteúdo e a versão atual.
 export const metadata = {
-  title: "Termos de Uso e Política de Privacidade — App Financeiro",
+  title: "Termos de Uso e Política de Privacidade — Contay",
 };
 
 export default function TermosPage() {

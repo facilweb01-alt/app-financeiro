@@ -44,7 +44,7 @@ function PhoneMockup() {
       <div className="flex items-center gap-2.5 rounded-t-2xl bg-navy-900 px-3 py-2.5">
         <LogoSymbol size={30} />
         <div>
-          <div className="text-sm font-semibold text-navy-50">App Financeiro</div>
+          <div className="text-sm font-semibold text-navy-50">Contay</div>
           <div className="text-[11px] text-emerald-400">online</div>
         </div>
       </div>
@@ -142,11 +142,11 @@ const FEATURES: { icon: string; title: string; text: string }[] = [
 const FAQ: { q: string; a: string }[] = [
   {
     q: "Como funciona o lançamento pelo WhatsApp?",
-    a: "No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do App Financeiro, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”. Uma inteligência artificial entende o valor e a categoria, lança no app e te responde confirmando.",
+    a: "No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”. Uma inteligência artificial entende o valor e a categoria, lança no app e te responde confirmando.",
   },
   {
     q: "Preciso instalar alguma coisa?",
-    a: "Não. O App Financeiro funciona no navegador do celular ou do computador. Se quiser, adicione à tela inicial do celular para abrir como um aplicativo.",
+    a: "Não. O Contay funciona no navegador do celular ou do computador. Se quiser, adicione à tela inicial do celular para abrir como um aplicativo.",
   },
   {
     q: "Como é feita a cobrança?",
@@ -162,7 +162,7 @@ const FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Meus dados financeiros ficam seguros?",
-    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento (no cartão, também o endereço de cobrança). Os dados do cartão de crédito são digitados direto na página segura do Asaas — o App Financeiro não vê nem guarda.",
+    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento (no cartão, também o endereço de cobrança). Os dados do cartão de crédito são digitados direto na página segura do Asaas — o Contay não vê nem guarda.",
   },
 ];
 
@@ -262,7 +262,7 @@ export function LandingPage() {
               </span>
             </h1>
             <p className="mt-5 max-w-lg text-lg text-navy-300">
-              O App Financeiro organiza seu dinheiro sem planilha e sem esforço: você manda o gasto pelo WhatsApp e ele
+              O Contay organiza seu dinheiro sem planilha e sem esforço: você manda o gasto pelo WhatsApp e ele
               aparece no app, na categoria certa, com gráficos, cartões, parcelas e contas fixas — tudo num só lugar.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -409,7 +409,7 @@ export function LandingPage() {
             <div className="absolute -inset-1 rounded-[2.2rem] bg-linear-to-br from-blue-500 to-emerald-400 opacity-60 blur-lg" aria-hidden />
             <div className="relative rounded-[2rem] border border-navy-700 bg-navy-900 p-8">
               <div className="flex items-center justify-between">
-                <div className="text-lg font-bold text-navy-50">App Financeiro</div>
+                <div className="text-lg font-bold text-navy-50">Contay</div>
                 <div className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
                   Mensal
                 </div>
@@ -491,7 +491,7 @@ export function LandingPage() {
               Entrar
             </Link>
           </div>
-          <div>© {new Date().getFullYear()} App Financeiro · Fácil Web</div>
+          <div>© {new Date().getFullYear()} Contay · Fácil Web</div>
         </div>
       </footer>
     </div>

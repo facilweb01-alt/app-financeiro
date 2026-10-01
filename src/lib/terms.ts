@@ -6,15 +6,15 @@
 // a data de hoje) — quem já aceitou uma versão anterior será mandado de
 // novo para /aceitar-termos automaticamente, porque termsVersion salvo no
 // banco vai deixar de bater com esta constante.
-export const CURRENT_TERMS_VERSION = "2026-09-28.2";
+export const CURRENT_TERMS_VERSION = "2026-10-01.1";
 
 export const TERMS_CHECKBOX_LABEL =
-  "Li e aceito os Termos de Uso e a Política de Privacidade do App Financeiro. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, compartilhados apenas com o processador de pagamentos (Asaas) na medida necessária para emitir a cobrança da assinatura, e acessados pela equipe do App Financeiro apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço.";
+  "Li e aceito os Termos de Uso e a Política de Privacidade do Contay. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, compartilhados apenas com o processador de pagamentos (Asaas) na medida necessária para emitir a cobrança da assinatura, e acessados pela equipe do Contay apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço.";
 
 export const TERMS_SECTIONS: { title: string; body: string }[] = [
   {
     title: "Quem trata seus dados",
-    body: "O App Financeiro é operado por Fácil Web (Marcelo), que atua como controlador dos dados pessoais tratados nesta plataforma, nos termos da Lei nº 13.709/2018 (LGPD).",
+    body: "O Contay (antes chamado App Financeiro) é operado por Fácil Web (Marcelo), que atua como controlador dos dados pessoais tratados nesta plataforma, nos termos da Lei nº 13.709/2018 (LGPD).",
   },
   {
     title: "Quais dados coletamos",
@@ -26,11 +26,11 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Pagamento da assinatura",
-    body: "Nas assinaturas contratadas pelo site, a mensalidade é cobrada pelo Asaas (Asaas Gestão Financeira S.A.), instituição de pagamento que atua como operadora nos termos da LGPD, via Pix ou cartão de crédito recorrente, conforme a sua escolha. Para emitir a cobrança, compartilhamos com o Asaas apenas seu nome, CPF, e-mail e WhatsApp — e, se você escolher o cartão de crédito, também o endereço de cobrança que você informar (o Asaas exige endereço para cobrar no cartão; o App Financeiro não guarda esse endereço). No cartão de crédito, os dados do cartão são digitados diretamente na página de pagamento do Asaas: o App Financeiro não recebe, não vê e não guarda o número do cartão, e a mensalidade passa a ser cobrada automaticamente no cartão todo mês. Seus lançamentos e demais dados financeiros nunca são enviados ao Asaas. A mensalidade vence todo mês no mesmo dia da contratação; se ficar mais de 3 dias em atraso (inclusive quando o cartão for recusado), o acesso é pausado (sem perda de dados) até o pagamento, que libera o acesso automaticamente. Você pode cancelar quando quiser, sem fidelidade.",
+    body: "Nas assinaturas contratadas pelo site, a mensalidade é cobrada pelo Asaas (Asaas Gestão Financeira S.A.), instituição de pagamento que atua como operadora nos termos da LGPD, via Pix ou cartão de crédito recorrente, conforme a sua escolha. Para emitir a cobrança, compartilhamos com o Asaas apenas seu nome, CPF, e-mail e WhatsApp — e, se você escolher o cartão de crédito, também o endereço de cobrança que você informar (o Asaas exige endereço para cobrar no cartão; o Contay não guarda esse endereço). No cartão de crédito, os dados do cartão são digitados diretamente na página de pagamento do Asaas: o Contay não recebe, não vê e não guarda o número do cartão, e a mensalidade passa a ser cobrada automaticamente no cartão todo mês. Seus lançamentos e demais dados financeiros nunca são enviados ao Asaas. A mensalidade vence todo mês no mesmo dia da contratação; se ficar mais de 3 dias em atraso (inclusive quando o cartão for recusado), o acesso é pausado (sem perda de dados) até o pagamento, que libera o acesso automaticamente. Você pode cancelar quando quiser, sem fidelidade.",
   },
   {
     title: "Quem pode acessar",
-    body: "Seus dados são protegidos por controle de acesso a nível de banco de dados (Row-Level Security), que impede que outros clientes do app — ou o próprio sistema, fora do seu login — vejam suas informações. A equipe do App Financeiro tem acesso técnico restrito à infraestrutura (necessário para operar, corrigir problemas e dar suporte), mas não acessa nem revisa seus dados de rotina, e nunca os compartilha com terceiros para fins comerciais (o único compartilhamento é o descrito em “Pagamento da assinatura”).",
+    body: "Seus dados são protegidos por controle de acesso a nível de banco de dados (Row-Level Security), que impede que outros clientes do app — ou o próprio sistema, fora do seu login — vejam suas informações. A equipe do Contay tem acesso técnico restrito à infraestrutura (necessário para operar, corrigir problemas e dar suporte), mas não acessa nem revisa seus dados de rotina, e nunca os compartilha com terceiros para fins comerciais (o único compartilhamento é o descrito em “Pagamento da assinatura”).",
   },
   {
     title: "Por quanto tempo guardamos",
