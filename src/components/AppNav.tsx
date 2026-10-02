@@ -49,16 +49,23 @@ export function AppNav({ showBilling = false }: { showBilling?: boolean }) {
             </Link>
           );
         })}
+        <Link
+          href="/manual"
+          className="mt-auto flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-navy-400 hover:bg-navy-900 hover:text-blue-400"
+        >
+          <span aria-hidden>📘</span>
+          Ajuda
+        </Link>
         {showBilling && (
         <Link
           href="/assinatura"
-          className="mt-auto flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-navy-400 hover:bg-navy-900 hover:text-blue-400"
+          className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium text-navy-400 hover:bg-navy-900 hover:text-blue-400"
         >
           <span aria-hidden>💠</span>
           Minha assinatura
         </Link>
         )}
-        <form action={logout} className={showBilling ? "" : "mt-auto"}>
+        <form action={logout}>
           <button
             type="submit"
             className="w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-navy-400 hover:bg-navy-900"
@@ -95,7 +102,14 @@ export function AppNav({ showBilling = false }: { showBilling?: boolean }) {
       </nav>
 
       {/* Botão de ocultar valores — só no celular (no desktop já fica no topo da barra lateral) */}
-      <div className="fixed right-3 top-3 z-10 md:hidden">
+      <div className="fixed right-3 top-3 z-10 flex items-center gap-2 md:hidden">
+        <Link
+          href="/manual"
+          aria-label="Ajuda: manual do Contay"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-sm font-bold text-navy-200 shadow-sm backdrop-blur bg-navy-950/95"
+        >
+          ?
+        </Link>
         <div className="rounded-full shadow-sm backdrop-blur bg-navy-950/95">
           <ValuesVisibilityToggle />
         </div>

@@ -808,3 +808,33 @@ test("monthPendingClose: avisa só do mês passado, com gasto e ainda aberto", (
   // virada de ano
   assert.equal(monthPendingClose({ today: "2027-01-01", closedMonths: [], monthsWithActivity: ["2026-12"] }), "2026-12");
 });
+
+// ---------------------------------------------------------------------------
+// Boas-vindas pelo WhatsApp (02/10/2026)
+// ---------------------------------------------------------------------------
+import { buildWelcomeMessage, firstName, zapiPhone } from "../welcome";
+
+test("zapiPhone: coloca o 55 e recusa número que não é telefone", () => {
+  assert.equal(zapiPhone("83982004873"), "5583982004873");
+  assert.equal(zapiPhone("(83) 98200-4873"), "5583982004873");
+  assert.equal(zapiPhone("8332221111"), "558332221111");
+  assert.equal(zapiPhone("5583982004873"), "5583982004873");
+  assert.equal(zapiPhone("558382004873"), "558382004873");
+  assert.equal(zapiPhone(""), null);
+  assert.equal(zapiPhone(null), null);
+  assert.equal(zapiPhone("12345"), null);
+  assert.equal(zapiPhone("184713742393347"), null); // LID não é telefone
+});
+
+test("buildWelcomeMessage: boas-vindas, salvar contato, exemplos, manual e link do app", () => {
+  assert.equal(firstName("  marcelo martins "), "Marcelo");
+  assert.equal(firstName(""), "");
+  const msg = buildWelcomeMessage({ name: "ANA paula", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301" });
+  assert.ok(msg.startsWith("Olá, Ana! 👋 Seja bem-vindo(a) ao *Contay*."));
+  assert.ok(msg.includes("*Salve este contato*") && msg.includes("(83) 98199-5301"));
+  assert.ok(msg.includes("gastei 45 no mercado") && msg.includes("300 no cartão Nubank em 3x"));
+  assert.ok(msg.includes("https://contay.com.br/manual"));
+  assert.ok(msg.includes("tira suas dúvidas") && msg.includes("Pergunte aqui mesmo"));
+  assert.ok(msg.trimEnd().endsWith("Para abrir o app: https://contay.com.br"));
+  assert.ok(buildWelcomeMessage({ name: null, appUrl: "x", botNumber: "y" }).startsWith("Olá! 👋"));
+});

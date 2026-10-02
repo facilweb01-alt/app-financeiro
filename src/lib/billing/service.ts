@@ -175,7 +175,9 @@ async function recomputeUserBilling(userId: string): Promise<void> {
     .update(users)
     .set({
       subscriptionDueDate: dueDate,
-      ...(activate ? { status: "active", approvedAt: user.approvedAt ?? new Date() } : {}),
+      // Conta liberada pelo 1º pagamento: pede as boas-vindas pelo WhatsApp
+      // (quem envia é processPendingWelcomes, fora desta transação).
+      ...(activate ? { status: "active", approvedAt: user.approvedAt ?? new Date(), welcomeRequestedAt: new Date() } : {}),
     })
     .where(eq(users.id, userId));
 }

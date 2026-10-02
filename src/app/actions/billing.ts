@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { processPendingWelcomesSafely } from "@/lib/whatsapp/welcome";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getRawSession } from "@/lib/dal";
@@ -19,6 +21,8 @@ export async function refreshBillingStatus(): Promise<{ waiting: boolean }> {
   if (!session.billingEnabled) return { waiting: false };
 
   const overview = await getBillingOverview(session.userId, { refresh: true });
+  // Se o pagamento acabou de liberar a conta, manda as boas-vindas pelo WhatsApp.
+  after(processPendingWelcomesSafely);
   revalidatePath("/assinatura");
   const waiting = overview.user.status === "pending" || overview.openPayment !== null;
   return { waiting };

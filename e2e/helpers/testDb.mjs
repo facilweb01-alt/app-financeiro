@@ -32,3 +32,14 @@ export async function promoteAdmin(email) {
 export async function closeTestDb() {
   await sql.end({ timeout: 1 });
 }
+
+/** Estado das boas-vindas pelo WhatsApp (migração 0012). */
+export async function getWelcome(email) {
+  const [row] = await sql`select welcome_requested_at, welcome_sent_at, welcome_error, whatsapp_phone, status from users where email = ${email}`;
+  return row ?? null;
+}
+
+/** Simula o painel admin pedindo (ou repetindo) o envio das boas-vindas. */
+export async function requestWelcome(email) {
+  await sql`update users set welcome_requested_at = now(), welcome_sent_at = null, welcome_error = null where email = ${email}`;
+}

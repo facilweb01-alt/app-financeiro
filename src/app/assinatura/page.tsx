@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { after } from "next/server";
+import { processPendingWelcomesSafely } from "@/lib/whatsapp/welcome";
 import { redirect } from "next/navigation";
 import { getRawSession } from "@/lib/dal";
 import { logout } from "@/app/actions/auth";
@@ -55,6 +57,8 @@ export default async function AssinaturaPage({
 
   // Voltou do Checkout do cartão: confere direto no Asaas (o webhook pode atrasar).
   const overview = await getBillingOverview(session.userId, { refresh: cartaoParam === "ok" });
+  // Se o cartão acabou de liberar a conta, manda as boas-vindas pelo WhatsApp.
+  if (cartaoParam === "ok") after(processPendingWelcomesSafely);
   const { user, openPayment, history, error, configured } = overview;
   const state = computeBillingState({
     billingEnabled: true,

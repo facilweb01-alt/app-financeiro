@@ -51,6 +51,9 @@ node e2e/admin-panel.smoke.mjs       # painel /admin: aprovar, suspender, reativ
 #   ASAAS_API_KEY='$aact_hmlg_teste' ASAAS_BASE_URL=http://localhost:3998/v3 ASAAS_WEBHOOK_TOKEN=token-teste-webhook npx next start -p 3100
 node e2e/billing-pix.smoke.mjs       # landing, cadastro com CPF/WhatsApp, QR Pix, webhook, aviso de vencimento, bloqueio após 3 dias, desbloqueio
 node e2e/billing-card.smoke.mjs      # cartão recorrente: Checkout, troca Pix->cartão, cartão recusado, trocar cartão (app também com ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout)
+# Manual + boas-vindas pelo WhatsApp, contra um Z-API FALSO (e2e/helpers/fakeZapi.mjs). Suba o app (sem Asaas) com:
+#   ZAPI_BASE_URL=http://localhost:3997 ZAPI_INSTANCE_ID=inst-teste ZAPI_INSTANCE_TOKEN=tok-teste ZAPI_CLIENT_TOKEN=client-teste npx next start -p 3100
+node e2e/welcome.smoke.mjs           # página /manual, PDF, envio único, falha registrada, reenvio (as mesmas ZAPI_* valem para o billing-pix)
 ```
 
 Precisam do Chromium do Playwright instalado (`npx playwright install chromium`, se ainda não tiver). Os testes que criam usuários usam `e2e/helpers/testDb.mjs` (conecta direto no banco com `DATABASE_URL`) para simular ações que só um admin faria em `/admin` — sem isso, todo teste de outra funcionalidade teria que primeiro passar pela UI do painel administrativo.
@@ -165,3 +168,10 @@ Ainda não publicado — nada foi colocado em produção nesta sessão. O caminh
 4. Publicar a aplicação no host Node escolhido, com `DATABASE_URL` (só para migração, não precisa estar nas env vars de runtime), `APP_DATABASE_URL` e `AUTH_SECRET` configurados lá.
 5. Rodar `drizzle/promote-admin.sql` (com `DATABASE_URL`, trocando o e-mail pelo seu) para virar admin e conseguir acessar `/admin` em produção — senão nem você mesmo consegue aprovar o primeiro cliente.
 6. **Antes de publicar de verdade**: eu vou pedir sua confirmação explícita, como de costume — essa regra não muda mesmo com a skill de método carregada. Você configura as credenciais de produção (connection strings, segredos) diretamente no painel do Supabase/host — eu não devo digitá-las por você.
+
+## Manual do usuário e boas-vindas pelo WhatsApp
+
+- O conteúdo do manual fica em `src/lib/manual.ts` (fonte única). Dele saem a página pública `/manual`, o PDF (`/api/manual/pdf`, `src/lib/pdf/manualPdf.ts`) e o texto que a IA do WhatsApp usa para tirar dúvidas (colado no prompt do n8n).
+- Quando a conta é liberada (1º pagamento, ou aprovação no painel admin), o app manda no WhatsApp do cadastro uma mensagem de boas-vindas pedindo para salvar o contato, e em seguida o manual em PDF (`src/lib/whatsapp/welcome.ts`). Colunas de controle: migração `0012_welcome_message`.
+- O envio usa o Z-API direto. Variáveis no Render (serviço `app-financeiro`): `ZAPI_INSTANCE_ID`, `ZAPI_INSTANCE_TOKEN`, `ZAPI_CLIENT_TOKEN`. Sem elas nada é enviado, e o painel admin mostra o erro e permite reenviar.
+- Falha de envio não é repetida sozinha (para nunca duplicar mensagem): o painel admin tem o botão "Enviar/Reenviar boas-vindas", que marca o pedido e chama `POST /api/boas-vindas/processar`.
