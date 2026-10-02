@@ -1,15 +1,26 @@
 import * as z from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { CUSTOM_CATEGORY_COLORS } from "@/lib/categories";
 import { db, withRLS, withServiceMode } from "@/db/client";
-import { users, categories, transactions, creditCards, cardPurchases, cardInstallments } from "@/db/schema";
-import { addMonthsClamped, currentYearMonth } from "@/lib/business/dates";
+import {
+  users,
+  categories,
+  transactions,
+  creditCards,
+  cardPurchases,
+  cardInstallments,
+  monthClosings,
+} from "@/db/schema";
+import { addMonthsClamped, currentYearMonth, toYearMonth } from "@/lib/business/dates";
+import { formatYearMonthBR } from "@/lib/format";
 import { generateInstallments } from "@/lib/business/installments";
 import {
   displayCardName,
   isCardPurchase,
   matchCard,
   normalizeFlexibleDate,
+  resolveWhatsappCategory,
 } from "@/lib/business/whatsappInput";
 import { todayInSaoPaulo, whatsappPhoneVariants } from "@/lib/billing/core";
 
@@ -63,6 +74,9 @@ const BodySchema = z.object({
   description: z.string().trim().min(1, "Informe a descrição."),
   amount: z.coerce.number().positive("Valor precisa ser maior que zero."),
   categoryKey: optionalText,
+  // Nome de categoria dito pelo cliente (ou sugerido pela IA quando nenhuma
+  // das padrão serve): casa com uma existente ou cria uma nova.
+  categoryName: optionalText,
   purchaseDate: optionalText,
   dueDate: optionalText,
   // Compra no cartão (opcional): qualquer um destes indica cartão.
@@ -163,10 +177,25 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await withRLS(user.id, async () => {
-      const category = await findCategory(user.id, categoryKey);
-      if (!category) {
-        return { error: `Categoria "${categoryKey}" não encontrada.` as const };
+      // Mês já encerrado não recebe lançamento novo: o fechamento é uma foto
+      // do mês, e o lançamento ficaria fora dela e fora da lista.
+      const dueMonth = toYearMonth(dueDate ?? purchaseDate);
+      const [closed] = await db
+        .select({ id: monthClosings.id })
+        .from(monthClosings)
+        .where(and(eq(monthClosings.userId, user.id), eq(monthClosings.yearMonth, dueMonth)))
+        .limit(1);
+      if (closed) {
+        return {
+          error: `O mês de ${formatYearMonthBR(dueMonth)} já foi encerrado. Para lançar nele, reabra o mês na aba Fechamento do app.`,
+        };
       }
+
+      const resolved = await resolveCategory(user.id, data, categoryKey);
+      if (!resolved) {
+        return { error: `Categoria "${categoryKey}" não encontrada.` };
+      }
+      const { category } = resolved;
 
       const [created] = await db
         .insert(transactions)
@@ -180,13 +209,13 @@ export async function POST(request: NextRequest) {
         })
         .returning({ id: transactions.id });
 
-      return { created, category };
+      return { created, category, categoryCreated: resolved.created };
     });
 
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
-    const { created, category } = result;
+    const { created, category, categoryCreated } = result;
 
     return NextResponse.json(
       {
@@ -194,6 +223,7 @@ export async function POST(request: NextRequest) {
         kind: "lancamento",
         id: created.id,
         category: category.label,
+        categoryCreated,
         amount: data.amount,
         description: data.description,
         dueDate: dueDate ?? purchaseDate,
@@ -275,13 +305,47 @@ async function linkSender(json: Record<string, unknown>) {
   }
 }
 
-async function findCategory(userId: string, categoryKey: string) {
-  const [category] = await db
+// Decide a categoria (regra em lib/business/whatsappInput.ts) e, quando o
+// cliente disse uma categoria que ainda não existe, cria como categoria
+// própria dele — igual ao botão "nova categoria" da tela de lançamentos.
+// Precisa rodar dentro de withRLS(userId).
+async function resolveCategory(
+  userId: string,
+  data: ParsedBody,
+  categoryKey: string
+): Promise<{ category: { id: string; label: string }; created: boolean } | null> {
+  const rows = await db
+    .select({ id: categories.id, key: categories.key, label: categories.label, userId: categories.userId })
+    .from(categories)
+    .where(or(isNull(categories.userId), eq(categories.userId, userId)));
+
+  const decision = resolveWhatsappCategory({
+    categories: rows.map((c) => ({ id: c.id, key: c.key, label: c.label, isCustom: c.userId !== null })),
+    categoryKey,
+    categoryName: data.categoryName,
+    description: data.description,
+  });
+
+  if (decision.kind === "existing") {
+    return { category: { id: decision.category.id, label: decision.category.label }, created: false };
+  }
+  if (decision.kind === "none") return null;
+
+  const color = CUSTOM_CATEGORY_COLORS[Math.floor(Math.random() * CUSTOM_CATEGORY_COLORS.length)];
+  const [created] = await db
+    .insert(categories)
+    .values({ userId, key: decision.key, label: decision.label, color })
+    .onConflictDoNothing()
+    .returning({ id: categories.id, label: categories.label });
+  if (created) return { category: created, created: true };
+
+  // Corrida (duas mensagens ao mesmo tempo): a categoria acabou de ser criada.
+  const [existing] = await db
     .select({ id: categories.id, label: categories.label })
     .from(categories)
-    .where(and(eq(categories.key, categoryKey), or(isNull(categories.userId), eq(categories.userId, userId))))
+    .where(and(eq(categories.userId, userId), eq(categories.key, decision.key)))
     .limit(1);
-  return category ?? null;
+  return existing ? { category: existing, created: false } : null;
 }
 
 // Compra no cartão pelo WhatsApp: mesma regra da tela Cartões
@@ -305,10 +369,11 @@ async function registerCardPurchase(params: {
   });
 
   const result = await withRLS(userId, async () => {
-    const category = await findCategory(userId, categoryKey);
-    if (!category) {
+    const resolved = await resolveCategory(userId, data, categoryKey);
+    if (!resolved) {
       return { status: 400, error: `Categoria "${categoryKey}" não encontrada.` } as const;
     }
+    const { category } = resolved;
 
     const cards = await db
       .select({ id: creditCards.id, name: creditCards.name })
@@ -365,7 +430,14 @@ async function registerCardPurchase(params: {
       }))
     );
 
-    return { status: 201, purchaseId: purchase.id, card, cardCreated, category } as const;
+    return {
+      status: 201,
+      purchaseId: purchase.id,
+      card,
+      cardCreated,
+      category,
+      categoryCreated: resolved.created,
+    } as const;
   });
 
   if (result.status !== 201) {
@@ -378,6 +450,7 @@ async function registerCardPurchase(params: {
       kind: "cartao",
       id: result.purchaseId,
       category: result.category.label,
+      categoryCreated: result.categoryCreated,
       amount: data.amount,
       description: data.description,
       cardName: result.card.name,

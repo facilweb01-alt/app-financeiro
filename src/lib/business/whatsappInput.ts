@@ -120,3 +120,127 @@ export function isCardPurchase(input: {
   if (input.cardName && input.cardName.trim()) return true;
   return (input.installments ?? 1) > 1;
 }
+
+// ---------------------------------------------------------------------------
+// Categoria do lançamento que chega pelo WhatsApp (pedido do Marcelo em
+// 02/10/2026): "mercado" tem que cair em Compra de alimentos; categoria que
+// o cliente já tem é mantida; categoria nova, dita na mensagem, é criada
+// automaticamente.
+// ---------------------------------------------------------------------------
+
+export type WhatsappCategory = { id: string; key: string; label: string; isCustom: boolean };
+
+export type WhatsappCategoryDecision =
+  | { kind: "existing"; category: WhatsappCategory }
+  | { kind: "create"; label: string; key: string }
+  | { kind: "none" };
+
+/** Sem acento, minúsculo, só letras/números separados por um espaço. */
+export function normalizeCategoryText(value: string | null | undefined): string {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+// Palavras do dia a dia → categoria padrão do sistema. Usado tanto para o
+// nome de categoria dito pelo cliente quanto para a descrição do gasto,
+// quando a IA devolve algo genérico ("produto"/"outros").
+const DEFAULT_CATEGORY_WORDS: Record<string, string[]> = {
+  alimentacao: [
+    "alimentacao", "alimentos", "alimento", "comida", "mercado", "supermercado", "mercadinho", "mercearia",
+    "atacadao", "atacado", "feira", "padaria", "acougue", "hortifruti", "sacolao", "restaurante", "lanche",
+    "lanchonete", "ifood", "delivery", "refeicao", "almoco", "jantar", "pizza", "pizzaria", "hamburguer",
+  ],
+  saude: [
+    "saude", "farmacia", "drogaria", "remedio", "remedios", "medico", "medica", "consulta", "dentista",
+    "exame", "exames", "hospital", "clinica",
+  ],
+  gasolina: ["gasolina", "combustivel", "posto", "etanol", "diesel", "abastecimento", "abasteci"],
+  lazer: ["lazer", "cinema", "show", "passeio", "festa", "diversao", "balada", "parque"],
+  viagem: ["viagem", "hotel", "passagem", "passagens", "hospedagem", "pousada"],
+  compras_pessoais: ["roupa", "roupas", "sapato", "sapatos", "calcado", "tenis", "perfume", "cosmetico", "cosmeticos"],
+};
+
+const GENERIC_KEYS = new Set(["", "outros", "produto", "servico"]);
+
+function slugKey(text: string): string {
+  return normalizeCategoryText(text).replace(/ /g, "_");
+}
+
+function containsWords(haystack: string, needle: string): boolean {
+  if (!needle) return false;
+  return ` ${haystack} `.includes(` ${needle} `);
+}
+
+// "Mercado Pago"/"Mercado Livre" são banco e loja, não compra de alimentos.
+const NOT_FOOD_PHRASES = /\bmercado (pago|livre)\b/g;
+
+function defaultKeyForWords(rawText: string): string | null {
+  const text = rawText.replace(NOT_FOOD_PHRASES, " ").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  for (const [key, words] of Object.entries(DEFAULT_CATEGORY_WORDS)) {
+    if (words.some((w) => containsWords(text, w))) return key;
+  }
+  return null;
+}
+
+/** "  pet  shop " → "Pet shop" (até 40 caracteres); null se não for um nome de verdade. */
+export function prettyCategoryLabel(name: string | null | undefined): string | null {
+  const clean = (name ?? "").replace(/\s+/g, " ").trim().slice(0, 40).trim();
+  if (normalizeCategoryText(clean).replace(/[^a-z]/g, "").length < 2) return null;
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+/**
+ * Decide em qual categoria gravar. Ordem:
+ * 1. nome dito na mensagem bate com uma categoria do cliente (própria ou do
+ *    sistema) → mantém a que já existe;
+ * 2. a descrição cita uma categoria que o próprio cliente criou → usa ela;
+ * 3. a IA devolveu uma categoria padrão específica → usa ela; se devolveu
+ *    algo genérico (produto/serviço/outros), tenta pelas palavras do dia a
+ *    dia ("mercado" → Compra de alimentos);
+ * 4. o cliente disse um nome de categoria que não existe → cria;
+ * 5. senão, a categoria genérica da IA, ou "Outros".
+ */
+export function resolveWhatsappCategory(input: {
+  categories: WhatsappCategory[];
+  categoryKey?: string | null;
+  categoryName?: string | null;
+  description?: string | null;
+}): WhatsappCategoryDecision {
+  const { categories } = input;
+  const byKey = (key: string | null) => (key ? categories.find((c) => !c.isCustom && c.key === key) ?? null : null);
+  const custom = categories.filter((c) => c.isCustom);
+  const name = normalizeCategoryText(input.categoryName);
+  const description = normalizeCategoryText(input.description);
+  const aiKey = slugKey(input.categoryKey ?? "");
+
+  if (name) {
+    const sameName = (c: WhatsappCategory) => normalizeCategoryText(c.label) === name || c.key === slugKey(name);
+    const found = custom.find(sameName) ?? categories.find(sameName) ?? byKey(defaultKeyForWords(name));
+    if (found) return { kind: "existing", category: found };
+  }
+
+  const mentioned = custom.find((c) => {
+    const label = normalizeCategoryText(c.label);
+    return label.length >= 3 && containsWords(description, label);
+  });
+  if (mentioned) return { kind: "existing", category: mentioned };
+
+  const aiCategory = categories.find((c) => c.key === aiKey) ?? null;
+  if (aiCategory && !GENERIC_KEYS.has(aiKey)) return { kind: "existing", category: aiCategory };
+
+  const fromDescription = byKey(defaultKeyForWords(description));
+  if (fromDescription) return { kind: "existing", category: fromDescription };
+
+  if (name && (!aiCategory || aiKey === "outros")) {
+    const label = prettyCategoryLabel(input.categoryName);
+    if (label) return { kind: "create", label, key: slugKey(label) || "categoria" };
+  }
+
+  const fallback = aiCategory ?? byKey("outros");
+  return fallback ? { kind: "existing", category: fallback } : { kind: "none" };
+}

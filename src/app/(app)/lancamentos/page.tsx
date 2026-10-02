@@ -2,7 +2,10 @@ import { verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
 import { listCategoriesForUser } from "@/lib/queries/categories";
 import { listTransactionsForUser } from "@/lib/queries/transactions";
+import { listClosedYearMonths } from "@/lib/queries/monthClosing";
+import { toYearMonth } from "@/lib/business/dates";
 import { formatDateBR } from "@/lib/format";
+import Link from "next/link";
 import { Money } from "@/components/Money";
 import { CollapsibleRows } from "@/components/CollapsibleList";
 import { TransactionForm } from "./TransactionForm";
@@ -10,9 +13,18 @@ import { deleteTransaction } from "@/app/actions/transactions";
 
 export default async function LancamentosPage() {
   const session = await verifySession();
-  const [categories, txs] = await withRLS(session.userId, () =>
-    Promise.all([listCategoriesForUser(session.userId), listTransactionsForUser(session.userId)])
+  const [categories, allTxs, closedMonths] = await withRLS(session.userId, () =>
+    Promise.all([
+      listCategoriesForUser(session.userId),
+      listTransactionsForUser(session.userId),
+      listClosedYearMonths(session.userId),
+    ])
   );
+  // Mês encerrado sai da lista do dia a dia (pedido do Marcelo em
+  // 02/10/2026): os lançamentos dele ficam guardados no Fechamento.
+  const closed = new Set(closedMonths);
+  const txs = allTxs.filter((tx) => !closed.has(toYearMonth(tx.dueDate)));
+  const hiddenCount = allTxs.length - txs.length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -42,7 +54,7 @@ export default async function LancamentosPage() {
               {txs.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-navy-500">
-                    Nenhum lançamento ainda.
+                    {hiddenCount > 0 ? "Nenhum lançamento em aberto." : "Nenhum lançamento ainda."}
                   </td>
                 </tr>
               )}
@@ -81,6 +93,17 @@ export default async function LancamentosPage() {
           </table>
         </div>
       </div>
+
+      {hiddenCount > 0 && (
+        <p className="text-sm text-navy-400" data-testid="closed-months-note">
+          {hiddenCount === 1
+            ? "1 lançamento de mês já encerrado não aparece aqui."
+            : `${hiddenCount} lançamentos de meses já encerrados não aparecem aqui.`}{" "}
+          <Link href="/fechamento" className="text-blue-400 hover:underline">
+            Ver no Fechamento
+          </Link>
+        </p>
+      )}
     </div>
   );
 }

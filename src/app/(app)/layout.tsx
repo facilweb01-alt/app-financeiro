@@ -2,6 +2,11 @@ import { getCurrentUser } from "@/lib/dal";
 import { AppNav } from "@/components/AppNav";
 import { ValuesVisibilityProvider } from "@/components/ValuesVisibilityProvider";
 import { BillingBanner } from "@/components/BillingBanner";
+import { MonthEndPrompt } from "@/components/MonthEndPrompt";
+import { withRLS } from "@/db/client";
+import { getMonthPendingClose } from "@/lib/queries/monthClosing";
+import { todayInSaoPaulo } from "@/lib/billing/core";
+import { formatYearMonthBR } from "@/lib/format";
 
 export default async function AppShellLayout({ children }: { children: React.ReactNode }) {
   // Checagem "de verdade" (contra o banco) — o proxy.ts só faz a checagem
@@ -9,6 +14,8 @@ export default async function AppShellLayout({ children }: { children: React.Rea
   // (inclusive de conta 'pending'/'suspended', barrada dentro de
   // verifySession(), chamada por getCurrentUser()).
   const user = await getCurrentUser();
+  const today = todayInSaoPaulo();
+  const pendingMonth = user ? await withRLS(user.id, () => getMonthPendingClose(user.id, today)) : null;
 
   return (
     <ValuesVisibilityProvider>
@@ -24,6 +31,9 @@ export default async function AppShellLayout({ children }: { children: React.Rea
                 canceledAt={user.billingCanceledAt}
                 billingMethod={user.billingMethod}
               />
+            )}
+            {pendingMonth && (
+              <MonthEndPrompt yearMonth={pendingMonth} monthLabel={formatYearMonthBR(pendingMonth)} today={today} />
             )}
             {children}
           </div>
