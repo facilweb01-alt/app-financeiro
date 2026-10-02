@@ -1,45 +1,19 @@
-// Logomarca do Contay: um balão de conversa (o lançamento chega por
-// mensagem de WhatsApp) com barras subindo (o dinheiro organizado/crescendo).
-// Símbolo em SVG puro, sem fonte externa — renderiza igual em qualquer tela
-// e serve de base para os ícones do app (public/icons/*, gerados a partir de
-// public/logo-symbol.svg).
-
-import { useId } from "react";
+// Logomarca do Contay: um "C" com cifrão e linhas de velocidade (o dinheiro
+// organizado sem esforço). O símbolo é a arte oficial enviada pelo Marcelo,
+// recortada em PNG com fundo transparente (public/logo-contay.png); os
+// ícones do app (public/icons/*) e o favicon saem da mesma arte.
 
 export function LogoSymbol({ size = 36, className = "" }: { size?: number; className?: string }) {
-  const uid = useId().replace(/:/g, "");
-  const bg = `lg-bg-${uid}`;
-  const shine = `lg-shine-${uid}`;
   return (
-    <svg
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/logo-contay.png"
       width={size}
       height={size}
-      viewBox="0 0 64 64"
-      role="img"
-      aria-label="Contay"
-      className={className}
-    >
-      <defs>
-        <linearGradient id={bg} x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
-          <stop offset="0" stopColor="#3b82f6" />
-          <stop offset="1" stopColor="#1e3a8a" />
-        </linearGradient>
-        <linearGradient id={shine} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.28" />
-          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* balão de conversa com "rabinho" embaixo à esquerda */}
-      <path
-        d="M18 4h28c7.7 0 14 6.3 14 14v20c0 7.7-6.3 14-14 14H26l-11.5 8.6c-1.3 1-3.1-.1-2.8-1.7L13.2 51C7.9 49 4 43.9 4 38V18C4 10.3 10.3 4 18 4z"
-        fill={`url(#${bg})`}
-      />
-      <path d="M18 4h28c7.7 0 14 6.3 14 14v6H4v-6C4 10.3 10.3 4 18 4z" fill={`url(#${shine})`} />
-      {/* barras subindo — a última em verde (crescimento) */}
-      <rect x="16" y="30" width="8" height="12" rx="2.5" fill="#ffffff" fillOpacity="0.85" />
-      <rect x="28" y="22" width="8" height="20" rx="2.5" fill="#ffffff" />
-      <rect x="40" y="13" width="8" height="29" rx="2.5" fill="#34d399" />
-    </svg>
+      alt="Contay"
+      className={`shrink-0 ${className}`}
+      style={{ width: size, height: size }}
+    />
   );
 }
 
@@ -55,11 +29,8 @@ export function Logo({
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>
       <LogoSymbol size={size} />
-      <span className={`whitespace-nowrap font-semibold leading-none tracking-tight text-navy-50 ${textClassName}`}>
-        Cont
-        <span className="bg-linear-to-r from-blue-400 to-emerald-300 bg-clip-text font-extrabold text-transparent">
-          ay
-        </span>
+      <span className={`whitespace-nowrap font-extrabold leading-none tracking-tight text-white ${textClassName}`}>
+        Con<span className="text-blue-500">tay</span>
       </span>
     </span>
   );

@@ -83,13 +83,18 @@ await page.goto(`${BASE}/lancamentos`);
 const lancBody = await page.textContent("body");
 check("lançamento via WhatsApp aparece na lista do usuário", lancBody.includes("Uber") && lancBody.includes("27,50"));
 
-// 6. Categoria inexistente -> 400
+// 6. Chave de categoria desconhecida (a IA inventou): não perde o lançamento, cai em "Outros"
 const badCategoryRes = await fetch(`${BASE}/api/whatsapp/lancamento`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${WEBHOOK_SECRET}` },
     body: JSON.stringify({ phone, description: "x", amount: 1, categoryKey: "categoria-que-nao-existe" }),
 });
-check("categoria inexistente retorna 400", badCategoryRes.status === 400, `status=${badCategoryRes.status}`);
+const badCategoryJson = await badCategoryRes.json().catch(() => ({}));
+check(
+    "chave de categoria desconhecida cai em 'Outros' (201)",
+    badCategoryRes.status === 201 && badCategoryJson.category === "Outros",
+    `status=${badCategoryRes.status} ${JSON.stringify(badCategoryJson)}`
+);
 
 // 6b. Bug real 1 (26/09): "vencimento dia 15/10" -> data em formato BR é aceita
 const post = (body) =>
@@ -154,6 +159,90 @@ const lidLanc = await post({ phone: lid, description: "Café pelo LID", amount: 
 check("depois de vincular, lançamento pelo LID -> 201", lidLanc.status === 201, JSON.stringify(lidLanc));
 await page.goto(`${BASE}/fechamento`);
 check("Fechamento mostra 'WhatsApp vinculado pelo código'", (await page.innerText("body")).includes("vinculado pelo código"));
+
+// 6b. Categoria pelo WhatsApp (02/10/2026): "mercado" em Compra de alimentos,
+// categoria nova é criada, e a que já existe é mantida.
+const mercado = await post({ description: "mercado", amount: 45, categoryKey: "produto" });
+check(
+    "'mercado' com categoria genérica da IA -> Compra de alimentos",
+    mercado.status === 201 && mercado.json.category === "Compra de alimentos" && mercado.json.categoryCreated === false,
+    JSON.stringify(mercado)
+);
+const novaCat = await post({ description: "ração do cachorro", amount: 80, categoryKey: "outros", categoryName: "Pet" });
+check(
+    "categoria nova dita na mensagem é criada sozinha",
+    novaCat.status === 201 && novaCat.json.category === "Pet" && novaCat.json.categoryCreated === true,
+    JSON.stringify(novaCat)
+);
+const mesmaCat = await post({ description: "banho e tosa", amount: 60, categoryKey: "outros", categoryName: "pet" });
+check(
+    "na segunda vez a categoria já existe e é mantida (não cria outra)",
+    mesmaCat.status === 201 && mesmaCat.json.category === "Pet" && mesmaCat.json.categoryCreated === false,
+    JSON.stringify(mesmaCat)
+);
+const catCartao = await post({ description: "vacina do cachorro", amount: 120, categoryName: "Pet", cardName: "Mercado Pago", installments: 2 });
+check(
+    "compra no cartão também usa a categoria do cliente",
+    catCartao.status === 201 && catCartao.json.kind === "cartao" && catCartao.json.category === "Pet",
+    JSON.stringify(catCartao)
+);
+await page.goto(`${BASE}/lancamentos`);
+const optionLabels = await page.$$eval('select[name="categoryId"] option', (els) => els.map((e) => e.textContent.trim()));
+check("categoria 'Pet' aparece uma vez só no app", optionLabels.filter((l) => l === "Pet").length === 1, optionLabels.join(", "));
+
+// 6c. Mês encerrado: some da lista de lançamentos e não aceita lançamento novo.
+const hoje = new Date();
+const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+const mesPassado = ym(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 15));
+const antigo = await post({ description: "Conta do mês passado", amount: 33, categoryKey: "servico", purchaseDate: `${mesPassado}-10` });
+check("lançamento com data do mês passado -> 201", antigo.status === 201, JSON.stringify(antigo));
+await page.goto(`${BASE}/dashboard`);
+const aviso = page.locator('[data-testid="month-end-prompt"]');
+check("app pergunta se quer encerrar o mês que terminou", await aviso.isVisible());
+// A lista mostra só os primeiros itens; "Ver mais" abre o resto.
+const abrirLista = async () => {
+    await page.goto(`${BASE}/lancamentos`);
+    const verMais = page.locator('button:has-text("Ver mais")');
+    if (await verMais.count()) await verMais.first().click();
+    return page.innerText("body");
+};
+check("antes de encerrar, o lançamento do mês passado aparece na lista", (await abrirLista()).includes("Conta do mês passado"));
+// "Agora não": some hoje, pergunta de novo só mais um dia, depois para até o próximo ciclo.
+await page.click('[data-testid="month-end-prompt"] button:has-text("Agora não")');
+await page.waitForSelector('[data-testid="month-end-prompt"]', { state: "detached", timeout: 5000 });
+await page.reload();
+await page.waitForTimeout(600);
+check("'Agora não' esconde o aviso pelo resto do dia", (await aviso.count()) === 0);
+const chaveAviso = `contay:encerrar-mes:${mesPassado}`;
+await page.evaluate(([k]) => window.localStorage.setItem(k, "1|2000-01-01"), [chaveAviso]);
+await page.reload();
+await page.waitForTimeout(600);
+check("no dia seguinte o aviso pergunta de novo (segunda vez)", await aviso.isVisible());
+await page.evaluate(([k]) => window.localStorage.setItem(k, "2|2000-01-01"), [chaveAviso]);
+await page.reload();
+await page.waitForTimeout(600);
+check("depois de dois 'Agora não' o aviso não insiste mais neste ciclo", (await aviso.count()) === 0);
+check("sem encerrar, os lançamentos seguem normais na lista", (await abrirLista()).includes("Conta do mês passado"));
+await page.evaluate(([k]) => window.localStorage.setItem(k, "1|2000-01-01"), [chaveAviso]);
+await page.reload();
+await page.waitForSelector('[data-testid="month-end-prompt"]', { timeout: 5000 });
+await page.click('[data-testid="month-end-prompt"] button:has-text("Encerrar mês agora")');
+await page.waitForSelector('[data-testid="month-end-prompt"]', { state: "detached", timeout: 10000 });
+const listaDepois = await abrirLista();
+check("depois de encerrar, o lançamento do mês passado sai da lista", !listaDepois.includes("Conta do mês passado"));
+check("lista avisa que há lançamento de mês encerrado e aponta o Fechamento", listaDepois.includes("já encerrado") && listaDepois.includes("Ver no Fechamento"));
+check("lançamentos do mês atual continuam na lista", listaDepois.includes("banho e tosa"));
+const noFechado = await post({ description: "atrasado", amount: 10, purchaseDate: `${mesPassado}-20` });
+check("WhatsApp não lança em mês encerrado (400 com explicação)", noFechado.status === 400 && /encerrado/.test(noFechado.json.error || ""), JSON.stringify(noFechado));
+await page.fill('input[name="purchaseDate"]', `${mesPassado}-20`);
+await page.fill('input[name="dueDate"]', `${mesPassado}-20`);
+await page.fill('input[name="description"]', "manual atrasado");
+await page.fill('input[name="amount"]', "12");
+await page.click('button:has-text("Adicionar lançamento")');
+await page.waitForTimeout(800);
+check("formulário também recusa lançamento em mês encerrado", (await page.innerText("body")).includes("já foi encerrado"));
+await page.goto(`${BASE}/fechamento`);
+check("mês encerrado aparece no histórico do Fechamento", (await page.innerText("body")).includes("Histórico de fechamentos"));
 
 // 7. Conta suspensa (ex: admin suspendeu em /admin) -> 403, mesmo número vinculado
 await suspendUser(email);

@@ -58,8 +58,9 @@ export async function closeMonth(_prev: SimpleFormState, formData: FormData): Pr
     return result;
   }
 
-  revalidatePath("/fechamento");
-  revalidatePath("/dashboard");
+  // O aviso "encerrar o mês?" mora no layout, e a lista de lançamentos
+  // esconde os meses encerrados: tudo precisa ser recalculado.
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -70,8 +71,7 @@ export async function deleteMonthClosing(formData: FormData) {
   await withRLS(session.userId, () =>
     db.delete(monthClosings).where(and(eq(monthClosings.id, id), eq(monthClosings.userId, session.userId)))
   );
-  revalidatePath("/fechamento");
-  revalidatePath("/dashboard");
+  revalidatePath("/", "layout");
 }
 
 const IncomeSchema = z.object({

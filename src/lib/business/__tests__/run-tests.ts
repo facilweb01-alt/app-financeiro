@@ -719,3 +719,92 @@ test("validateBillingAddress: limpa os campos e recusa endereço incompleto (o A
   assert.equal(validateBillingAddress({ postalCode: "58310000", address: "Rua A", addressNumber: "S/N", province: "" }).ok, false);
   assert.equal(validateBillingAddress({ postalCode: "58310000", address: "Rua A", addressNumber: "S/N", province: "Centro" }).ok, true);
 });
+
+// ---------------------------------------------------------------------------
+// Categoria pelo WhatsApp e aviso de virada de mês (02/10/2026)
+// ---------------------------------------------------------------------------
+import { resolveWhatsappCategory, prettyCategoryLabel, type WhatsappCategory } from "../whatsappInput";
+import { monthPendingClose } from "../monthClosing";
+
+const SYSTEM_CATEGORIES: WhatsappCategory[] = [
+  { id: "c-produto", key: "produto", label: "Produto", isCustom: false },
+  { id: "c-servico", key: "servico", label: "Serviço", isCustom: false },
+  { id: "c-lazer", key: "lazer", label: "Lazer", isCustom: false },
+  { id: "c-saude", key: "saude", label: "Saúde", isCustom: false },
+  { id: "c-alim", key: "alimentacao", label: "Compra de alimentos", isCustom: false },
+  { id: "c-pessoais", key: "compras_pessoais", label: "Compras pessoais", isCustom: false },
+  { id: "c-viagem", key: "viagem", label: "Viagem", isCustom: false },
+  { id: "c-gasolina", key: "gasolina", label: "Gasolina", isCustom: false },
+  { id: "c-outros", key: "outros", label: "Outros", isCustom: false },
+];
+
+function categoryId(decision: ReturnType<typeof resolveWhatsappCategory>): string | null {
+  return decision.kind === "existing" ? decision.category.id : null;
+}
+
+test("categoria WhatsApp: 'mercado' cai em Compra de alimentos mesmo quando a IA diz produto/outros", () => {
+  for (const categoryKey of ["produto", "outros", undefined]) {
+    const d = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey, description: "mercado" });
+    assert.equal(categoryId(d), "c-alim");
+  }
+  const d = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "produto", description: "Supermercado Bom Preço" });
+  assert.equal(categoryId(d), "c-alim");
+  // Mercado Pago / Mercado Livre não são compra de alimentos
+  const mp = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "compras_pessoais", description: "Gasto Mercado Pago" });
+  assert.equal(categoryId(mp), "c-pessoais");
+  const ml = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "produto", description: "fone no mercado livre" });
+  assert.equal(categoryId(ml), "c-produto");
+  // palavra dentro de outra não conta ("mercadoria" não é mercado)
+  const other = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "produto", description: "mercadoria da loja" });
+  assert.equal(categoryId(other), "c-produto");
+});
+
+test("categoria WhatsApp: categoria específica da IA é respeitada", () => {
+  const d = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "lazer", description: "cinema com a família" });
+  assert.equal(categoryId(d), "c-lazer");
+  const g = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "gasolina", description: "posto shell" });
+  assert.equal(categoryId(g), "c-gasolina");
+});
+
+test("categoria WhatsApp: nome dito que já existe é mantido (sistema e própria), sem criar outra", () => {
+  const pet: WhatsappCategory = { id: "c-pet", key: "pet", label: "Pet", isCustom: true };
+  const cats = [...SYSTEM_CATEGORIES, pet];
+  assert.equal(categoryId(resolveWhatsappCategory({ categories: cats, categoryKey: "outros", categoryName: "PET", description: "ração" })), "c-pet");
+  assert.equal(categoryId(resolveWhatsappCategory({ categories: cats, categoryKey: "outros", categoryName: "saúde", description: "consulta" })), "c-saude");
+  assert.equal(categoryId(resolveWhatsappCategory({ categories: cats, categoryKey: "outros", categoryName: "Compra de alimentos", description: "x" })), "c-alim");
+  // sinônimo do dia a dia para uma categoria do sistema
+  assert.equal(categoryId(resolveWhatsappCategory({ categories: cats, categoryKey: "outros", categoryName: "Alimentação", description: "x" })), "c-alim");
+  // categoria própria citada só na descrição
+  assert.equal(categoryId(resolveWhatsappCategory({ categories: cats, categoryKey: "produto", description: "banho no pet" })), "c-pet");
+});
+
+test("categoria WhatsApp: categoria própria com o mesmo nome ganha da regra do dia a dia", () => {
+  const mercado: WhatsappCategory = { id: "c-mercado", key: "mercado", label: "Mercado", isCustom: true };
+  const d = resolveWhatsappCategory({ categories: [...SYSTEM_CATEGORIES, mercado], categoryKey: "produto", description: "mercado" });
+  assert.equal(categoryId(d), "c-mercado");
+});
+
+test("categoria WhatsApp: nome novo cria categoria; sem nome cai em Outros", () => {
+  const d = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "outros", categoryName: "  educação  ", description: "mensalidade da escola" });
+  assert.deepEqual(d, { kind: "create", label: "Educação", key: "educacao" });
+  const noKey = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryName: "Pet shop", description: "ração" });
+  assert.deepEqual(noKey, { kind: "create", label: "Pet shop", key: "pet_shop" });
+  // IA escolheu uma categoria específica: não cria outra só porque veio um nome
+  const kept = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "lazer", categoryName: "Cinema", description: "ingresso" });
+  assert.equal(categoryId(kept), "c-lazer");
+  const outros = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "outros", description: "coisa qualquer" });
+  assert.equal(categoryId(outros), "c-outros");
+  const unknownKey = resolveWhatsappCategory({ categories: SYSTEM_CATEGORIES, categoryKey: "inexistente", description: "coisa qualquer" });
+  assert.equal(categoryId(unknownKey), "c-outros");
+  assert.equal(prettyCategoryLabel("?"), null);
+  assert.equal(resolveWhatsappCategory({ categories: [], categoryKey: "outros", description: "x" }).kind, "none");
+});
+
+test("monthPendingClose: avisa só do mês passado, com gasto e ainda aberto", () => {
+  assert.equal(monthPendingClose({ today: "2026-10-02", closedMonths: [], monthsWithActivity: ["2026-09"] }), "2026-09");
+  assert.equal(monthPendingClose({ today: "2026-10-02", closedMonths: ["2026-09"], monthsWithActivity: ["2026-09"] }), null);
+  assert.equal(monthPendingClose({ today: "2026-10-02", closedMonths: [], monthsWithActivity: [] }), null);
+  assert.equal(monthPendingClose({ today: "2026-10-02", closedMonths: ["2026-08"], monthsWithActivity: ["2026-08", "2026-09"] }), "2026-09");
+  // virada de ano
+  assert.equal(monthPendingClose({ today: "2027-01-01", closedMonths: [], monthsWithActivity: ["2026-12"] }), "2026-12");
+});

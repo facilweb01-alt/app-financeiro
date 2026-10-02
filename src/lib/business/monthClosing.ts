@@ -248,3 +248,20 @@ export function computeFutureMonthsHorizon(params: {
 
   return horizonMonths.map((m) => bucketMap.get(m)!);
 }
+
+/**
+ * Mês que terminou e ainda não foi encerrado — é o que dispara o aviso
+ * "quer encerrar o mês agora?" no topo do app (pedido do Marcelo em
+ * 02/10/2026). Só olha o mês imediatamente anterior a hoje, e só avisa se
+ * houve algum gasto nele (conta nova, sem nada lançado, não é incomodada).
+ */
+export function monthPendingClose(params: {
+  today: string; // "YYYY-MM-DD" (fuso de São Paulo)
+  closedMonths: string[]; // "YYYY-MM" já encerrados
+  monthsWithActivity: string[]; // "YYYY-MM" com lançamento ou parcela
+}): string | null {
+  const previous = addMonthsToYearMonth(toYearMonth(params.today), -1);
+  if (params.closedMonths.includes(previous)) return null;
+  if (!params.monthsWithActivity.includes(previous)) return null;
+  return previous;
+}

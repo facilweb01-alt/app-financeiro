@@ -4,7 +4,7 @@
 // dados que mudam a todo momento (lançamentos, parcelas...), então cache
 // agressivo de página só causaria dados desatualizados na tela.
 
-const CACHE_NAME = "app-financeiro-shell-v1";
+const CACHE_NAME = "app-financeiro-shell-v2";
 const SHELL_ASSETS = ["/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {
