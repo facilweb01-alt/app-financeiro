@@ -6,9 +6,13 @@ import type { SimpleFormState } from "@/lib/form-state";
 
 // Aviso de virada de mês (pedido do Marcelo em 02/10/2026): quando o mês
 // passado terminou e ainda não foi encerrado, o app pergunta se o cliente
-// quer encerrar agora. "Agora não" some com o aviso só por hoje (guardado
-// neste aparelho) — amanhã ele pergunta de novo, até o mês ser encerrado.
+// quer encerrar agora. Regra combinada com ele: pergunta em um dia; se a
+// resposta for "Agora não", pergunta de novo só mais um dia; depois disso
+// não insiste mais — os lançamentos seguem normais e a pergunta volta no
+// próximo ciclo (quando o mês seguinte terminar). A resposta fica guardada
+// neste aparelho como "<quantas vezes>|<último dia>".
 
+const MAX_ASKS = 2;
 const STORAGE_PREFIX = "contay:encerrar-mes:";
 const listeners = new Set<() => void>();
 
@@ -19,12 +23,17 @@ function subscribe(listener: () => void) {
   };
 }
 
-function readDismissedOn(yearMonth: string): string | null {
+function readStored(yearMonth: string): string {
   try {
-    return window.localStorage.getItem(STORAGE_PREFIX + yearMonth);
+    return window.localStorage.getItem(STORAGE_PREFIX + yearMonth) ?? "";
   } catch {
-    return null; // modo privado / storage bloqueado: o aviso só aparece de novo
+    return ""; // modo privado / storage bloqueado: o aviso só aparece de novo
   }
+}
+
+function parseStored(value: string): { count: number; lastDay: string } {
+  const [count, lastDay] = value.split("|");
+  return { count: Number(count) || 0, lastDay: lastDay ?? "" };
 }
 
 export function MonthEndPrompt({
@@ -39,17 +48,18 @@ export function MonthEndPrompt({
   const [state, action, pending] = useActionState<SimpleFormState, FormData>(closeMonth, undefined);
   // No servidor (e na hidratação) o aviso começa escondido, para não piscar
   // na tela de quem já respondeu "agora não" hoje.
-  const dismissedOn = useSyncExternalStore(
+  const stored = useSyncExternalStore(
     subscribe,
-    () => readDismissedOn(yearMonth),
-    () => today
+    () => readStored(yearMonth),
+    () => `${MAX_ASKS}|${today}`
   );
+  const { count, lastDay } = parseStored(stored);
 
-  if (dismissedOn === today || state?.ok) return null;
+  if (lastDay === today || count >= MAX_ASKS || state?.ok) return null;
 
   function dismiss() {
     try {
-      window.localStorage.setItem(STORAGE_PREFIX + yearMonth, today);
+      window.localStorage.setItem(STORAGE_PREFIX + yearMonth, `${count + 1}|${today}`);
     } catch {
       // sem storage: some só até recarregar
     }

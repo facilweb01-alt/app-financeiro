@@ -207,6 +207,25 @@ const abrirLista = async () => {
     return page.innerText("body");
 };
 check("antes de encerrar, o lançamento do mês passado aparece na lista", (await abrirLista()).includes("Conta do mês passado"));
+// "Agora não": some hoje, pergunta de novo só mais um dia, depois para até o próximo ciclo.
+await page.click('[data-testid="month-end-prompt"] button:has-text("Agora não")');
+await page.waitForSelector('[data-testid="month-end-prompt"]', { state: "detached", timeout: 5000 });
+await page.reload();
+await page.waitForTimeout(600);
+check("'Agora não' esconde o aviso pelo resto do dia", (await aviso.count()) === 0);
+const chaveAviso = `contay:encerrar-mes:${mesPassado}`;
+await page.evaluate(([k]) => window.localStorage.setItem(k, "1|2000-01-01"), [chaveAviso]);
+await page.reload();
+await page.waitForTimeout(600);
+check("no dia seguinte o aviso pergunta de novo (segunda vez)", await aviso.isVisible());
+await page.evaluate(([k]) => window.localStorage.setItem(k, "2|2000-01-01"), [chaveAviso]);
+await page.reload();
+await page.waitForTimeout(600);
+check("depois de dois 'Agora não' o aviso não insiste mais neste ciclo", (await aviso.count()) === 0);
+check("sem encerrar, os lançamentos seguem normais na lista", (await abrirLista()).includes("Conta do mês passado"));
+await page.evaluate(([k]) => window.localStorage.setItem(k, "1|2000-01-01"), [chaveAviso]);
+await page.reload();
+await page.waitForSelector('[data-testid="month-end-prompt"]', { timeout: 5000 });
 await page.click('[data-testid="month-end-prompt"] button:has-text("Encerrar mês agora")');
 await page.waitForSelector('[data-testid="month-end-prompt"]', { state: "detached", timeout: 10000 });
 const listaDepois = await abrirLista();
