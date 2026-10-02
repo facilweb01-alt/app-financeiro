@@ -52,6 +52,11 @@ export const users = pgTable("users", {
     whatsappLid: text("whatsapp_lid"),
     whatsappLinkCode: text("whatsapp_link_code"),
     whatsappLinkCodeExpiresAt: timestamp("whatsapp_link_code_expires_at", { withTimezone: true }),
+    // Boas-vindas pelo WhatsApp com o manual (migração 0012): pedido, envio
+    // e motivo da última falha — ver src/lib/whatsapp/welcome.ts.
+    welcomeRequestedAt: timestamp("welcome_requested_at", { withTimezone: true }),
+    welcomeSentAt: timestamp("welcome_sent_at", { withTimezone: true }),
+    welcomeError: text("welcome_error"),
     // --- Painel administrativo / SaaS pago (ver drizzle/migrations/0004) -----
     // role: quem pode acessar /admin. status: controla se a conta consegue
     // usar o app de verdade — contas novas nascem "pending" e ficam bloqueadas

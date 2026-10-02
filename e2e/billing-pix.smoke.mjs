@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
+import { startFakeZapi } from "./helpers/fakeZapi.mjs";
 import { fillSignup, randomCpf } from "./helpers/signup.mjs";
 
 // Página de vendas + cobrança mensal via Pix (Asaas), de ponta a ponta, contra
@@ -19,6 +20,10 @@ const sql = postgres(process.env.DATABASE_URL, { max: 1 });
 const BASE = process.env.SMOKE_BASE_URL || "http://localhost:3100";
 const WEBHOOK_TOKEN = process.env.ASAAS_WEBHOOK_TOKEN || "token-teste-webhook";
 const fake = await startFakeAsaas(3998);
+// Z-API falso: recebe as boas-vindas quando o 1º pagamento libera a conta
+// (o app também precisa subir com ZAPI_BASE_URL=http://localhost:3997 e as
+// outras ZAPI_* de teste — ver e2e/helpers/fakeZapi.mjs).
+const zapi = await startFakeZapi();
 
 const sandboxChromium = "/opt/pw-browsers/chromium";
 const browser = await chromium.launch(existsSync(sandboxChromium) ? { executablePath: sandboxChromium } : {});
@@ -116,6 +121,15 @@ try {
   check("tela de pagamento aberta se atualiza sozinha e entra no app", autoRedirected);
   const [activeUser] = await sql`select status, approved_at, subscription_due_date::text as due from users where id = ${user.id}`;
   check("pagamento libera a conta (active)", activeUser.status === "active" && activeUser.approved_at !== null);
+  // Boas-vindas pelo WhatsApp saem depois da resposta do webhook: espera um pouco.
+  const welcomePhone = `55${phone}`;
+  for (let i = 0; i < 20 && zapi.sentTo(welcomePhone).length < 2; i++) await new Promise((r) => setTimeout(r, 500));
+  const welcome = zapi.sentTo(welcomePhone);
+  check(
+    "1º pagamento manda as boas-vindas no WhatsApp do cadastro (texto + manual em PDF), uma vez só",
+    welcome.length === 2 && welcome[0].kind === "send-text" && welcome[0].body.message.includes("Salve este contato") && welcome[1].kind === "send-document/pdf",
+    `mensagens=${welcome.length}`
+  );
   const expectedNext = (() => {
     const [y, m, d] = todaySP().split("-").map(Number);
     const ny = m === 12 ? y + 1 : y;
@@ -203,6 +217,7 @@ try {
 } finally {
   await browser.close();
   await fake.close();
+  await zapi.close();
   await sql.end({ timeout: 1 });
 }
 

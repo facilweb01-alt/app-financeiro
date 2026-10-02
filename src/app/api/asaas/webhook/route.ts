@@ -1,5 +1,5 @@
 import { timingSafeEqual } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   applyAsaasPayment,
   findUserIdByAsaasCustomer,
@@ -8,6 +8,7 @@ import {
   unregisterWebhookEvent,
 } from "@/lib/billing/service";
 import type { AsaasPayment } from "@/lib/billing/asaas";
+import { processPendingWelcomesSafely } from "@/lib/whatsapp/welcome";
 
 // Webhook do Asaas (configurar no painel do Asaas: Integrações → Webhooks,
 // URL https://<app>/api/asaas/webhook, eventos de Cobranças — e, para o
@@ -115,6 +116,9 @@ export async function POST(request: NextRequest) {
     if (result.userId && result.needsCardSync) {
       await syncCardSubscription(result.userId);
     }
+    // Se este pagamento liberou a conta, as boas-vindas pelo WhatsApp saem
+    // depois da resposta (não atrasam nem derrubam o webhook do Asaas).
+    if (result.userId) after(processPendingWelcomesSafely);
     // Cobrança de alguém que não é deste app (mesma conta Asaas usada para
     // outra coisa): confirma e ignora, para não travar a fila do Asaas.
     return NextResponse.json({ ok: true, matched: Boolean(result.userId) });
