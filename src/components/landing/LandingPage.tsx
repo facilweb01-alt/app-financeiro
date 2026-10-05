@@ -1,499 +1,383 @@
 import Link from "next/link";
-import { Logo, LogoSymbol } from "@/components/Logo";
+import "@fontsource-variable/bricolage-grotesque";
+import "@fontsource-variable/figtree";
+import "./landing.css";
+import { LogoSymbol } from "@/components/Logo";
 import { PLAN_PRICE } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
+import { LandingEffects } from "./LandingEffects";
 
-// Página de vendas pública (rota "/" para quem não está logado). Server
-// Component puro — sem JavaScript no navegador além do que o Next já manda —
-// para abrir rápido no celular, que é de onde vem a maior parte do tráfego.
+// Página de vendas pública (rota "/" para quem não está logado).
+//
+// Estrutura pensada para vender: começa pela dor (o salário some), mostra
+// os números do endividamento, lista as dores, apresenta os 3 diferenciais
+// (WhatsApp, cartões e parcelas, % da renda), compara com planilha e app
+// comum, e só no fim mostra o preço. Veio da prévia aprovada pelo Marcelo.
+//
+// É um Server Component: o único JavaScript no navegador é o
+// LandingEffects (barra fixa do celular e inclinação 3D do celular no
+// computador). O visual fica em landing.css, todo dentro de ".lp".
 
 const PRICE = formatBRL(PLAN_PRICE);
-
-function CtaButton({ children = "Quero esse app", className = "" }: { children?: React.ReactNode; className?: string }) {
-  return (
-    <Link
-      href="/registrar"
-      className={`inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-6 py-3.5 text-base font-bold text-navy-950 shadow-lg shadow-emerald-500/25 transition-all hover:-translate-y-0.5 hover:bg-emerald-400 ${className}`}
-    >
-      {children}
-      <span aria-hidden>→</span>
-    </Link>
-  );
-}
-
-function ChatBubble({ from, children, time }: { from: "me" | "app"; children: React.ReactNode; time: string }) {
-  const me = from === "me";
-  return (
-    <div className={`flex ${me ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`max-w-[85%] rounded-2xl px-3 py-2 text-[13px] leading-snug shadow-sm ${
-          me ? "rounded-br-md bg-emerald-700/90 text-white" : "rounded-bl-md bg-navy-800 text-navy-50"
-        }`}
-      >
-        {children}
-        <div className={`mt-1 text-right text-[10px] ${me ? "text-emerald-100/70" : "text-navy-400"}`}>{time}</div>
-      </div>
-    </div>
-  );
-}
-
-function PhoneMockup() {
-  return (
-    <div className="relative mx-auto w-[290px] rounded-[2.5rem] border border-navy-600/60 bg-navy-950 p-3 shadow-2xl shadow-blue-900/40">
-      <div className="mx-auto mb-2 h-1.5 w-20 rounded-full bg-navy-700" aria-hidden />
-      <div className="flex items-center gap-2.5 rounded-t-2xl bg-navy-900 px-3 py-2.5">
-        <LogoSymbol size={30} />
-        <div>
-          <div className="text-sm font-semibold text-navy-50">Contay</div>
-          <div className="text-[11px] text-emerald-400">online</div>
-        </div>
-      </div>
-      <div className="flex flex-col gap-2.5 rounded-b-2xl bg-[#0d1733] px-3 py-4">
-        <ChatBubble from="me" time="12:41">gastei 85 no mercado</ChatBubble>
-        <ChatBubble from="app" time="12:41">
-          ✅ <strong>Lançamento registrado!</strong>
-          <br />
-          Mercado - R$ 85,00
-          <br />
-          Categoria: Compra de alimentos
-        </ChatBubble>
-        <ChatBubble from="me" time="18:03">paguei 120 de gasolina</ChatBubble>
-        <ChatBubble from="app" time="18:03">
-          ✅ <strong>Lançamento registrado!</strong>
-          <br />
-          Gasolina - R$ 120,00
-          <br />
-          Categoria: Gasolina
-        </ChatBubble>
-        <ChatBubble from="me" time="20:15">farmácia 42,90</ChatBubble>
-        <ChatBubble from="app" time="20:15">
-          ✅ <strong>Lançamento registrado!</strong>
-          <br />
-          Farmácia - R$ 42,90 · Saúde
-        </ChatBubble>
-      </div>
-    </div>
-  );
-}
-
-const FEATURES: { icon: string; title: string; text: string }[] = [
-  {
-    icon: "💬",
-    title: "Lançamento pelo WhatsApp",
-    text: "Mande “gastei 50 no mercado” e pronto: valor, categoria e data vão direto para o app, com confirmação na hora.",
-  },
-  {
-    icon: "🧾",
-    title: "Gastos do dia a dia",
-    text: "Data da compra, vencimento, produto ou serviço e categoria: alimentação, saúde, lazer, compras pessoais, viagem, gasolina — e as suas próprias.",
-  },
-  {
-    icon: "💳",
-    title: "Cartões e parcelas",
-    text: "Compras parceladas em cada cartão, fechamento de fatura do jeito do seu banco e as parcelas futuras já somadas nos próximos meses.",
-  },
-  {
-    icon: "🏠",
-    title: "Contas fixas",
-    text: "Aluguel, internet, escola… cadastre uma vez, com descrição e valor, e acrescente quantas quiser.",
-  },
-  {
-    icon: "📈",
-    title: "Investimentos e metas",
-    text: "Registre seus aportes e acompanhe metas com barra de progresso até o objetivo.",
-  },
-  {
-    icon: "🚦",
-    title: "Limites por categoria",
-    text: "Defina quanto quer gastar em cada categoria e receba alerta quando estiver chegando perto.",
-  },
-  {
-    icon: "📊",
-    title: "Gráficos e % da renda",
-    text: "Veja quanto cada categoria consome da sua renda, o gasto do mês e o que já está comprometido no mês que vem.",
-  },
-  {
-    icon: "🗓️",
-    title: "Fechamento do mês + PDF",
-    text: "Feche o mês com um clique: resumo por categoria, parcelas que ainda faltam e relatório em PDF para guardar.",
-  },
-  {
-    icon: "📱",
-    title: "Celular e computador",
-    text: "Funciona no navegador e pode ser instalado na tela inicial do celular, como um aplicativo.",
-  },
-  {
-    icon: "🙈",
-    title: "Modo discreto",
-    text: "Um toque esconde todos os valores da tela — ideal para abrir o app em público.",
-  },
-  {
-    icon: "🔒",
-    title: "Seus dados protegidos",
-    text: "Cada conta é isolada no próprio banco de dados, com senha criptografada e em conformidade com a LGPD.",
-  },
-  {
-    icon: "⚡",
-    title: "Liberação imediata",
-    text: "Pagou no Pix ou no cartão, o acesso é liberado automaticamente em segundos — sem esperar ninguém aprovar.",
-  },
-];
-
-const FAQ: { q: string; a: string }[] = [
-  {
-    q: "Como funciona o lançamento pelo WhatsApp?",
-    a: "No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”. Uma inteligência artificial entende o valor e a categoria, lança no app e te responde confirmando.",
-  },
-  {
-    q: "Preciso instalar alguma coisa?",
-    a: "Não. O Contay funciona no navegador do celular ou do computador. Se quiser, adicione à tela inicial do celular para abrir como um aplicativo.",
-  },
-  {
-    q: "Como é feita a cobrança?",
-    a: `${PRICE} por mês, no Pix ou no cartão de crédito — você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar de Pix para cartão a qualquer momento.`,
-  },
-  {
-    q: "E se eu atrasar o pagamento?",
-    a: "Você tem 3 dias de tolerância depois do vencimento. Passado esse prazo o acesso fica pausado — sem perder nenhum dado — e volta automaticamente assim que o Pix é pago.",
-  },
-  {
-    q: "Tem fidelidade? Posso cancelar?",
-    a: "Não tem fidelidade. Para cancelar, é só falar com o nosso suporte — a cobrança para no mês seguinte.",
-  },
-  {
-    q: "Meus dados financeiros ficam seguros?",
-    a: "Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento (no cartão, também o endereço de cobrança). Os dados do cartão de crédito são digitados direto na página segura do Asaas — o Contay não vê nem guarda.",
-  },
-];
-
-function SectionTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {
-  return (
-    <div className="mx-auto mb-10 max-w-2xl text-center">
-      <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">{eyebrow}</div>
-      <h2 className="text-3xl font-extrabold tracking-tight text-navy-50 md:text-4xl">{title}</h2>
-      {text && <p className="mt-3 text-navy-300">{text}</p>}
-    </div>
-  );
-}
-
-function DashboardPreview() {
-  const rows = [
-    { label: "Contas fixas", pct: 32, color: "bg-blue-500" },
-    { label: "Alimentação", pct: 18, color: "bg-emerald-400" },
-    { label: "Cartões (parcelas)", pct: 14, color: "bg-violet-400" },
-    { label: "Gasolina", pct: 7, color: "bg-amber-400" },
-    { label: "Lazer", pct: 5, color: "bg-pink-400" },
-  ];
-  return (
-    <div className="glass-card rounded-3xl p-6">
-      <div className="mb-1 text-xs uppercase tracking-wide text-navy-400">Setembro</div>
-      <div className="mb-5 text-lg font-semibold text-navy-50">
-        Você já usou <span className="text-emerald-300">76%</span> da sua renda
-      </div>
-      <div className="mb-6 h-3 w-full overflow-hidden rounded-full bg-navy-800">
-        <div className="h-full w-[76%] rounded-full bg-linear-to-r from-blue-500 to-emerald-400" />
-      </div>
-      <ul className="flex flex-col gap-3">
-        {rows.map((r) => (
-          <li key={r.label}>
-            <div className="mb-1 flex justify-between text-sm">
-              <span className="text-navy-200">{r.label}</span>
-              <span className="font-semibold text-navy-100">{r.pct}% da renda</span>
-            </div>
-            <div className="h-2 w-full rounded-full bg-navy-800">
-              <div className={`h-full rounded-full ${r.color}`} style={{ width: `${r.pct * 2.5}%` }} />
-            </div>
-          </li>
-        ))}
-      </ul>
-      <div className="mt-5 rounded-xl border border-navy-700/70 bg-navy-900/60 p-3 text-sm text-navy-300">
-        📅 Mês que vem já tem <strong className="text-navy-100">R$ 640,00</strong> em parcelas de cartão.
-      </div>
-    </div>
-  );
-}
+const PRICE_NUMBER = PLAN_PRICE.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
 export function LandingPage() {
   return (
-    <div className="relative overflow-hidden">
-      {/* luzes de fundo */}
-      <div className="mesh-glow -left-32 top-0 h-96 w-96 bg-blue-600" aria-hidden />
-      <div className="mesh-glow right-0 top-[420px] h-96 w-96 bg-emerald-500" aria-hidden />
-      <div className="mesh-glow -left-20 top-[1600px] h-96 w-96 bg-indigo-600" aria-hidden />
+    <div className="lp">
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
+        <defs>
+          <symbol id="lp-ck" viewBox="0 0 20 20">
+            <circle cx="10" cy="10" r="10" fill="#10b981" />
+            <path d="M5.8 10.4l2.7 2.7 5.7-6" fill="none" stroke="#052e22" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          </symbol>
+          <symbol id="lp-xx" viewBox="0 0 20 20">
+            <path d="M6 6l8 8M14 6l-8 8" fill="none" stroke="#fb7185" strokeWidth="2.4" strokeLinecap="round" />
+          </symbol>
+        </defs>
+      </svg>
 
-      {/* topo */}
-      <header className="relative z-10 mx-auto flex max-w-6xl items-center justify-between px-4 py-5 md:px-8">
-        <Logo size={32} textClassName="text-[15px] md:text-lg" />
-        <nav className="flex items-center gap-2 md:gap-4">
-          <a href="#recursos" className="hidden text-sm text-navy-300 hover:text-navy-50 md:inline">
-            Recursos
-          </a>
-          <a href="#preco" className="hidden text-sm text-navy-300 hover:text-navy-50 md:inline">
-            Preço
-          </a>
-          <a href="#duvidas" className="hidden text-sm text-navy-300 hover:text-navy-50 md:inline">
-            Dúvidas
-          </a>
-          <Link href="/login" className="whitespace-nowrap rounded-xl px-2 py-2 text-sm font-medium text-navy-200 hover:bg-navy-900 sm:px-3">
-            Entrar
-          </Link>
-          <Link
-            href="/registrar"
-            className="whitespace-nowrap rounded-xl bg-emerald-500 px-4 py-2 text-sm font-bold text-navy-950 hover:bg-emerald-400"
-          >
-            <span className="sm:hidden">Assinar</span>
-            <span className="hidden sm:inline">Quero esse app</span>
-          </Link>
-        </nav>
+      <header className="top">
+        <div className="wrap">
+          <a className="logo" href="#topo" aria-label="Contay, início"><LogoSymbol size={34} /><span>Con<b>tay</b></span></a>
+          <nav>
+            <a className="link hide-sm" href="#diferenciais">Diferenciais</a>
+            <a className="link hide-sm" href="#como-funciona">Como funciona</a>
+            <a className="link hide-sm" href="#duvidas">Dúvidas</a>
+            <Link className="link" href="/login">Entrar</Link>
+            <Link className="btn btn-cta" href="/registrar">Quero esse app</Link>
+          </nav>
+        </div>
       </header>
 
-      <main className="relative z-10">
-        {/* herói */}
-        <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-8 md:grid-cols-2 md:px-8 md:pt-16">
-          <div className="animate-rise-in">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" aria-hidden />
-              Novo: lance seus gastos pelo WhatsApp
-            </div>
-            <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight text-navy-50 md:text-6xl">
-              Mandou mensagem,{" "}
-              <span className="bg-linear-to-r from-blue-400 to-emerald-300 bg-clip-text text-transparent">
-                tá lançado.
-              </span>
-            </h1>
-            <p className="mt-5 max-w-lg text-lg text-navy-300">
-              O Contay organiza seu dinheiro sem planilha e sem esforço: você manda o gasto pelo WhatsApp e ele
-              aparece no app, na categoria certa, com gráficos, cartões, parcelas e contas fixas — tudo num só lugar.
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
-              <CtaButton />
-              <a
-                href="#como-funciona"
-                className="inline-flex items-center justify-center rounded-2xl border border-navy-700 px-6 py-3.5 text-base font-semibold text-navy-100 hover:bg-navy-900"
-              >
-                Ver como funciona
-              </a>
-            </div>
-            <p className="mt-4 text-sm text-navy-400">
-              {PRICE}/mês · Pix ou cartão de crédito · sem fidelidade · acesso liberado na hora
-            </p>
-          </div>
-          <div className="animate-rise-in stagger-2">
-            <PhoneMockup />
-          </div>
-        </section>
-
-        {/* como funciona */}
-        <section id="como-funciona" className="mx-auto max-w-6xl scroll-mt-16 px-4 py-16 md:px-8">
-          <SectionTitle eyebrow="Como funciona" title="Três passos e seu controle financeiro está no ar" />
-          <div className="grid gap-5 md:grid-cols-3">
-            {[
-              {
-                n: "1",
-                t: "Crie sua conta",
-                d: "Nome, e-mail, WhatsApp e CPF. Leva menos de um minuto.",
-              },
-              {
-                n: "2",
-                t: "Pague com Pix ou cartão",
-                d: `${PRICE} por mês. No cartão de crédito a mensalidade é cobrada sozinha todo mês. Pagou, o acesso é liberado em segundos.`,
-              },
-              {
-                n: "3",
-                t: "Mande seus gastos",
-                d: "Pelo WhatsApp ou direto no app. Ele organiza, soma e mostra para onde seu dinheiro está indo.",
-              },
-            ].map((s) => (
-              <div key={s.n} className="glass-card rounded-3xl p-6">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-600 text-lg font-extrabold text-white">
-                  {s.n}
-                </div>
-                <div className="text-lg font-bold text-navy-50">{s.t}</div>
-                <p className="mt-1.5 text-navy-300">{s.d}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* destaque WhatsApp */}
-        <section className="mx-auto max-w-6xl px-4 py-16 md:px-8">
-          <div className="glass-card grid items-center gap-10 overflow-hidden rounded-[2rem] p-8 md:grid-cols-2 md:p-12">
+      <main id="topo">
+  
+        <section className="hero" id="hero">
+          <div className="glow" style={{ width: "420px", height: "420px", left: "-140px", top: "-60px", background: "#2563eb" }}></div>
+          <div className="glow" style={{ width: "380px", height: "380px", right: "-80px", top: "260px", background: "#10b981" }}></div>
+          <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
             <div>
-              <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">O diferencial</div>
-              <h2 className="text-3xl font-extrabold tracking-tight text-navy-50 md:text-4xl">
-                Seu assistente financeiro mora no WhatsApp
-              </h2>
-              <p className="mt-4 text-navy-300">
-                Sem abrir app, sem preencher formulário. Escreva do seu jeito — a inteligência artificial entende e lança
-                para você, e o app se atualiza sozinho.
-              </p>
-              <ul className="mt-6 flex flex-col gap-3 text-navy-200">
-                {[
-                  "Entende valor, descrição e categoria em linguagem natural",
-                  "Responde na hora confirmando o que foi lançado",
-                  "Tudo aparece no painel, nos gráficos e no fechamento do mês",
-                  "Funciona do seu próprio WhatsApp, o mesmo do cadastro",
-                ].map((item) => (
-                  <li key={item} className="flex gap-3">
-                    <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-xs font-bold text-navy-950">
-                      ✓
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              <span className="pain-tag"><i></i>Chega de chegar no dia 20 sem dinheiro</span>
+              <h1>O salário cai, some em poucos dias e você <span className="grad">nem sabe onde gastou.</span></h1>
+              <p className="lead">A fatura vem maior do que você esperava. Uma parcela esquecida aparece. A conta vence e você só lembra depois, com juros. <strong>O Contay acaba com isso:</strong> você manda o gasto pelo WhatsApp e ele organiza tudo sozinho, com cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
+              <div className="ctas">
+                <Link className="btn btn-cta" href="/registrar">Quero ter controle do meu dinheiro <span aria-hidden="true">→</span></Link>
+                <a className="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
+              </div>
+              <div className="trust">
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem planilha</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Não pede senha do banco</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem fidelidade</span>
+              </div>
             </div>
-            <div className="flex flex-col gap-3">
-              {[
-                ["gastei 32 na padaria", "Padaria - R$ 32,00 · Compra de alimentos"],
-                ["uber 18,50", "Uber - R$ 18,50 · Serviço"],
-                ["cinema com a família 96", "Cinema - R$ 96,00 · Lazer"],
-                ["consulta dentista 250", "Dentista - R$ 250,00 · Saúde"],
-              ].map(([msg, res]) => (
-                <div key={msg} className="rounded-2xl border border-navy-700/60 bg-navy-950/60 p-4">
-                  <div className="text-sm text-navy-400">
-                    Você: <span className="text-navy-100">“{msg}”</span>
+
+            <div className="scene" id="scene">
+              <div className="stage" id="stage">
+                <div className="phone">
+                  <div className="notch"></div>
+                  <div className="chat-head">
+                    <LogoSymbol size={30} />
+                    <div><div className="n">Contay</div><div className="s">online</div></div>
                   </div>
-                  <div className="mt-1 text-sm font-medium text-emerald-300">✅ {res}</div>
+                  <div className="chat">
+                    <div className="b me">gastei 85 no mercado<small>12:41</small></div>
+                    <div className="b bot">✅ <strong>Lançamento registrado!</strong><br />Mercado · R$ 85,00<br />Categoria: Compra de alimentos<small>12:41</small></div>
+                    <div className="b me">400 no cartão azul em 4x<small>18:03</small></div>
+                    <div className="b bot">💳 <strong>Compra no cartão registrada!</strong><br />Cartão Azul · 4x de R$ 100,00<br />1ª parcela na fatura de outubro<small>18:03</small></div>
+                    <div className="b me">farmácia 42,90<small>20:15</small></div>
+                    <div className="b bot">✅ <strong>Lançamento registrado!</strong><br />Farmácia · R$ 42,90 · Saúde<small>20:15</small></div>
+                  </div>
                 </div>
-              ))}
+                <div className="chip c1"><span className="dot" style={{ background: "rgba(16,185,129,.18)" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span><span className="k">Sobra do mês</span><span className="v">R$ 612,40</span></span></div>
+                <div className="chip c2"><span className="dot" style={{ background: "rgba(167,139,250,.18)" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.2" strokeLinecap="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19"/></svg></span><span><span className="k">Parcelas em novembro</span><span className="v">R$ 520,00</span></span></div>
+                <div className="chip c3"><span className="dot" style={{ background: "rgba(251,191,36,.16)" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span><span className="k">Internet vence em 3 dias</span><span className="v">R$ 99,90</span></span></div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* recursos */}
-        <section id="recursos" className="mx-auto max-w-6xl scroll-mt-16 px-4 py-16 md:px-8">
-          <SectionTitle
-            eyebrow="Recursos"
-            title="Tudo que você precisa para dominar suas finanças"
-            text="Do cafezinho às parcelas do cartão: cada centavo no lugar certo, com visão do mês atual e dos próximos."
-          />
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => (
-              <div
-                key={f.title}
-                className="glass-card rounded-3xl p-6 transition-transform duration-300 hover:-translate-y-1"
-              >
-                <div className="mb-3 text-3xl" aria-hidden>
-                  {f.icon}
-                </div>
-                <div className="text-lg font-bold text-navy-50">{f.title}</div>
-                <p className="mt-1.5 text-sm leading-relaxed text-navy-300">{f.text}</p>
-              </div>
-            ))}
+  
+        <section className="stats" aria-label="Números do endividamento no Brasil">
+          <div className="wrap">
+            <div className="stat"><div className="num"><em>80,9%</em></div><p>das famílias brasileiras estão endividadas. É o maior número já registrado.</p></div>
+            <div className="stat"><div className="num"><em>8</em> em 10</div><p>têm o cartão de crédito como a principal dívida. Parcela pequena, somada, vira bola de neve.</p></div>
+            <div className="stat"><div className="num"><em>+400%</em></div><p>ao ano é o juro do rotativo do cartão. Uma fatura esquecida custa caro.</p></div>
           </div>
+          <div className="wrap src">Fonte: pesquisa Peic da CNC (abril/2026) e Banco Central, divulgados pela Agência Senado.</div>
         </section>
 
-        {/* visão do painel */}
-        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 md:grid-cols-2 md:px-8">
-          <div>
-            <div className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-emerald-400">Clareza</div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-navy-50 md:text-4xl">
-              Saiba em segundos para onde vai o seu dinheiro
-            </h2>
-            <p className="mt-4 text-navy-300">
-              Quanto cada categoria pesa na sua renda, o que já está comprometido com parcelas nos próximos meses e
-              quanto ainda sobra — em gráficos simples, no celular ou no computador.
-            </p>
-            <div className="mt-8">
-              <CtaButton>Começar agora</CtaButton>
+  
+        <section className="sec" id="dores">
+          <div className="wrap">
+            <div className="sec-head">
+              <span className="eyebrow pain">Você se reconhece?</span>
+              <h2>Não é falta de dinheiro. É falta de enxergar para onde ele vai.</h2>
+              <p>Se pelo menos uma dessas situações já aconteceu com você, seu dinheiro está escapando sem você perceber.</p>
             </div>
-          </div>
-          <DashboardPreview />
-        </section>
-
-        {/* preço */}
-        <section id="preco" className="mx-auto max-w-6xl scroll-mt-16 px-4 py-16 md:px-8">
-          <SectionTitle eyebrow="Preço" title="Um plano, tudo incluído" text="Sem letras miúdas, sem fidelidade." />
-          <div className="relative mx-auto max-w-md">
-            <div className="absolute -inset-1 rounded-[2.2rem] bg-linear-to-br from-blue-500 to-emerald-400 opacity-60 blur-lg" aria-hidden />
-            <div className="relative rounded-[2rem] border border-navy-700 bg-navy-900 p-8">
-              <div className="flex items-center justify-between">
-                <div className="text-lg font-bold text-navy-50">Contay</div>
-                <div className="rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-                  Mensal
-                </div>
-              </div>
-              <div className="mt-5 flex items-end gap-1">
-                <span className="text-5xl font-extrabold tracking-tight text-navy-50">{PRICE}</span>
-                <span className="mb-1.5 text-navy-400">/mês</span>
-              </div>
-              <p className="mt-1 text-sm text-navy-400">
-                Pix ou cartão de crédito (cobrança automática), todo mês no dia em que você contratou.
-              </p>
-              <ul className="mt-6 flex flex-col gap-2.5 text-sm text-navy-200">
-                {[
-                  "Lançamento de gastos pelo WhatsApp",
-                  "Lançamentos, categorias e contas fixas ilimitados",
-                  "Cartões, parcelas e fechamento de fatura",
-                  "Investimentos e metas com progresso",
-                  "Limites por categoria com alertas",
-                  "Gráficos, fechamento mensal e PDF",
-                  "Celular e computador",
-                  "Pix ou cartão de crédito recorrente",
-                  "Acesso liberado na hora após o pagamento",
-                ].map((item) => (
-                  <li key={item} className="flex gap-2.5">
-                    <span className="text-emerald-400" aria-hidden>
-                      ✓
-                    </span>
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <CtaButton className="mt-8 w-full" />
-              <p className="mt-3 text-center text-xs text-navy-500">Sem fidelidade — cancele quando quiser.</p>
+            <div className="pains">
+              <div className="pain-card"><span className="x"><svg width="14" height="14"><use href="#lp-xx"/></svg></span><h3>A fatura chega e você leva um susto</h3><p>Você não lembrava de metade das compras. E agora tem que pagar tudo de uma vez.</p></div>
+              <div className="pain-card"><span className="x"><svg width="14" height="14"><use href="#lp-xx"/></svg></span><h3>As parcelas se acumulam sem você ver</h3><p>Cada compra em 10x parecia pouco. Juntas, já comem boa parte do seu salário dos próximos meses.</p></div>
+              <div className="pain-card"><span className="x"><svg width="14" height="14"><use href="#lp-xx"/></svg></span><h3>Conta vencida, juros e multa</h3><p>Luz, internet, escola. Você tinha o dinheiro, só esqueceu o dia. E pagou mais caro.</p></div>
+              <div className="pain-card"><span className="x"><svg width="14" height="14"><use href="#lp-xx"/></svg></span><h3>A planilha morreu na segunda semana</h3><p>Começou animado, mas parar para digitar cada gasto no computador ninguém aguenta.</p></div>
+              <div className="pain-card"><span className="x"><svg width="14" height="14"><use href="#lp-xx"/></svg></span><h3>Baixou um app e nunca mais abriu</h3><p>Abrir o app, achar o botão, preencher o formulário… no terceiro dia você já desistiu.</p></div>
+              <div className="pain-card"><span className="x"><svg width="14" height="14"><use href="#lp-xx"/></svg></span><h3>No fim do mês, a pergunta de sempre</h3><p>“Pra onde foi o meu dinheiro?” E ninguém sabe responder, nem você.</p></div>
+            </div>
+            <div className="turn">
+              <p>Você não precisa de mais força de vontade. Precisa de um jeito que <strong>dê menos trabalho do que gastar.</strong> Mandar uma mensagem leva 5 segundos.</p>
+              <Link className="btn btn-cta" href="/registrar">Quero resolver isso <span aria-hidden="true">→</span></Link>
             </div>
           </div>
         </section>
 
-        {/* dúvidas */}
-        <section id="duvidas" className="mx-auto max-w-3xl scroll-mt-16 px-4 py-16 md:px-8">
-          <SectionTitle eyebrow="Dúvidas" title="Perguntas frequentes" />
-          <div className="flex flex-col gap-3">
-            {FAQ.map((item) => (
-              <details key={item.q} className="glass-card group rounded-2xl p-5">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-semibold text-navy-50">
-                  {item.q}
-                  <span className="text-xl text-navy-400 transition-transform group-open:rotate-45" aria-hidden>
-                    +
-                  </span>
-                </summary>
-                <p className="mt-3 text-sm leading-relaxed text-navy-300">{item.a}</p>
-              </details>
-            ))}
+  
+        <section className="sec" id="diferenciais" style={{ paddingTop: "24px" }}>
+          <div className="glow" style={{ width: "420px", height: "420px", left: "-160px", top: "200px", background: "#4f46e5" }}></div>
+          <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
+            <div className="sec-head center">
+              <span className="eyebrow">Por que o Contay funciona</span>
+              <h2>Feito para quem já tentou se organizar e desistiu</h2>
+              <p>Os outros jeitos pedem que você mude sua rotina. O Contay entra na rotina que você já tem.</p>
+            </div>
+
+            <div className="diffs">
+        
+              <article className="diff">
+                <div className="copy">
+                  <span className="tag">Diferencial 1 · WhatsApp</span>
+                  <h3>Lançou em 5 segundos, no app que você já abre o dia todo</h3>
+                  <p>Escreva do seu jeito, como mandaria para um amigo. A inteligência artificial entende o valor, a categoria e a data, lança no app e responde confirmando.</p>
+                  <p className="dor">Sem isso: você deixa para anotar depois e esquece. Gasto não anotado é dinheiro que some.</p>
+                  <ul className="checks">
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Entende “gastei 32 na padaria” e “uber 18,50”</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Entende compra no cartão com parcelas: “400 em 4x”</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cria a categoria que você pedir: “ração 80 categoria pet”</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Responde na hora confirmando o que foi lançado</li>
+                  </ul>
+                </div>
+                <div className="msgs" aria-label="Exemplos de mensagens">
+                  <div className="msg"><div className="you">Você: <b>“gastei 32 na padaria”</b></div><div className="ok">✓ Padaria · R$ 32,00 · Compra de alimentos</div></div>
+                  <div className="msg"><div className="you">Você: <b>“uber 18,50”</b></div><div className="ok">✓ Uber · R$ 18,50 · Serviço</div></div>
+                  <div className="msg"><div className="you">Você: <b>“cinema com a família 96”</b></div><div className="ok">✓ Cinema · R$ 96,00 · Lazer</div></div>
+                  <div className="msg"><div className="you">Você: <b>“dentista 250 vence dia 15”</b></div><div className="ok">✓ Dentista · R$ 250,00 · Saúde · vence 15/10</div></div>
+                </div>
+              </article>
+
+        
+              <article className="diff flip">
+                <div className="copy">
+                  <span className="tag">Diferencial 2 · Cartões e parcelas</span>
+                  <h3>Nenhuma parcela te pega de surpresa de novo</h3>
+                  <p>Cada compra parcelada entra no cartão certo, e as parcelas que faltam já aparecem somadas nos próximos meses. Você define o dia de fechamento da fatura do seu banco e o app separa o que cai em cada fatura.</p>
+                  <p className="dor">Sem isso: você só descobre quanto deve quando a fatura chega. Aí já é tarde.</p>
+                  <ul className="checks">
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Vários cartões, cada um com seu fechamento e vencimento</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Quanto do mês que vem já está comprometido</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>No fechamento do mês, as parcelas restantes seguem para frente sozinhas</li>
+                  </ul>
+                </div>
+                <div className="cardscene">
+                  <div className="ccard" aria-hidden="true">
+                    <div className="chipi"></div>
+                    <span className="inst">parcela 2 de 4</span>
+                    <div className="dig">•••• •••• •••• 4821</div>
+                    <div className="nm">Cartão Azul</div>
+                  </div>
+                  <div className="months" aria-label="Parcelas previstas nos próximos meses (exemplo)">
+                    <div className="mrow"><span className="m">out/26</span><span className="bar"><i style={{ width: "100%" }}></i></span><span className="val">R$ 640,00</span></div>
+                    <div className="mrow"><span className="m">nov/26</span><span className="bar"><i style={{ width: "81%" }}></i></span><span className="val">R$ 520,00</span></div>
+                    <div className="mrow"><span className="m">dez/26</span><span className="bar"><i style={{ width: "59%" }}></i></span><span className="val">R$ 380,00</span></div>
+                    <div className="mrow"><span className="m">jan/27</span><span className="bar"><i style={{ width: "23%" }}></i></span><span className="val">R$ 150,00</span></div>
+                    <span className="cap">Exemplo: parcelas que já estão contratadas, mês a mês.</span>
+                  </div>
+                </div>
+              </article>
+
+        
+              <article className="diff">
+                <div className="copy">
+                  <span className="tag">Diferencial 3 · Clareza</span>
+                  <h3>Veja quanto cada gasto come da sua renda</h3>
+                  <p>Mercado, gasolina, lazer, saúde, contas fixas: cada categoria com a porcentagem que ela leva do que você ganha. Em segundos você enxerga onde cortar, no celular ou no computador.</p>
+                  <p className="dor">Sem isso: você corta o cafezinho e continua no vermelho, porque o problema estava em outro lugar.</p>
+                  <ul className="checks">
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Gráficos por categoria com % sobre a renda</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Limite por categoria com alerta antes de estourar</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Fechamento do mês com relatório em PDF</li>
+                  </ul>
+                </div>
+                <div className="chart3d">
+                  <div className="chart-card" role="img" aria-label="Exemplo de gráfico: contas fixas 32%, alimentação 18%, cartões 14%, gasolina 7%, lazer 5% da renda">
+                    <div className="t">Outubro · exemplo</div>
+                    <div className="big">Você já usou <b>76%</b> da sua renda</div>
+                    <div className="meter"><i></i></div>
+                    <div className="bars">
+                      <div className="col"><span className="pct">32%</span><div className="iso" style={{ "--h": "140px", "--c0": "#93c5fd", "--c1": "#3b82f6", "--c2": "#1d4ed8", "--c3": "#1e3a8a" } as React.CSSProperties}></div></div>
+                      <div className="col"><span className="pct">18%</span><div className="iso" style={{ "--h": "79px", "--c0": "#6ee7b7", "--c1": "#34d399", "--c2": "#059669", "--c3": "#065f46" } as React.CSSProperties}></div></div>
+                      <div className="col"><span className="pct">14%</span><div className="iso" style={{ "--h": "61px", "--c0": "#ddd6fe", "--c1": "#a78bfa", "--c2": "#7c3aed", "--c3": "#5b21b6" } as React.CSSProperties}></div></div>
+                      <div className="col"><span className="pct">7%</span><div className="iso" style={{ "--h": "31px", "--c0": "#fde68a", "--c1": "#fbbf24", "--c2": "#d97706", "--c3": "#92400e" } as React.CSSProperties}></div></div>
+                      <div className="col"><span className="pct">5%</span><div className="iso" style={{ "--h": "22px", "--c0": "#fbcfe8", "--c1": "#f472b6", "--c2": "#db2777", "--c3": "#9d174d" } as React.CSSProperties}></div></div>
+                    </div>
+                    <div className="labels"><span>Contas fixas</span><span>Alimen&shy;tação</span><span>Cartões</span><span>Gasolina</span><span>Lazer</span></div>
+                    <div className="note">Mês que vem já tem <b>R$ 520,00</b> em parcelas de cartão.</div>
+                  </div>
+                </div>
+              </article>
+            </div>
           </div>
         </section>
 
-        {/* chamada final */}
-        <section className="mx-auto max-w-6xl px-4 pb-20 pt-8 md:px-8">
-          <div className="relative overflow-hidden rounded-[2rem] bg-linear-to-br from-blue-600 to-blue-900 p-10 text-center md:p-14">
-            <div className="mesh-glow -right-10 -top-10 h-64 w-64 bg-emerald-400" aria-hidden />
-            <h2 className="relative text-3xl font-extrabold tracking-tight text-white md:text-4xl">
-              Comece hoje a ter controle do seu dinheiro
-            </h2>
-            <p className="relative mx-auto mt-3 max-w-xl text-blue-100">
-              Crie sua conta, pague com Pix ou cartão e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.
-            </p>
-            <CtaButton className="relative mt-8" />
+  
+        <section className="sec" id="comparacao" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="sec-head center">
+              <span className="eyebrow">Compare</span>
+              <h2>Planilha, app comum ou Contay?</h2>
+              <p>Todo mundo já tentou algum desses. Veja por que só um deles cabe no seu dia a dia.</p>
+            </div>
+            <div className="cmp">
+              <div className="cmp-head"><div></div><div>Planilha</div><div>App de finanças comum</div><div className="us">Contay</div></div>
+              <div className="cmp-row"><div className="f">Para lançar um gasto</div><div className="cmp-cells">
+                <div className="cell"><span className="who">Planilha</span>Abrir o computador e digitar</div>
+                <div className="cell"><span className="who">App comum</span>Abrir o app e preencher um formulário</div>
+                <div className="cell us"><span className="who">Contay</span>Mandar uma mensagem no WhatsApp</div></div></div>
+              <div className="cmp-row"><div className="f">Parcelas do cartão nos próximos meses</div><div className="cmp-cells">
+                <div className="cell"><span className="who">Planilha</span>Fórmula feita à mão</div>
+                <div className="cell"><span className="who">App comum</span>Muitas vezes só no plano mais caro</div>
+                <div className="cell us"><span className="who">Contay</span>Somadas sozinhas, mês a mês</div></div></div>
+              <div className="cmp-row"><div className="f">Fechamento da fatura do seu banco</div><div className="cmp-cells">
+                <div className="cell"><span className="who">Planilha</span>Você calcula</div>
+                <div className="cell"><span className="who">App comum</span>Varia de app para app</div>
+                <div className="cell us"><span className="who">Contay</span>Você escolhe o dia e ele separa</div></div></div>
+              <div className="cmp-row"><div className="f">Acesso à sua conta do banco</div><div className="cmp-cells">
+                <div className="cell"><span className="who">Planilha</span>Não precisa</div>
+                <div className="cell"><span className="who">App comum</span>Os planos automáticos se conectam ao seu banco</div>
+                <div className="cell us"><span className="who">Contay</span>Nunca. Você só manda a mensagem</div></div></div>
+              <div className="cmp-row"><div className="f">Forma de pagar</div><div className="cmp-cells">
+                <div className="cell"><span className="who">Planilha</span>Grátis, mas dá trabalho manter</div>
+                <div className="cell"><span className="who">App comum</span>Em geral cartão de crédito ou plano anual</div>
+                <div className="cell us"><span className="who">Contay</span>Pix ou cartão de crédito, mensal e sem fidelidade</div></div></div>
+            </div>
+          </div>
+        </section>
+
+  
+        <section className="sec" id="recursos" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="sec-head center">
+              <span className="eyebrow">Tudo incluído</span>
+              <h2>Do cafezinho às parcelas do cartão, tudo num só lugar</h2>
+            </div>
+            <div className="feats">
+              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Gastos do dia a dia</h3><p>Data da compra, vencimento, produto ou serviço e categoria: alimentação, saúde, lazer, compras pessoais, viagem, gasolina.</p></div>
+              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></div><h3>Contas fixas</h3><p>Aluguel, internet, escola. Cadastre uma vez, com descrição e valor, e acrescente quantas quiser.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><h3>Investimentos e metas</h3><p>Registre seus aportes e acompanhe cada meta com barra de progresso até o objetivo.</p></div>
+              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5l2.6-1.5M17.2 9l2.6-1.5"/><circle cx="12" cy="12" r="3.5"/></svg></div><h3>Limites com alerta</h3><p>Defina quanto quer gastar em cada categoria e receba aviso antes de estourar.</p></div>
+              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div><h3>Fechamento do mês + PDF</h3><p>Quando o mês termina, o app pergunta se você quer encerrar. Resumo por categoria, parcelas que ainda faltam e relatório em PDF.</p></div>
+              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/></svg></div><h3>Manual e suporte no WhatsApp</h3><p>Ao entrar você recebe o manual em PDF. Ficou com dúvida? Pergunte no mesmo WhatsApp e a resposta vem na hora.</p></div>
+              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 5 9 7a9 9 0 0 1-2.2 3.3M6.3 6.3C4.2 7.8 3 10.2 3 12c0 2 4 7 9 7 1.6 0 3-.4 4.3-1.1"/></svg></div><h3>Modo discreto</h3><p>Um toque esconde todos os valores da tela. Ideal para abrir o app em público.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div><h3>Dados protegidos</h3><p>Cada conta isolada, senha criptografada e tratamento de dados de acordo com a LGPD.</p></div>
+            </div>
+          </div>
+        </section>
+
+  
+        <section className="sec" id="como-funciona" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="sec-head center">
+              <span className="eyebrow">Como funciona</span>
+              <h2>Em 3 passos você começa hoje</h2>
+            </div>
+            <div className="steps">
+              <div className="step"><div className="n">1</div><h3>Crie sua conta</h3><p>Nome, e-mail, WhatsApp e CPF. Leva menos de um minuto.</p></div>
+              <div className="step"><div className="n">2</div><h3>Pague com Pix ou cartão</h3><p>No cartão de crédito a mensalidade é cobrada sozinha todo mês. Pagou, o acesso é liberado em segundos e o manual chega no seu WhatsApp.</p></div>
+              <div className="step"><div className="n">3</div><h3>Mande seu primeiro gasto</h3><p>Pelo WhatsApp ou direto no app. Ele organiza, soma e mostra para onde vai o seu dinheiro.</p></div>
+            </div>
+          </div>
+        </section>
+
+  
+        <section className="sec" id="preco" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="price-wrap">
+              <div>
+                <div className="sec-head" style={{ marginBottom: "24px" }}>
+                  <span className="eyebrow pain">Faça a conta</span>
+                  <h2>Quanto custa continuar sem controle?</h2>
+                  <p>O descontrole cobra todo mês, só que escondido. Compare:</p>
+                </div>
+                <div className="anchor">
+                  <div className="it"><span>Uma conta paga com atraso (multa + juros)</span><b>dinheiro jogado fora</b></div>
+                  <div className="it"><span>Uma fatura de R$ 1.000 que cai no rotativo por um mês</span><b>mais de R$ 100 em juros</b></div>
+                  <div className="it"><span>Parcelas esquecidas que apertam o mês seguinte</span><b>cheque especial</b></div>
+                  <div className="it ok"><span>Saber para onde vai cada real, todo mês</span><b>menos de R$ 1 por dia</b></div>
+                  <span className="foot">Juros do rotativo acima de 400% ao ano segundo o Banco Central; o valor exato varia por banco.</span>
+                </div>
+              </div>
+              <div className="plan-scene">
+                <div className="plan">
+                  <div className="row"><strong style={{ color: "var(--text)", fontSize: "19px" }}>Contay</strong><span className="pill">Plano único</span></div>
+                  <div className="amount"><span className="rs">R$</span><span className="v">{PRICE_NUMBER}</span><span className="per">/mês</span></div>
+                  <div className="day">Menos de R$ 1 por dia para ter controle total.</div>
+                  <ul className="checks">
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Lançamento pelo WhatsApp com inteligência artificial</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cartões, parcelas e fechamento de fatura</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Contas fixas, investimentos e metas</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Gráficos com % da renda e limites com alerta</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Fechamento do mês e relatório em PDF</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Celular e computador, lançamentos ilimitados</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Manual em PDF e suporte pelo WhatsApp</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Pague com Pix ou cartão de crédito recorrente</li>
+                  </ul>
+                  <Link className="btn btn-cta" href="/registrar">Quero esse app <span aria-hidden="true">→</span></Link>
+                  <p className="fine">Pix ou cartão de crédito (cobrança automática), todo mês no dia em que você contratou. Sem fidelidade.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+  
+        <section className="sec" id="duvidas" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="sec-head center"><span className="eyebrow">Dúvidas</span><h2>Perguntas frequentes</h2></div>
+            <div className="faq">
+              <details><summary>Como funciona o lançamento pelo WhatsApp?<span className="pl" aria-hidden="true">+</span></summary><p>No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”, “400 no cartão em 4x”. A inteligência artificial entende o valor, a categoria e as parcelas, lança no app e responde confirmando.</p></details>
+              <details><summary>Preciso dar a senha do meu banco?<span className="pl" aria-hidden="true">+</span></summary><p>Não. O Contay não se conecta à sua conta bancária. Você informa os gastos pelo WhatsApp ou pelo app, e só você decide o que entra.</p></details>
+              <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não. Funciona no navegador do celular ou do computador. Se quiser, adicione à tela inicial do celular para abrir como um aplicativo.</p></details>
+              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>{PRICE} por mês, no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
+              <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
+              <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou.</p></details>
+              <details><summary>E se eu tiver dúvida para usar?<span className="pl" aria-hidden="true">+</span></summary><p>Pergunte no mesmo WhatsApp em que você lança os gastos, por exemplo “como cadastro um cartão?”. A resposta vem na hora, com base no manual. Quando o caso precisa de uma pessoa, um atendente continua a conversa. O <Link href="/manual">manual completo</Link> também fica disponível no app, em Ajuda.</p></details>
+              <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
+            </div>
+          </div>
+        </section>
+
+  
+        <section className="sec" style={{ paddingTop: "8px" }}>
+          <div className="wrap">
+            <div className="final">
+              <h2>Daqui a 30 dias você pode estar no mesmo lugar. Ou pode saber exatamente para onde foi cada real.</h2>
+              <p>Crie sua conta, pague com Pix ou cartão e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.</p>
+              <Link className="btn btn-cta" href="/registrar">Quero ter controle agora <span aria-hidden="true">→</span></Link>
+              <div className="fine">{PRICE}/mês · Pix ou cartão de crédito · sem fidelidade</div>
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="relative z-10 border-t border-navy-800/80">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-navy-400 md:flex-row md:px-8">
-          <Logo size={26} textClassName="text-sm" />
-          <div className="flex gap-5">
-            <Link href="/termos" className="hover:text-navy-100">
-              Termos e Privacidade
-            </Link>
-            <Link href="/login" className="hover:text-navy-100">
-              Entrar
-            </Link>
+      <footer>
+        <div className="wrap">
+          <a className="logo" href="#topo" style={{ fontSize: "15px" }}><LogoSymbol size={26} /><span>Con<b>tay</b></span></a>
+          <div style={{ display: "flex", gap: "18px" }}>
+            <Link href="/manual">Manual</Link>
+            <Link href="/termos">Termos e Privacidade</Link>
+            <Link href="/login">Entrar</Link>
           </div>
-          <div>© {new Date().getFullYear()} Contay · Fácil Web</div>
+          <div>© 2026 Contay · Fácil Web</div>
         </div>
       </footer>
+
+      <LandingEffects />
     </div>
   );
 }

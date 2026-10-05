@@ -28,7 +28,7 @@ export function buildWelcomeMessage(input: { name: string | null; appUrl: string
     "",
     "Sua conta está liberada. É por este número que você lança seus gastos e tira suas dúvidas.",
     "",
-    `📌 *Salve este contato* na sua agenda como *Contay* (${input.botNumber}). Assim você acha a conversa rápido e as suas mensagens chegam certinho.`,
+    `📌 *Salve este contato* na sua agenda como *Contay*, número ${input.botNumber}. Assim você acha a conversa rápido e as suas mensagens chegam certinho.`,
     "",
     "💬 *Para lançar um gasto*, é só escrever do seu jeito:",
     "• gastei 45 no mercado",

@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { RegisterServiceWorker } from "@/components/RegisterServiceWorker";
+import { publicAppUrl } from "@/lib/appUrl";
 
 export const metadata: Metadata = {
+  // Base dos links absolutos (imagem de compartilhamento, canonical).
+  metadataBase: new URL(publicAppUrl()),
   title: "Contay",
   description: "Controle financeiro pessoal — lançamentos, cartões, investimentos e contas fixas.",
   manifest: "/manifest.webmanifest",
