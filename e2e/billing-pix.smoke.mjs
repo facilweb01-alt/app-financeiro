@@ -53,7 +53,8 @@ try {
   // 1. Página de vendas pública
   await page.goto(`${BASE}/`);
   const landing = await page.textContent("body");
-  check("página de vendas abre para visitante", landing.includes("tá lançado") && landing.includes("R$ 29,90"));
+  check("página de vendas abre para visitante", landing.includes("nem sabe onde gastou") && /R\$\s29,90/.test(landing));
+  check("página de vendas mostra dores, comparação e dúvidas", landing.includes("Você se reconhece?") && landing.includes("Planilha, app comum ou Contay?") && landing.includes("Perguntas frequentes"));
   check("destaca o WhatsApp", landing.includes("WhatsApp"));
   const ctaHref = await page.getAttribute('main a:has-text("Quero esse app")', "href");
   check("botão 'Quero esse app' leva ao cadastro", ctaHref === "/registrar", ctaHref);

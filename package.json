@@ -13,6 +13,8 @@
     "test:business": "tsx --test src/lib/business/__tests__/run-tests.ts"
   },
   "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource-variable/figtree": "^5.3.0",
     "bcryptjs": "^3.0.3",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",

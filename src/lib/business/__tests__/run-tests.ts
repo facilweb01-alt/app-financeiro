@@ -832,6 +832,7 @@ test("buildWelcomeMessage: boas-vindas, salvar contato, exemplos, manual e link 
   const msg = buildWelcomeMessage({ name: "ANA paula", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301" });
   assert.ok(msg.startsWith("Olá, Ana! 👋 Seja bem-vindo(a) ao *Contay*."));
   assert.ok(msg.includes("*Salve este contato*") && msg.includes("(83) 98199-5301"));
+  assert.ok(msg.includes("como *Contay*, número (83) 98199-5301.") && !msg.includes("(("));
   assert.ok(msg.includes("gastei 45 no mercado") && msg.includes("300 no cartão Nubank em 3x"));
   assert.ok(msg.includes("https://contay.com.br/manual"));
   assert.ok(msg.includes("tira suas dúvidas") && msg.includes("Pergunte aqui mesmo"));
