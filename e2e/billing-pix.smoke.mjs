@@ -55,6 +55,7 @@ try {
   const landing = await page.textContent("body");
   check("página de vendas abre para visitante", landing.includes("nem sabe onde gastou") && /R\$\s29,90/.test(landing));
   check("página de vendas mostra dores, comparação e dúvidas", landing.includes("Você se reconhece?") && landing.includes("Planilha, app comum ou Contay?") && landing.includes("Perguntas frequentes"));
+  check("página de vendas tem a seção de privacidade e o rodapé sem outra marca", landing.includes("Seu dinheiro é assunto seu") && landing.includes("LGPD") && landing.includes("© 2026 Contay") && !landing.includes("Fácil Web"));
   check("destaca o WhatsApp", landing.includes("WhatsApp"));
   const ctaHref = await page.getAttribute('main a:has-text("Quero esse app")', "href");
   check("botão 'Quero esse app' leva ao cadastro", ctaHref === "/registrar", ctaHref);

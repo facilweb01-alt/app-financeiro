@@ -347,12 +347,33 @@ export function LandingPage() {
               <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
               <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou.</p></details>
               <details><summary>E se eu tiver dúvida para usar?<span className="pl" aria-hidden="true">+</span></summary><p>Pergunte no mesmo WhatsApp em que você lança os gastos, por exemplo “como cadastro um cartão?”. A resposta vem na hora, com base no manual. Quando o caso precisa de uma pessoa, um atendente continua a conversa. O <Link href="/manual">manual completo</Link> também fica disponível no app, em Ajuda.</p></details>
-              <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos nunca são compartilhados. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
+              <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos não são vendidos nem repassados a anunciantes. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
             </div>
           </div>
         </section>
 
   
+        <section className="sec" id="privacidade" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="sec-head center">
+              <span className="eyebrow">Privacidade e proteção de dados</span>
+              <h2>Seu dinheiro é assunto seu</h2>
+              <p>O Contay segue a LGPD, a lei brasileira de proteção de dados. Na prática, isso quer dizer:</p>
+            </div>
+            <div className="feats three">
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div><h3>Só você vê os seus gastos</h3><p>Cada conta fica isolada das outras. Nenhum outro cliente enxerga os seus lançamentos, e a sua senha é guardada embaralhada: nem a gente consegue ler.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18" /><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 5 9 7a9 9 0 0 1-2.2 3.3M6.3 6.3C4.2 7.8 3 10.2 3 12c0 2 4 7 9 7 1.6 0 3-.4 4.3-1.1" /></svg></div><h3>Ninguém fica olhando a sua vida financeira</h3><p>O painel da nossa equipe mostra só o seu cadastro e a situação da assinatura. Seus lançamentos e valores não aparecem lá. Acesso técnico só acontece quando é preciso corrigir um problema ou te dar suporte.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10l9-6 9 6" /><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8" /><path d="M3 20h18" /></svg></div><h3>Sem senha de banco</h3><p>O Contay não se conecta à sua conta bancária e nunca pede senha de banco. Só entra no app o que você mesmo lançar.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg></div><h3>Não vendemos os seus dados</h3><p>Seus dados financeiros não são vendidos nem vão para anunciantes. Eles só passam pelos serviços que fazem o Contay funcionar. Para a cobrança, só nome, CPF, e-mail e WhatsApp seguem para o Asaas.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3" /><path d="M2.5 10h19" /><path d="M7 15h3" /></svg></div><h3>Seu cartão não passa por nós</h3><p>Se pagar com cartão de crédito, os dados são digitados direto na página segura do Asaas. O Contay não vê nem guarda o número do cartão.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" /><path d="M9 12l2 2 4-4" /></svg></div><h3>A lei está do seu lado</h3><p>A LGPD garante que você pode pedir uma cópia dos seus dados, corrigir o que estiver errado ou apagar a sua conta quando quiser. É só falar com o suporte.</p></div>
+            </div>
+            <p className="priv-note">
+              Os gastos que você manda pelo WhatsApp passam pelo número de atendimento do Contay e por serviços de tecnologia, incluindo inteligência artificial do Google, que leem a mensagem para fazer o lançamento. Os detalhes estão nos <Link href="/termos">Termos de Uso e Política de Privacidade</Link>.
+            </p>
+          </div>
+        </section>
+
         <section className="sec" style={{ paddingTop: "8px" }}>
           <div className="wrap">
             <div className="final">
@@ -373,7 +394,7 @@ export function LandingPage() {
             <Link href="/termos">Termos e Privacidade</Link>
             <Link href="/login">Entrar</Link>
           </div>
-          <div>© 2026 Contay · Fácil Web</div>
+          <div>© 2026 Contay</div>
         </div>
       </footer>
 
