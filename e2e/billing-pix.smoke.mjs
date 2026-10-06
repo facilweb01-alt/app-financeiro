@@ -53,7 +53,7 @@ try {
   // 1. Página de vendas pública
   await page.goto(`${BASE}/`);
   const landing = await page.textContent("body");
-  check("página de vendas abre para visitante", landing.includes("nem sabe onde gastou") && /R\$\s29,90/.test(landing));
+  check("página de vendas abre para visitante", landing.includes("não sabe para onde foi") && landing.includes("App no celular") && /R\$\s29,90/.test(landing));
   check("página de vendas mostra dores, comparação e dúvidas", landing.includes("Você se reconhece?") && landing.includes("Planilha, app comum ou Contay?") && landing.includes("Perguntas frequentes"));
   check("página de vendas tem a seção de privacidade e o rodapé sem outra marca", landing.includes("Seu dinheiro é assunto seu") && landing.includes("LGPD") && landing.includes("© 2026 Contay") && !landing.includes("Fácil Web"));
   check("destaca o WhatsApp", landing.includes("WhatsApp"));

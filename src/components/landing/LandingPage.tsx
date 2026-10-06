@@ -56,9 +56,9 @@ export function LandingPage() {
           <div className="glow" style={{ width: "380px", height: "380px", right: "-80px", top: "260px", background: "#10b981" }}></div>
           <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
             <div>
-              <span className="pain-tag"><i></i>Chega de chegar no dia 20 sem dinheiro</span>
-              <h1>O salário cai, some em poucos dias e você <span className="grad">nem sabe onde gastou.</span></h1>
-              <p className="lead">A fatura vem maior do que você esperava. Uma parcela esquecida aparece. A conta vence e você só lembra depois, com juros. <strong>O Contay acaba com isso:</strong> você manda o gasto pelo WhatsApp e ele organiza tudo sozinho, com cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
+              <span className="pain-tag ok"><i></i>Controle de gastos pelo WhatsApp e no app</span>
+              <h1>Seu dinheiro acaba antes do mês <span className="grad">e você não sabe para onde foi?</span></h1>
+              <p className="lead"><strong>O Contay mostra para onde vai cada real.</strong> Você manda o gasto pelo WhatsApp e acompanha tudo no app, no celular ou no computador: cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
               <div className="ctas">
                 <Link className="btn btn-cta" href="/registrar">Quero ter controle do meu dinheiro <span aria-hidden="true">→</span></Link>
                 <a className="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
@@ -135,7 +135,7 @@ export function LandingPage() {
             <div className="sec-head center">
               <span className="eyebrow">Por que o Contay funciona</span>
               <h2>Feito para quem já tentou se organizar e desistiu</h2>
-              <p>Os outros jeitos pedem que você mude sua rotina. O Contay entra na rotina que você já tem.</p>
+              <p>O Contay entra na rotina que você já tem.</p>
             </div>
 
             <div className="diffs">
@@ -219,6 +219,34 @@ export function LandingPage() {
                     <div className="labels"><span>Contas fixas</span><span>Alimen&shy;tação</span><span>Cartões</span><span>Gasolina</span><span>Lazer</span></div>
                     <div className="note">Mês que vem já tem <b>R$ 520,00</b> em parcelas de cartão.</div>
                   </div>
+                </div>
+              </article>
+
+              <article className="diff flip">
+                <div className="copy">
+                  <span className="tag">Diferencial 4 · App no celular</span>
+                  <h3>Você lança pelo WhatsApp e acompanha tudo no app do seu celular</h3>
+                  <p>O Contay também é um app completo. Abra pelo navegador, adicione à tela inicial e ele passa a abrir como aplicativo, sem baixar nada da loja. No painel você vê quanto da renda já está comprometido, confere cada gasto e cuida de cartões, contas fixas e metas.</p>
+                  <p className="dor">Sem isso: você anota, mas nunca olha o resultado. E o que você não enxerga continua escapando.</p>
+                  <ul className="checks">
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Ícone na tela inicial, abre em tela cheia como um app</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Lance, edite e apague gastos direto no app, com ou sem WhatsApp</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Modo discreto: um toque esconde os valores da tela</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>A mesma conta no celular e no computador</li>
+                  </ul>
+                </div>
+                <div className="appscene">
+                  <div className="appshots">
+                    <div className="appphone back">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/landing/app-categorias.webp" width={390} height={800} loading="lazy" alt="Tela do app Contay no celular com o gráfico de gastos por categoria" />
+                    </div>
+                    <div className="appphone">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/landing/app-painel.webp" width={390} height={800} loading="lazy" alt="Tela inicial do app Contay no celular: total comprometido no mês, porcentagem da renda e menu com Painel, Lançamentos, Cartões, Investimentos, Contas fixas e Fechamento" />
+                    </div>
+                  </div>
+                  <div className="cap">Telas reais do app, com dados de exemplo.</div>
                 </div>
               </article>
             </div>
@@ -342,7 +370,7 @@ export function LandingPage() {
             <div className="faq">
               <details><summary>Como funciona o lançamento pelo WhatsApp?<span className="pl" aria-hidden="true">+</span></summary><p>No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”, “400 no cartão em 4x”. A inteligência artificial entende o valor, a categoria e as parcelas, lança no app e responde confirmando.</p></details>
               <details><summary>Preciso dar a senha do meu banco?<span className="pl" aria-hidden="true">+</span></summary><p>Não. O Contay não se conecta à sua conta bancária. Você informa os gastos pelo WhatsApp ou pelo app, e só você decide o que entra.</p></details>
-              <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não. Funciona no navegador do celular ou do computador. Se quiser, adicione à tela inicial do celular para abrir como um aplicativo.</p></details>
+              <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não precisa baixar nada da loja. O Contay abre no navegador do celular ou do computador. Para ter o ícone na tela inicial e abrir como aplicativo: no Android (Chrome), toque no menu e em “Adicionar à tela inicial”; no iPhone (Safari), toque em Compartilhar e em “Adicionar à Tela de Início”.</p></details>
               <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>{PRICE} por mês, no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
               <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
               <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou.</p></details>
@@ -362,7 +390,7 @@ export function LandingPage() {
             </div>
             <div className="feats three">
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg></div><h3>Só você vê os seus gastos</h3><p>Cada conta fica isolada das outras. Nenhum outro cliente enxerga os seus lançamentos, e a sua senha é guardada embaralhada: nem a gente consegue ler.</p></div>
-              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18" /><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 5 9 7a9 9 0 0 1-2.2 3.3M6.3 6.3C4.2 7.8 3 10.2 3 12c0 2 4 7 9 7 1.6 0 3-.4 4.3-1.1" /></svg></div><h3>Ninguém fica olhando a sua vida financeira</h3><p>O painel da nossa equipe mostra só o seu cadastro e a situação da assinatura. Seus lançamentos e valores não aparecem lá. Acesso técnico só acontece quando é preciso corrigir um problema ou te dar suporte.</p></div>
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18" /><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 5 9 7a9 9 0 0 1-2.2 3.3M6.3 6.3C4.2 7.8 3 10.2 3 12c0 2 4 7 9 7 1.6 0 3-.4 4.3-1.1" /></svg></div><h3>Ninguém fica olhando a sua vida financeira</h3><p>O painel da nossa equipe mostra só o seu cadastro e a situação da assinatura. Acesso técnico só acontece quando é preciso corrigir um problema ou te dar suporte.</p></div>
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 10l9-6 9 6" /><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8" /><path d="M3 20h18" /></svg></div><h3>Sem senha de banco</h3><p>O Contay não se conecta à sua conta bancária e nunca pede senha de banco. Só entra no app o que você mesmo lançar.</p></div>
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M5.6 5.6l12.8 12.8" /></svg></div><h3>Não vendemos os seus dados</h3><p>Seus dados financeiros não são vendidos nem vão para anunciantes. Eles só passam pelos serviços que fazem o Contay funcionar. Para a cobrança, só nome, CPF, e-mail e WhatsApp seguem para o Asaas.</p></div>
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3" /><path d="M2.5 10h19" /><path d="M7 15h3" /></svg></div><h3>Seu cartão não passa por nós</h3><p>Se pagar com cartão de crédito, os dados são digitados direto na página segura do Asaas. O Contay não vê nem guarda o número do cartão.</p></div>
