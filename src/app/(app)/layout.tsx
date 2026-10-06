@@ -7,6 +7,7 @@ import { withRLS } from "@/db/client";
 import { getMonthPendingClose } from "@/lib/queries/monthClosing";
 import { todayInSaoPaulo } from "@/lib/billing/core";
 import { formatYearMonthBR } from "@/lib/format";
+import { NoPixelInApp } from "@/components/tracking/NoPixelInApp";
 
 export default async function AppShellLayout({ children }: { children: React.ReactNode }) {
   // Checagem "de verdade" (contra o banco) — o proxy.ts só faz a checagem
@@ -19,6 +20,7 @@ export default async function AppShellLayout({ children }: { children: React.Rea
 
   return (
     <ValuesVisibilityProvider>
+      <NoPixelInApp />
       <div className="flex min-h-screen flex-col md:flex-row">
         <AppNav showBilling={Boolean(user?.billingEnabled)} />
         <main className="flex-1 overflow-y-auto pb-20 md:pb-0">

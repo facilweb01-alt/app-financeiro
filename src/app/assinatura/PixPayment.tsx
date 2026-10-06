@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { payWithCard, refreshBillingStatus } from "@/app/actions/billing";
+import { trackMeta } from "@/components/tracking/metaPixel";
 
 // Parte interativa da tela de pagamento: copiar o Pix copia-e-cola, botão
 // "Já paguei" e checagem automática (a cada 6s relê a página — o webhook do
@@ -32,22 +33,38 @@ export function CopyPixButton({ payload }: { payload: string }) {
   );
 }
 
-export function PaymentWatcher({ waiting, justPaidRedirect }: { waiting: boolean; justPaidRedirect: string }) {
+type PixelPurchase = { pixelId: string; value: number; currency: string } | null;
+
+export function PaymentWatcher({
+  waiting,
+  justPaidRedirect,
+  pixel = null,
+}: {
+  waiting: boolean;
+  justPaidRedirect: string;
+  // Só vem preenchido enquanto a pessoa espera o 1º pagamento: quando ele
+  // cai, a medição de anúncios conta a assinatura (se ela aceitou os cookies).
+  pixel?: PixelPurchase;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
   const wasWaiting = useRef(waiting);
+  const pixelWhileWaiting = useRef<PixelPurchase>(waiting ? pixel : null);
   const [paid, setPaid] = useState(false);
 
   // Detecta a transição "esperando pagamento" -> "pago".
   useEffect(() => {
+    if (waiting && pixel) pixelWhileWaiting.current = pixel;
     if (wasWaiting.current && !waiting) {
+      const px = pixelWhileWaiting.current;
+      if (px) trackMeta(px.pixelId, "Purchase", { value: px.value, currency: px.currency }, "compra");
       setPaid(true);
       const t = setTimeout(() => router.push(justPaidRedirect), 2500);
       return () => clearTimeout(t);
     }
     wasWaiting.current = waiting;
-  }, [waiting, router, justPaidRedirect]);
+  }, [waiting, router, justPaidRedirect, pixel]);
 
   useEffect(() => {
     if (!waiting) return;

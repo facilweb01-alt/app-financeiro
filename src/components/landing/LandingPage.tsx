@@ -6,6 +6,7 @@ import { LogoSymbol } from "@/components/Logo";
 import { PLAN_PRICE } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
+import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
 
 // Página de vendas pública (rota "/" para quem não está logado).
 //
@@ -21,7 +22,7 @@ import { LandingEffects } from "./LandingEffects";
 const PRICE = formatBRL(PLAN_PRICE);
 const PRICE_NUMBER = PLAN_PRICE.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
-export function LandingPage() {
+export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
   return (
     <div className="lp">
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
@@ -397,7 +398,7 @@ export function LandingPage() {
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z" /><path d="M9 12l2 2 4-4" /></svg></div><h3>A lei está do seu lado</h3><p>A LGPD garante que você pode pedir uma cópia dos seus dados, corrigir o que estiver errado ou apagar a sua conta quando quiser. É só falar com o suporte.</p></div>
             </div>
             <p className="priv-note">
-              Os gastos que você manda pelo WhatsApp passam pelo número de atendimento do Contay e por serviços de tecnologia, incluindo inteligência artificial do Google, que leem a mensagem para fazer o lançamento. Os detalhes estão nos <Link href="/termos">Termos de Uso e Política de Privacidade</Link>.
+              Os gastos que você manda pelo WhatsApp passam pelo número de atendimento do Contay e por serviços de tecnologia, incluindo inteligência artificial do Google, que leem a mensagem para fazer o lançamento. Nesta página de vendas, só com a sua permissão, usamos cookies da Meta para medir o resultado dos nossos anúncios, sem enviar seus dados de cadastro nem seus lançamentos. Os detalhes estão nos <Link href="/termos">Termos de Uso e Política de Privacidade</Link>.
             </p>
           </div>
         </section>
@@ -420,6 +421,7 @@ export function LandingPage() {
           <div style={{ display: "flex", gap: "18px" }}>
             <Link href="/manual">Manual</Link>
             <Link href="/termos">Termos e Privacidade</Link>
+            <CookiePrefsLink pixelId={pixelId} />
             <Link href="/login">Entrar</Link>
           </div>
           <div>© 2026 Contay</div>

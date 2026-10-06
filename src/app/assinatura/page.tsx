@@ -9,6 +9,8 @@ import { cardFirstDueDate, computeBillingState, PLAN_PRICE, todayInSaoPaulo, isP
 import { formatBRL, formatDateBR, formatDateTimeBR } from "@/lib/format";
 import { Logo } from "@/components/Logo";
 import { CardCheckoutButton, CopyPixButton, PaymentWatcher } from "./PixPayment";
+import { MetaPixel, type MetaEventSpec } from "@/components/tracking/MetaPixel";
+import { metaPixelId } from "@/lib/metaPixelId";
 
 // Tela de assinatura/pagamento. Abre para:
 // - quem acabou de se cadastrar (aguardando o 1º Pix);
@@ -76,6 +78,18 @@ export default async function AssinaturaPage({
   const waiting = !canceled && (user.status === "pending" || state.kind === "blocked");
   const canUseApp = user.status === "active" && state.kind !== "blocked" && state.kind !== "canceled";
 
+  // Medição de anúncios (só para quem aceitou os cookies na página de
+  // vendas): cadastro concluído e 1ª assinatura paga. Sem dado da pessoa.
+  const pixelId = metaPixelId();
+  const purchase = { value: PLAN_PRICE, currency: "BRL" };
+  const firstPayment = history.filter((h) => isPaidStatus(h.status)).length <= 1;
+  const pixelEvents: MetaEventSpec[] = [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
+  // Voltou do Checkout do cartão já com a conta liberada (no Pix, quem avisa
+  // é o PaymentWatcher, na hora em que o pagamento cai).
+  if (cartaoParam === "ok" && user.status === "active" && firstPayment) {
+    pixelEvents.push({ name: "Purchase", params: purchase, onceKey: "compra" });
+  }
+
   let title: string;
   let subtitle: string;
   if (state.kind === "canceled") {
@@ -110,6 +124,7 @@ export default async function AssinaturaPage({
 
   return (
     <div className="relative min-h-screen overflow-hidden px-4 py-8">
+      <MetaPixel pixelId={pixelId} events={pixelEvents} />
       <div className="mesh-glow -left-24 -top-24 h-72 w-72 bg-blue-600" aria-hidden />
       <div className="mesh-glow -bottom-24 -right-24 h-72 w-72 bg-emerald-500" aria-hidden />
 
@@ -289,7 +304,11 @@ export default async function AssinaturaPage({
         {/* Fora dos blocos condicionais de propósito: precisa continuar
             montado quando o Pix some da tela (pago), para detectar a
             mudança "esperando -> pago" e levar a pessoa para o app. */}
-        {configured && !canceled && <PaymentWatcher waiting={waiting} justPaidRedirect="/dashboard" />}
+        {configured && !canceled && <PaymentWatcher
+            waiting={waiting}
+            justPaidRedirect="/dashboard"
+            pixel={pixelId && user.status === "pending" ? { pixelId, ...purchase } : null}
+          />}
 
         {!openPayment && !waiting && !canceled && !card && user.status === "active" && !error && (
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">

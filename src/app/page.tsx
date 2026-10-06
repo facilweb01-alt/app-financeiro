@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getOptionalSession } from "@/lib/dal";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { CookieBanner, MetaPixel } from "@/components/tracking/MetaPixel";
+import { metaPixelId } from "@/lib/metaPixelId";
 
 export const metadata: Metadata = {
   title: "Contay — controle financeiro pelo WhatsApp",
@@ -23,5 +25,12 @@ export const metadata: Metadata = {
 export default async function RootPage() {
   const session = await getOptionalSession();
   if (session) redirect("/dashboard");
-  return <LandingPage />;
+  const pixelId = metaPixelId();
+  return (
+    <>
+      <LandingPage pixelId={pixelId} />
+      <MetaPixel pixelId={pixelId} events={[{ name: "ViewContent", params: { content_name: "Página de vendas" } }]} />
+      <CookieBanner pixelId={pixelId} />
+    </>
+  );
 }
