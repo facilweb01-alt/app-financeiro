@@ -51,6 +51,8 @@ html:has(.lp){scroll-behavior:smooth}
 @media (min-width:960px){.lp .hero .wrap{grid-template-columns:1.2fr .8fr;padding-block:56px 96px}}
 .lp .pain-tag{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(251,113,133,.35);background:var(--pain-bg);color:#fecdd3;padding:7px 14px;border-radius:999px;font-size:14px;font-weight:700}
 .lp .pain-tag i{width:8px;height:8px;border-radius:50%;background:var(--pain);box-shadow:0 0 0 4px rgba(251,113,133,.2)}
+.lp .pain-tag.ok{border-color:rgba(16,185,129,.4);background:rgba(16,185,129,.1);color:#a7f3d0}
+.lp .pain-tag.ok i{background:#10b981;box-shadow:0 0 0 4px rgba(16,185,129,.2)}
 .lp .hero h1{font-size:clamp(38px,5.4vw,60px);line-height:1.02;margin-top:20px;font-weight:800}
 .lp .hero h1 .strike{position:relative;white-space:nowrap}
 .lp .hero h1 .strike::after{content:"";position:absolute;left:-2%;right:-2%;bottom:.08em;height:.14em;background:var(--pain);opacity:.85;border-radius:4px;transform:rotate(-1.5deg)}
@@ -281,3 +283,12 @@ html:has(.lp){scroll-behavior:smooth}
 .lp .priv-note{max-width:760px;margin:26px auto 0;text-align:center;font-size:14px;color:var(--faint)}
 .lp .priv-note a{color:var(--muted);text-decoration:underline;text-underline-offset:3px}
 .lp .priv-note a:hover{color:var(--text)}
+
+/* telas reais do app (diferencial 4) */
+.lp .appscene{display:grid;gap:14px;justify-items:center;min-width:0}
+.lp .appshots{position:relative;width:min(330px,100%);padding-right:84px;box-sizing:border-box}
+.lp .appphone{position:relative;z-index:2;border-radius:30px;padding:7px;background:linear-gradient(145deg,#1d2a55,#0a1128 60%);box-shadow:0 30px 60px -18px rgba(0,0,0,.75),0 0 0 1px rgba(147,160,196,.22) inset}
+.lp .appphone img{display:block;width:100%;height:auto;border-radius:24px}
+.lp .appphone.back{position:absolute;z-index:1;right:0;top:9%;width:62%;opacity:.8}
+.lp .appscene .cap{font-size:13px;color:var(--faint);text-align:center}
+
