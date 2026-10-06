@@ -2,6 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db, withRLS, withServiceMode } from "@/db/client";
 import { users } from "@/db/schema";
@@ -79,6 +80,10 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
   }
 
   await createSession(created.id);
+  // Marca "acabou de se cadastrar" para a medição de anúncios contar o
+  // cadastro uma única vez na tela seguinte (ver components/tracking). É só
+  // um sinal, sem nenhum dado da pessoa, e dura 15 minutos.
+  (await cookies()).set("contay_reg", "1", { maxAge: 900, path: "/", sameSite: "lax", httpOnly: false });
     redirect(billingEnabled ? "/assinatura" : "/dashboard");
 }
 
