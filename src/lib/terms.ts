@@ -6,10 +6,10 @@
 // a data de hoje) — quem já aceitou uma versão anterior será mandado de
 // novo para /aceitar-termos automaticamente, porque termsVersion salvo no
 // banco vai deixar de bater com esta constante.
-export const CURRENT_TERMS_VERSION = "2026-10-01.1";
+export const CURRENT_TERMS_VERSION = "2026-10-06.1";
 
 export const TERMS_CHECKBOX_LABEL =
-  "Li e aceito os Termos de Uso e a Política de Privacidade do Contay. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, compartilhados apenas com o processador de pagamentos (Asaas) na medida necessária para emitir a cobrança da assinatura, e acessados pela equipe do Contay apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço.";
+  "Li e aceito os Termos de Uso e a Política de Privacidade do Contay. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, não são vendidos nem repassados a anunciantes, passam apenas pelos serviços contratados para o Contay funcionar (cobrança pelo Asaas, WhatsApp, inteligência artificial que lê as mensagens e hospedagem), descritos nos Termos, e são acessados pela equipe do Contay apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço.";
 
 export const TERMS_SECTIONS: { title: string; body: string }[] = [
   {
@@ -18,19 +18,27 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Quais dados coletamos",
-    body: "Dados de cadastro (nome, e-mail, senha, CPF e número de WhatsApp) e os dados financeiros que você mesmo insere ao usar o app: lançamentos, categorias de gasto, cartões e parcelas, investimentos, contas fixas e o número de WhatsApp vinculado à sua conta. Também guardamos o histórico das mensalidades (vencimento, valor e se foi paga).",
+    body: "Dados de cadastro (nome, e-mail, senha, CPF e número de WhatsApp) e os dados financeiros que você mesmo insere ao usar o app: lançamentos, categorias de gasto, cartões e parcelas, investimentos, contas fixas e o número de WhatsApp vinculado à sua conta. Também guardamos o histórico das mensalidades (vencimento, valor e se foi paga). Se você usar o WhatsApp do Contay, tratamos ainda as mensagens que você envia para o nosso número e o número de onde elas vêm.",
   },
   {
     title: "Para que usamos",
-    body: "Exclusivamente para fornecer as funcionalidades do app a você: registrar seus lançamentos, calcular fechamentos mensais, gerar gráficos e projeções, e permitir o lançamento via WhatsApp quando ativado. Não usamos seus dados financeiros para nenhuma outra finalidade, nem os vendemos ou compartilhamos com terceiros.",
+    body: "Exclusivamente para fornecer as funcionalidades do app a você: registrar seus lançamentos, calcular fechamentos mensais, gerar gráficos e projeções, e permitir o lançamento via WhatsApp quando ativado. Não usamos seus dados financeiros para nenhuma outra finalidade, não os vendemos e não os repassamos a anunciantes. Eles só passam pelos serviços contratados para o Contay funcionar, descritos em “Pagamento da assinatura”, “Lançamentos e dúvidas pelo WhatsApp” e “Onde os dados ficam guardados”.",
   },
   {
     title: "Pagamento da assinatura",
     body: "Nas assinaturas contratadas pelo site, a mensalidade é cobrada pelo Asaas (Asaas Gestão Financeira S.A.), instituição de pagamento que atua como operadora nos termos da LGPD, via Pix ou cartão de crédito recorrente, conforme a sua escolha. Para emitir a cobrança, compartilhamos com o Asaas apenas seu nome, CPF, e-mail e WhatsApp — e, se você escolher o cartão de crédito, também o endereço de cobrança que você informar (o Asaas exige endereço para cobrar no cartão; o Contay não guarda esse endereço). No cartão de crédito, os dados do cartão são digitados diretamente na página de pagamento do Asaas: o Contay não recebe, não vê e não guarda o número do cartão, e a mensalidade passa a ser cobrada automaticamente no cartão todo mês. Seus lançamentos e demais dados financeiros nunca são enviados ao Asaas. A mensalidade vence todo mês no mesmo dia da contratação; se ficar mais de 3 dias em atraso (inclusive quando o cartão for recusado), o acesso é pausado (sem perda de dados) até o pagamento, que libera o acesso automaticamente. Você pode cancelar quando quiser, sem fidelidade.",
   },
   {
+    title: "Lançamentos e dúvidas pelo WhatsApp",
+    body: "Usar o WhatsApp é opcional: tudo pode ser feito direto no app. Quando você manda uma mensagem para o número do Contay, ela chega a um número de atendimento da nossa equipe, que consegue ver a conversa, como em qualquer conversa de WhatsApp — é por ali que o suporte atende. Para ler a mensagem e responder na hora, ela passa pela Z-API (serviço que liga o número ao sistema) e pelo nosso servidor de automação, e o texto é enviado ao Google (inteligência artificial Gemini), que identifica o gasto ou a dúvida. Ao Google segue só o texto que você escreveu, sem o seu nome, telefone ou CPF. O Google trata esse texto conforme os termos do próprio serviço, o que pode incluir o uso para melhorar os serviços dele. Por isso, não escreva nas mensagens senhas, número de cartão, documentos ou outras informações sensíveis.",
+  },
+  {
+    title: "Onde os dados ficam guardados",
+    body: "O banco de dados do Contay fica no Supabase, o app é hospedado no Render e a automação do WhatsApp roda em servidor da Hostinger. Essas empresas prestam serviço de hospedagem para o Contay e atuam como operadoras nos termos da LGPD. Os servidores delas, assim como os da Z-API e do Google, podem ficar fora do Brasil.",
+  },
+  {
     title: "Quem pode acessar",
-    body: "Seus dados são protegidos por controle de acesso a nível de banco de dados (Row-Level Security), que impede que outros clientes do app — ou o próprio sistema, fora do seu login — vejam suas informações. A equipe do Contay tem acesso técnico restrito à infraestrutura (necessário para operar, corrigir problemas e dar suporte), mas não acessa nem revisa seus dados de rotina, e nunca os compartilha com terceiros para fins comerciais (o único compartilhamento é o descrito em “Pagamento da assinatura”).",
+    body: "Seus dados são protegidos por controle de acesso a nível de banco de dados (Row-Level Security), que impede que outros clientes do app — ou o próprio sistema, fora do seu login — vejam suas informações. A equipe do Contay tem acesso técnico restrito à infraestrutura (necessário para operar, corrigir problemas e dar suporte), mas não acessa nem revisa seus dados de rotina: o painel administrativo da equipe mostra só o cadastro e a situação da assinatura, não os seus lançamentos. As mensagens que você manda para o WhatsApp do Contay ficam visíveis para o suporte nesse número. Não vendemos seus dados nem os repassamos a terceiros para fins comerciais; os únicos compartilhamentos são os descritos em “Pagamento da assinatura”, “Lançamentos e dúvidas pelo WhatsApp” e “Onde os dados ficam guardados”.",
   },
   {
     title: "Por quanto tempo guardamos",
@@ -38,7 +46,7 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Seus direitos (Art. 18 da LGPD)",
-    body: "A qualquer momento, você pode pedir: confirmação de que tratamos seus dados, acesso aos dados, correção de dados incompletos ou desatualizados, anonimização/eliminação de dados desnecessários, portabilidade dos seus dados, informação sobre com quem compartilhamos (hoje: apenas o Asaas, para a cobrança), e a revogação deste consentimento — o que pode implicar encerramento da sua conta, já que os dados são essenciais para o funcionamento do serviço.",
+    body: "A qualquer momento, você pode pedir: confirmação de que tratamos seus dados, acesso aos dados, correção de dados incompletos ou desatualizados, anonimização/eliminação de dados desnecessários, portabilidade dos seus dados, informação sobre com quem compartilhamos (hoje: Asaas, para a cobrança; Z-API e Google, para as mensagens do WhatsApp; Supabase, Render e Hostinger, para a hospedagem), e a revogação deste consentimento — o que pode implicar encerramento da sua conta, já que os dados são essenciais para o funcionamento do serviço.",
   },
   {
     title: "Como exercer seus direitos ou tirar dúvidas",
