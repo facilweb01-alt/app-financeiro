@@ -43,3 +43,15 @@ export async function getWelcome(email) {
 export async function requestWelcome(email) {
   await sql`update users set welcome_requested_at = now(), welcome_sent_at = null, welcome_error = null where email = ${email}`;
 }
+
+/**
+ * Simula um mês encerrado ANTES de 07/10/2026, quando encerrar o mês ainda
+ * não fechava a fatura do cartão: grava só o fechamento, direto no banco.
+ */
+export async function insertLegacyMonthClosing(email, yearMonth) {
+  const [user] = await sql`select id, monthly_income from users where email = ${email}`;
+  await sql`
+    insert into month_closings (id, user_id, year_month, income, snapshot)
+    values (${"legacy-" + Date.now()}, ${user.id}, ${yearMonth}, ${user.monthly_income ?? 0}, ${JSON.stringify({ yearMonth, fixedAccountsTotal: 0, totalSpent: 0 })})
+  `;
+}

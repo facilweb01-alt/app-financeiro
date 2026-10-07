@@ -1,13 +1,44 @@
 "use server";
 
 import * as z from "zod";
-import { and, eq, gte, lte, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, withRLS } from "@/db/client";
-import { creditCards, cardPurchases, cardInstallments, cardStatements } from "@/db/schema";
+import { creditCards, cardPurchases, cardInstallments } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
 import { generateInstallments } from "@/lib/business/installments";
+import {
+  closeStatementForPeriod,
+  openInstallmentsRange,
+  refreshCardStatements,
+  reopenStatement,
+  settleInstallmentsInClosedPeriods,
+  type SettledInstallment,
+} from "@/lib/cardStatements";
+import { monthBounds, todaySaoPaulo } from "@/lib/business/dates";
+import { sumAmounts } from "@/lib/business/cardStatements";
+import { formatBRL, formatDateBR, formatYearMonthBR } from "@/lib/format";
 import type { SimpleFormState } from "@/lib/form-state";
+
+function revalidateCardViews() {
+  revalidatePath("/cartoes");
+  revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
+}
+
+/** Aviso de que parte da compra já recebeu baixa por cair em período fechado. */
+function settledNotice(settled: SettledInstallment[], installmentsTotal: number): string | undefined {
+  if (settled.length === 0) return undefined;
+  const total = formatBRL(sumAmounts(settled.map((s) => s.amount)));
+  const periods = Array.from(new Set(settled.map((s) => `${formatDateBR(s.periodStart)} a ${formatDateBR(s.periodEnd)}`))).join("; ");
+  const what =
+    settled.length === installmentsTotal
+      ? installmentsTotal === 1
+        ? "A compra vence"
+        : "Todas as parcelas vencem"
+      : `${settled.length} de ${installmentsTotal} parcelas (${total}) vencem`;
+  return `${what} em período de fatura já fechada (${periods}) e entrou direto nela, sem somar em outro mês. Veja em "Faturas fechadas".`;
+}
 
 // ---------------------------------------------------------------------------
 // Cartão
@@ -34,8 +65,7 @@ export async function deleteCard(formData: FormData) {
   await withRLS(session.userId, () =>
     db.delete(creditCards).where(and(eq(creditCards.id, id), eq(creditCards.userId, session.userId)))
   );
-  revalidatePath("/cartoes");
-  revalidatePath("/dashboard");
+  revalidateCardViews();
 }
 
 // ---------------------------------------------------------------------------
@@ -80,7 +110,7 @@ export async function createCardPurchase(_prev: SimpleFormState, formData: FormD
     return { ok: false, error: err instanceof Error ? err.message : "Não foi possível gerar as parcelas." };
   }
 
-  const result = await withRLS(session.userId, async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+  const result = await withRLS(session.userId, async (): Promise<{ ok: true; notice?: string } | { ok: false; error: string }> => {
     // Garante que o cartão pertence ao usuário logado.
     const [card] = await db
       .select({ id: creditCards.id })
@@ -112,12 +142,20 @@ export async function createCardPurchase(_prev: SimpleFormState, formData: FormD
       }))
     );
 
-    return { ok: true };
+    // Parcela que vence em período já fechado (fatura do cartão ou mês
+    // encerrado) recebe baixa na hora nesse mesmo período.
+    const settled = await settleInstallmentsInClosedPeriods({
+      userId: session.userId,
+      cardId: data.cardId,
+      purchaseId: purchase.id,
+      closingDate: todaySaoPaulo(),
+    });
+
+    return { ok: true, notice: settledNotice(settled, data.installmentsTotal) };
   });
 
   if (result.ok) {
-    revalidatePath("/cartoes");
-    revalidatePath("/dashboard");
+    revalidateCardViews();
   }
   return result;
 }
@@ -159,12 +197,13 @@ export async function updateCardPurchase(_prev: SimpleFormState, formData: FormD
   }
   const data = parsed.data;
 
-  const result = await withRLS(session.userId, async (): Promise<{ ok: true } | { ok: false; error: string }> => {
+  const result = await withRLS(session.userId, async (): Promise<{ ok: true; notice?: string } | { ok: false; error: string }> => {
     // Garante que a compra pertence a um cartão do usuário logado, e traz o
     // estado atual pra decidir se dá pra mexer em valor/parcelas.
     const [purchase] = await db
       .select({
         id: cardPurchases.id,
+        cardId: cardPurchases.cardId,
         totalAmount: cardPurchases.totalAmount,
         installmentsTotal: cardPurchases.installmentsTotal,
       })
@@ -190,7 +229,7 @@ export async function updateCardPurchase(_prev: SimpleFormState, formData: FormD
       return {
         ok: false,
         error:
-          "Essa compra já tem parcela paga ou em fatura fechada — não dá pra mudar valor/parcelas. Só descrição, categoria e data podem ser editadas.",
+          "Essa compra já tem parcela em fatura fechada: não dá para mudar valor nem parcelas. Só descrição, categoria e data da compra podem ser editadas. Para mudar o valor, reabra a fatura em \"Faturas fechadas\" ou exclua a compra e lance de novo.",
       };
     }
 
@@ -206,36 +245,45 @@ export async function updateCardPurchase(_prev: SimpleFormState, formData: FormD
       .where(eq(cardPurchases.id, data.id));
 
     // Sem parcela travada: regenera todas as parcelas do zero (mesma lógica
-    // de uma compra nova), já que nada foi pago/faturado ainda.
-    if (!hasLockedInstallment) {
-      let generated;
-      try {
-        generated = generateInstallments({
-          totalAmount: data.totalAmount,
-          installmentsTotal: data.installmentsTotal,
-          firstDueDate: data.firstDueDate,
-        });
-      } catch (err) {
-        return { ok: false, error: err instanceof Error ? err.message : "Não foi possível gerar as parcelas." };
-      }
-
-      await db.delete(cardInstallments).where(eq(cardInstallments.cardPurchaseId, data.id));
-      await db.insert(cardInstallments).values(
-        generated.map((inst) => ({
-          cardPurchaseId: data.id,
-          installmentNumber: inst.installmentNumber,
-          dueDate: inst.dueDate,
-          amount: inst.amount.toString(),
-        }))
-      );
+    // de uma compra nova), já que nada foi faturado ainda.
+    if (hasLockedInstallment) {
+      return { ok: true };
     }
 
-    return { ok: true };
+    let generated;
+    try {
+      generated = generateInstallments({
+        totalAmount: data.totalAmount,
+        installmentsTotal: data.installmentsTotal,
+        firstDueDate: data.firstDueDate,
+      });
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Não foi possível gerar as parcelas." };
+    }
+
+    await db.delete(cardInstallments).where(eq(cardInstallments.cardPurchaseId, data.id));
+    await db.insert(cardInstallments).values(
+      generated.map((inst) => ({
+        cardPurchaseId: data.id,
+        installmentNumber: inst.installmentNumber,
+        dueDate: inst.dueDate,
+        amount: inst.amount.toString(),
+      }))
+    );
+
+    // Se o novo vencimento cair em período já fechado, a baixa é na hora.
+    const settled = await settleInstallmentsInClosedPeriods({
+      userId: session.userId,
+      cardId: purchase.cardId,
+      purchaseId: data.id,
+      closingDate: todaySaoPaulo(),
+    });
+
+    return { ok: true, notice: settledNotice(settled, data.installmentsTotal) };
   });
 
   if (result.ok) {
-    revalidatePath("/cartoes");
-    revalidatePath("/dashboard");
+    revalidateCardViews();
   }
   return result;
 }
@@ -256,21 +304,39 @@ export async function deleteCardPurchase(formData: FormData) {
 
     if (purchase) {
       await db.delete(cardPurchases).where(eq(cardPurchases.id, id));
+      // A compra podia ter parcela dentro de fatura fechada: corrige o
+      // total dessas faturas (e some com a fatura que ficou vazia).
+      await refreshCardStatements(purchase.cardId);
     }
   });
 
-  revalidatePath("/cartoes");
-  revalidatePath("/dashboard");
+  revalidateCardViews();
 }
 
 // ---------------------------------------------------------------------------
-// Fechamento manual de fatura ("de tal data até tal data")
+// Fechamento de fatura. Duas formas:
+// - por mês, com um clique ("Fechar fatura de outubro"): período = o mês
+//   inteiro;
+// - manual, "de tal data até tal data" (pode atravessar meses, ex.: 01/09 a
+//   10/10).
+// Nos dois casos entra toda parcela em aberto com VENCIMENTO dentro do
+// período; ela recebe baixa, sai da lista de parcelas em aberto e a fatura
+// vira relatório.
 // ---------------------------------------------------------------------------
+async function ownsCard(userId: string, cardId: string): Promise<boolean> {
+  const [card] = await db
+    .select({ id: creditCards.id })
+    .from(creditCards)
+    .where(and(eq(creditCards.id, cardId), eq(creditCards.userId, userId)))
+    .limit(1);
+  return Boolean(card);
+}
+
 const StatementSchema = z.object({
   cardId: z.string().min(1),
   periodStart: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data inicial inválida."),
   periodEnd: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data final inválida."),
-  closingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de fechamento inválida."),
+  closingDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de fechamento inválida.").optional(),
 });
 
 export async function createCardStatement(_prev: SimpleFormState, formData: FormData): Promise<SimpleFormState> {
@@ -280,7 +346,7 @@ export async function createCardStatement(_prev: SimpleFormState, formData: Form
     cardId: formData.get("cardId"),
     periodStart: formData.get("periodStart"),
     periodEnd: formData.get("periodEnd"),
-    closingDate: formData.get("closingDate"),
+    closingDate: formData.get("closingDate") || undefined,
   });
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
@@ -291,65 +357,88 @@ export async function createCardStatement(_prev: SimpleFormState, formData: Form
     return { ok: false, error: "A data inicial precisa ser antes (ou igual) da data final." };
   }
 
-  const result = await withRLS(session.userId, async (): Promise<{ ok: true } | { ok: false; error: string }> => {
-    const [card] = await db
-      .select({ id: creditCards.id })
-      .from(creditCards)
-      .where(and(eq(creditCards.id, data.cardId), eq(creditCards.userId, session.userId)))
-      .limit(1);
-    if (!card) {
+  const result = await withRLS(session.userId, async (): Promise<SimpleFormState> => {
+    if (!(await ownsCard(session.userId, data.cardId))) {
       return { ok: false, error: "Cartão não encontrado." };
     }
 
-    // Parcelas do cartão com vencimento dentro do período informado que ainda
-    // não pertencem a nenhuma fatura fechada.
-    const pendingInstallments = await db
-      .select({ id: cardInstallments.id, amount: cardInstallments.amount })
-      .from(cardInstallments)
-      .innerJoin(cardPurchases, eq(cardInstallments.cardPurchaseId, cardPurchases.id))
-      .where(
-        and(
-          eq(cardPurchases.cardId, data.cardId),
-          gte(cardInstallments.dueDate, data.periodStart),
-          lte(cardInstallments.dueDate, data.periodEnd),
-          isNull(cardInstallments.statementId)
-        )
-      );
+    const closed = await closeStatementForPeriod({
+      cardId: data.cardId,
+      periodStart: data.periodStart,
+      periodEnd: data.periodEnd,
+      closingDate: data.closingDate ?? todaySaoPaulo(),
+    });
 
-    if (pendingInstallments.length === 0) {
-      return { ok: false, error: "Não há parcelas/lançamentos de cartão pendentes nesse período." };
+    if (!closed) {
+      // Mensagem que ajuda a acertar o período: a fatura olha o VENCIMENTO
+      // da parcela, não a data da compra.
+      const range = await openInstallmentsRange(data.cardId);
+      const period = `${formatDateBR(data.periodStart)} e ${formatDateBR(data.periodEnd)}`;
+      if (!range) {
+        return { ok: false, error: "Este cartão não tem nenhuma parcela em aberto: tudo já está em fatura fechada." };
+      }
+      return {
+        ok: false,
+        error: `Nenhuma parcela em aberto vence entre ${period}. A fatura considera a data de VENCIMENTO da parcela (não a data da compra). As parcelas em aberto deste cartão vencem de ${formatDateBR(range.first)} a ${formatDateBR(range.last)}.`,
+      };
     }
 
-    const totalAmount = pendingInstallments.reduce((sum, i) => sum + Number(i.amount), 0);
-
-    let statement;
-    try {
-      [statement] = await db
-        .insert(cardStatements)
-        .values({
-          cardId: data.cardId,
-          periodStart: data.periodStart,
-          periodEnd: data.periodEnd,
-          closingDate: data.closingDate,
-          totalAmount: totalAmount.toFixed(2),
-        })
-        .returning({ id: cardStatements.id });
-    } catch {
-      // Violação do índice único (cardId, periodStart, periodEnd): já existe
-      // uma fatura fechada com exatamente esse período para este cartão.
-      return { ok: false, error: "Já existe uma fatura fechada com esse período exato para este cartão." };
-    }
-
-    for (const inst of pendingInstallments) {
-      await db.update(cardInstallments).set({ statementId: statement.id, paid: true }).where(eq(cardInstallments.id, inst.id));
-    }
-
-    return { ok: true };
+    return {
+      ok: true,
+      notice: `Fatura fechada: ${closed.count} ${closed.count === 1 ? "parcela" : "parcelas"}, total de ${formatBRL(closed.total)}.`,
+    };
   });
 
+  if (result?.ok) {
+    revalidateCardViews();
+  }
+  return result;
+}
+
+const MonthStatementSchema = z.object({
+  cardId: z.string().min(1),
+  yearMonth: z.string().regex(/^\d{4}-\d{2}$/, "Mês inválido."),
+});
+
+/** "Fechar fatura de <mês>" com um clique: todas as parcelas em aberto que vencem naquele mês. */
+export async function closeCardMonthStatement(_prev: SimpleFormState, formData: FormData): Promise<SimpleFormState> {
+  const session = await verifySession();
+  const parsed = MonthStatementSchema.safeParse({ cardId: formData.get("cardId"), yearMonth: formData.get("yearMonth") });
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+  const { cardId, yearMonth } = parsed.data;
+  const { start, end } = monthBounds(yearMonth);
+
+  const result = await withRLS(session.userId, async (): Promise<SimpleFormState> => {
+    if (!(await ownsCard(session.userId, cardId))) {
+      return { ok: false, error: "Cartão não encontrado." };
+    }
+    const closed = await closeStatementForPeriod({ cardId, periodStart: start, periodEnd: end, closingDate: todaySaoPaulo() });
+    if (!closed) {
+      return { ok: false, error: `Não há parcela em aberto vencendo em ${formatYearMonthBR(yearMonth)}.` };
+    }
+    return {
+      ok: true,
+      notice: `Fatura de ${formatYearMonthBR(yearMonth)} fechada: ${closed.count} ${closed.count === 1 ? "parcela" : "parcelas"}, total de ${formatBRL(closed.total)}.`,
+    };
+  });
+
+  if (result?.ok) {
+    revalidateCardViews();
+  }
+  return result;
+}
+
+/** Reabre uma fatura fechada (as parcelas voltam para "em aberto"). */
+export async function reopenCardStatement(_prev: SimpleFormState, formData: FormData): Promise<SimpleFormState> {
+  const session = await verifySession();
+  const id = String(formData.get("id") ?? "");
+  if (!id) return { ok: false, error: "Fatura não encontrada." };
+
+  const result = await withRLS(session.userId, () => reopenStatement(session.userId, id));
   if (result.ok) {
-    revalidatePath("/cartoes");
-    revalidatePath("/fechamento");
+    revalidateCardViews();
   }
   return result;
 }

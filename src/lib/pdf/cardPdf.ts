@@ -105,7 +105,7 @@ export function buildCardStatementPdf(input: BuildInput): Promise<Buffer> {
           });
 
         for (const inst of purchase.installments) {
-          const status = inst.paid ? "paga" : "pendente";
+          const status = inst.paid ? "em fatura fechada" : "em aberto";
           doc
             .fontSize(9)
             .font("Helvetica")

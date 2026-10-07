@@ -1,6 +1,6 @@
 import "server-only";
 import PDFDocument from "pdfkit";
-import type { MonthClosingSnapshot } from "@/lib/business/monthClosing";
+import { monthTotalOf, type MonthClosingSnapshot } from "@/lib/business/monthClosing";
 import { formatBRL, formatDateBR, formatYearMonthBR, formatPercentBR } from "@/lib/format";
 
 const BLUE = "#2563eb";
@@ -57,9 +57,10 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
       snapshot.totalPercentOfIncome === null ? "—" : formatPercentBR(snapshot.totalPercentOfIncome);
     const summaryRows: [string, string][] = [
       ["Renda mensal informada", formatBRL(income)],
-      ["Total gasto no mês", formatBRL(snapshot.totalSpent)],
+      ["Gasto lançado (lançamentos + parcelas de cartão)", formatBRL(snapshot.totalSpent)],
       ["Contas fixas", formatBRL(snapshot.fixedAccountsTotal)],
-      ["% da renda comprometida (gastos + contas fixas)", percentText],
+      ["TOTAL DO MÊS (gasto lançado + contas fixas)", formatBRL(monthTotalOf(snapshot))],
+      ["% da renda comprometida (total do mês / renda)", percentText],
       ["Investido no mês", formatBRL(snapshot.investmentsTotal)],
     ];
     for (const [label, value] of summaryRows) {
@@ -89,6 +90,24 @@ export function buildMonthClosingPdf(input: BuildInput): Promise<Buffer> {
           .text(c.categoryLabel, { continued: true })
           .fillColor(SLATE_500)
           .text(`  ${formatBRL(c.amount)}${pct}`, { align: "left" });
+      }
+    }
+
+    // Cada lançamento e parcela do mês (o detalhe do que foi fechado)
+    const monthItems = [...(snapshot.categoryItems ?? [])].sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    if (monthItems.length > 0) {
+      doc.moveDown(1);
+      doc.fillColor(SLATE_900).fontSize(12).font("Helvetica-Bold").text("Lançamentos e parcelas do mês");
+      doc.moveDown(0.4);
+      for (const item of monthItems) {
+        const origin = item.origin === "cartao" ? "cartão" : "lançamento";
+        doc
+          .fontSize(9)
+          .font("Helvetica")
+          .fillColor(SLATE_500)
+          .text(
+            `${formatDateBR(item.dueDate)} · ${item.description} · ${item.categoryLabel} (${origin}) — ${formatBRL(item.amount)}`
+          );
       }
     }
 

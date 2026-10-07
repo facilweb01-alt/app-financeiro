@@ -191,6 +191,11 @@ export function TransactionForm({ categories: initialCategories }: { categories:
         />
       </div>
 
+      {state?.ok && state.notice && (
+        <p className="text-sm sm:col-span-2 md:col-span-6 text-blue-300" data-testid="transaction-notice">
+          {state.notice}
+        </p>
+      )}
       {state && !state.ok && (
         <p className="text-sm sm:col-span-2 md:col-span-6 text-red-400">{state.error}</p>
       )}

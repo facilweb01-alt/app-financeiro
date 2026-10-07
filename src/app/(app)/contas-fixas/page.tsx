@@ -5,6 +5,7 @@ import { Money } from "@/components/Money";
 import { CollapsibleItems } from "@/components/CollapsibleList";
 import { deleteFixedAccount, toggleFixedAccountActive } from "@/app/actions/fixedAccounts";
 import { FixedAccountForm } from "./FixedAccountForm";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export default async function ContasFixasPage() {
   const session = await verifySession();
@@ -48,9 +49,9 @@ export default async function ContasFixasPage() {
                   <span className="font-medium"><Money value={item.amount} /></span>
                   <form action={deleteFixedAccount}>
                     <input type="hidden" name="id" value={item.id} />
-                    <button type="submit" className="text-xs hover:underline text-red-400">
+                    <ConfirmSubmitButton message="Excluir esta conta fixa?" className="text-xs hover:underline text-red-400">
                       excluir
-                    </button>
+                    </ConfirmSubmitButton>
                   </form>
                 </div>
               </li>

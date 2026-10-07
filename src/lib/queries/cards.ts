@@ -1,7 +1,7 @@
 import "server-only";
 import { and, eq, asc } from "drizzle-orm";
 import { db } from "@/db/client";
-import { creditCards } from "@/db/schema";
+import { creditCards, cardStatements } from "@/db/schema";
 
 export async function listCardsWithDetailsForUser(userId: string) {
   return db.query.creditCards.findMany({
@@ -16,10 +16,32 @@ export async function listCardsWithDetailsForUser(userId: string) {
         },
       },
       statements: {
-        orderBy: (s, { desc }) => [desc(s.periodStart)],
+        orderBy: (s, { desc }) => [desc(s.periodEnd), desc(s.periodStart)],
+        with: {
+          installments: {
+            orderBy: (i, { asc }) => [asc(i.dueDate)],
+            with: { purchase: { with: { category: true } } },
+          },
+        },
       },
     },
   });
+}
+
+/** Uma fatura fechada com os itens, já escopada ao dono — usada no relatório em PDF da fatura. */
+export async function getStatementWithItemsForUser(userId: string, statementId: string) {
+  const statement = await db.query.cardStatements.findFirst({
+    where: eq(cardStatements.id, statementId),
+    with: {
+      card: true,
+      installments: {
+        orderBy: (i, { asc }) => [asc(i.dueDate)],
+        with: { purchase: { with: { category: true } } },
+      },
+    },
+  });
+  if (!statement || statement.card.userId !== userId) return null;
+  return statement;
 }
 
 /** Lista leve (só id + nome) — usada no seletor de cartão do relatório em PDF. */

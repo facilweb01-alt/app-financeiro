@@ -265,3 +265,73 @@ export function monthPendingClose(params: {
   if (!params.monthsWithActivity.includes(previous)) return null;
   return previous;
 }
+
+/**
+ * Total do mês: gasto lançado (lançamentos + parcelas de cartão) somado às
+ * contas fixas. É o MESMO número que o painel mostra em "comprometidos este
+ * mês" — o fechamento precisa mostrar exatamente ele (correção de
+ * 07/10/2026: o fechamento mostrava só o gasto lançado, sem as contas fixas).
+ */
+export function monthTotalOf(snapshot: Pick<MonthClosingSnapshot, "totalSpent" | "fixedAccountsTotal"> & { totalCommitted?: number }): number {
+  // Fechamentos muito antigos não tinham totalCommitted gravado.
+  return typeof snapshot.totalCommitted === "number"
+    ? snapshot.totalCommitted
+    : round2(snapshot.totalSpent + snapshot.fixedAccountsTotal);
+}
+
+export type ClosingRecordLike = {
+  yearMonth: string;
+  income: number | string;
+  snapshot: string; // JSON gravado na hora do fechamento
+};
+
+/**
+ * Fonte ÚNICA dos números de um mês — usada pelo painel, pela tela de
+ * Fechamento (prévia e histórico) e pelo PDF, para os três nunca
+ * divergirem.
+ *
+ * - Mês em aberto: tudo ao vivo (renda e contas fixas atuais).
+ * - Mês encerrado: os lançamentos e parcelas continuam vindo do banco (um
+ *   gasto lançado depois, com data nesse mês, entra direto no fechamento
+ *   dele), mas a RENDA e as CONTAS FIXAS ficam congeladas no valor do dia
+ *   do fechamento — mudar a renda ou uma conta fixa hoje não altera um mês
+ *   que já foi encerrado.
+ */
+export function resolveMonthSnapshot(params: {
+  yearMonth: string;
+  liveIncome: number;
+  transactions: TransactionLike[];
+  cardInstallments: CardInstallmentLike[];
+  liveFixedAccountsTotal: number;
+  investmentsTotal: number;
+  closing?: ClosingRecordLike | null;
+}): MonthClosingSnapshot & { closed: boolean } {
+  const { closing } = params;
+  let income = params.liveIncome;
+  let fixedAccountsTotal = params.liveFixedAccountsTotal;
+
+  if (closing) {
+    const frozenIncome = Number(closing.income);
+    if (Number.isFinite(frozenIncome)) income = frozenIncome;
+    try {
+      const stored = JSON.parse(closing.snapshot) as Partial<MonthClosingSnapshot>;
+      if (typeof stored.fixedAccountsTotal === "number" && Number.isFinite(stored.fixedAccountsTotal)) {
+        fixedAccountsTotal = stored.fixedAccountsTotal;
+      }
+    } catch {
+      // snapshot ilegível: segue com as contas fixas atuais
+    }
+  }
+
+  return {
+    ...computeMonthClosingSnapshot({
+      yearMonth: params.yearMonth,
+      income,
+      transactions: params.transactions,
+      cardInstallments: params.cardInstallments,
+      fixedAccountsTotal,
+      investmentsTotal: params.investmentsTotal,
+    }),
+    closed: Boolean(closing),
+  };
+}

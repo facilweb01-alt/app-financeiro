@@ -7,9 +7,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { splitCentsInInstallments, toCents, fromCents } from "../money";
-import { addMonthsClamped, addMonthsToYearMonth, toYearMonth, currentYearMonth } from "../dates";
+import { addMonthsClamped, addMonthsToYearMonth, toYearMonth, currentYearMonth, monthBounds, todaySaoPaulo } from "../dates";
 import { generateInstallments } from "../installments";
-import { computeMonthClosingSnapshot, computeFutureMonthsHorizon } from "../monthClosing";
+import { computeMonthClosingSnapshot, computeFutureMonthsHorizon, resolveMonthSnapshot, monthTotalOf } from "../monthClosing";
+import {
+  findStatementCovering,
+  groupOpenInstallmentsByMonth,
+  planSettlement,
+  suggestFirstDueDate,
+  sumAmounts,
+} from "../cardStatements";
 import { computeSpendingStatus, spendingStatusSentence } from "../spendingStatus";
 
 // ---------------------------------------------------------------------------
@@ -838,4 +845,174 @@ test("buildWelcomeMessage: boas-vindas, salvar contato, exemplos, manual e link 
   assert.ok(msg.includes("tira suas dúvidas") && msg.includes("Pergunte aqui mesmo"));
   assert.ok(msg.trimEnd().endsWith("Para abrir o app: https://contay.com.br"));
   assert.ok(buildWelcomeMessage({ name: null, appUrl: "x", botNumber: "y" }).startsWith("Olá! 👋"));
+});
+
+
+// ---------------------------------------------------------------------------
+// Correções de 07/10/2026: total do fechamento, fatura do cartão por período
+// e baixa automática em período já fechado.
+// ---------------------------------------------------------------------------
+
+test("currentYearMonth/todaySaoPaulo: 23h do último dia do mês em São Paulo ainda é o mês que está acabando", () => {
+  // 01/11/2026 01:30 UTC = 31/10/2026 22:30 em São Paulo
+  const now = new Date("2026-11-01T01:30:00Z");
+  assert.equal(todaySaoPaulo(now), "2026-10-31");
+  assert.equal(currentYearMonth(now), "2026-10");
+});
+
+test("monthBounds: primeiro e último dia, inclusive fevereiro bissexto", () => {
+  assert.deepEqual(monthBounds("2026-10"), { start: "2026-10-01", end: "2026-10-31" });
+  assert.deepEqual(monthBounds("2026-02"), { start: "2026-02-01", end: "2026-02-28" });
+  assert.deepEqual(monthBounds("2028-02"), { start: "2028-02-01", end: "2028-02-29" });
+});
+
+test("monthTotalOf: total do mês = gasto lançado + contas fixas (caso real do Lucas: 14.190,62 + 4.860,00 = 19.050,62)", () => {
+  const snap = computeMonthClosingSnapshot({
+    yearMonth: "2026-10",
+    income: 13000,
+    transactions: [{ dueDate: "2026-10-05", description: "x", amount: 14190.62, categoryKey: "outros", categoryLabel: "Outros" }],
+    cardInstallments: [],
+    fixedAccountsTotal: 4860,
+    investmentsTotal: 0,
+  });
+  assert.equal(snap.totalSpent, 14190.62);
+  assert.equal(monthTotalOf(snap), 19050.62);
+  assert.equal(snap.totalPercentOfIncome, 146.54);
+  // Fechamento antigo, gravado sem totalCommitted: soma na hora.
+  assert.equal(monthTotalOf({ totalSpent: 100.1, fixedAccountsTotal: 200.2 }), 300.3);
+});
+
+test("resolveMonthSnapshot: mês em aberto usa renda e contas fixas atuais", () => {
+  const snap = resolveMonthSnapshot({
+    yearMonth: "2026-10",
+    liveIncome: 5000,
+    transactions: [{ dueDate: "2026-10-05", description: "x", amount: 400, categoryKey: "outros", categoryLabel: "Outros" }],
+    cardInstallments: [],
+    liveFixedAccountsTotal: 1200,
+    investmentsTotal: 0,
+    closing: null,
+  });
+  assert.equal(snap.closed, false);
+  assert.equal(snap.totalCommitted, 1600);
+  assert.equal(snap.totalPercentOfIncome, 32);
+});
+
+test("resolveMonthSnapshot: mês encerrado congela renda e contas fixas, mas gasto lançado depois entra no mês dele", () => {
+  const closing = {
+    yearMonth: "2026-09",
+    income: "4000.00",
+    snapshot: JSON.stringify({ fixedAccountsTotal: 1000, totalSpent: 300 }),
+  };
+  const snap = resolveMonthSnapshot({
+    yearMonth: "2026-09",
+    liveIncome: 9999, // renda mudou depois do fechamento
+    transactions: [
+      { dueDate: "2026-09-05", description: "já estava", amount: 300, categoryKey: "outros", categoryLabel: "Outros" },
+      { dueDate: "2026-09-20", description: "lançado depois de encerrar", amount: 50, categoryKey: "outros", categoryLabel: "Outros" },
+      { dueDate: "2026-10-02", description: "outro mês", amount: 70, categoryKey: "outros", categoryLabel: "Outros" },
+    ],
+    cardInstallments: [],
+    liveFixedAccountsTotal: 5555, // contas fixas mudaram depois
+    investmentsTotal: 0,
+    closing,
+  });
+  assert.equal(snap.closed, true);
+  assert.equal(snap.income, 4000);
+  assert.equal(snap.fixedAccountsTotal, 1000);
+  assert.equal(snap.totalSpent, 350); // 300 + 50 lançado depois; os 70 de outubro ficam fora
+  assert.equal(monthTotalOf(snap), 1350);
+});
+
+test("resolveMonthSnapshot: snapshot gravado ilegível não quebra (usa contas fixas atuais)", () => {
+  const snap = resolveMonthSnapshot({
+    yearMonth: "2026-09",
+    liveIncome: 1000,
+    transactions: [],
+    cardInstallments: [],
+    liveFixedAccountsTotal: 250,
+    investmentsTotal: 0,
+    closing: { yearMonth: "2026-09", income: "1000", snapshot: "{quebrado" },
+  });
+  assert.equal(snap.fixedAccountsTotal, 250);
+});
+
+test("sumAmounts: soma em centavos, sem erro de ponto flutuante", () => {
+  assert.equal(sumAmounts([0.1, 0.2]), 0.3);
+  assert.equal(sumAmounts(["33.34", "33.33", "33.33"]), 100);
+  assert.equal(sumAmounts([]), 0);
+});
+
+test("groupOpenInstallmentsByMonth: agrupa por mês de vencimento, em ordem", () => {
+  const groups = groupOpenInstallmentsByMonth([
+    { id: "a", dueDate: "2026-11-10", amount: 100 },
+    { id: "b", dueDate: "2026-10-03", amount: 33.34 },
+    { id: "c", dueDate: "2026-10-28", amount: 66.66 },
+    { id: "d", dueDate: "2027-01-05", amount: 10 },
+  ]);
+  assert.deepEqual(groups, [
+    { yearMonth: "2026-10", amount: 100, count: 2 },
+    { yearMonth: "2026-11", amount: 100, count: 1 },
+    { yearMonth: "2027-01", amount: 10, count: 1 },
+  ]);
+});
+
+test("findStatementCovering: datas das pontas contam; período sobreposto vale o que começou por último", () => {
+  const statements = [
+    { id: "larga", periodStart: "2026-09-01", periodEnd: "2026-10-10" },
+    { id: "out", periodStart: "2026-10-01", periodEnd: "2026-10-31" },
+  ];
+  assert.equal(findStatementCovering(statements, "2026-09-01")?.id, "larga");
+  assert.equal(findStatementCovering(statements, "2026-10-10")?.id, "out");
+  assert.equal(findStatementCovering(statements, "2026-10-31")?.id, "out");
+  assert.equal(findStatementCovering(statements, "2026-11-01"), null);
+});
+
+test("planSettlement: exemplo do Marcelo — fatura fechada de 01/09 a 10/10; compra lançada depois com data dentro do período recebe baixa nela", () => {
+  const plan = planSettlement({
+    openInstallments: [
+      { id: "dentro", dueDate: "2026-10-05", amount: 80 },
+      { id: "fora", dueDate: "2026-10-11", amount: 90 },
+      { id: "futura", dueDate: "2026-11-05", amount: 80 },
+    ],
+    statements: [{ id: "f1", periodStart: "2026-09-01", periodEnd: "2026-10-10" }],
+    closedMonths: [],
+  });
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].installment.id, "dentro");
+  assert.deepEqual(plan[0].target, { kind: "statement", statementId: "f1", periodStart: "2026-09-01", periodEnd: "2026-10-10" });
+});
+
+test("planSettlement: parcela em mês encerrado, sem fatura que cubra a data, vai para a fatura do mês inteiro", () => {
+  const plan = planSettlement({
+    openInstallments: [
+      { id: "set", dueDate: "2026-09-15", amount: 50 },
+      { id: "out", dueDate: "2026-10-15", amount: 50 },
+    ],
+    statements: [],
+    closedMonths: ["2026-09"],
+  });
+  assert.equal(plan.length, 1);
+  assert.deepEqual(plan[0].target, { kind: "closed-month", yearMonth: "2026-09", periodStart: "2026-09-01", periodEnd: "2026-09-30" });
+});
+
+test("planSettlement: nada fechado -> nada recebe baixa", () => {
+  assert.deepEqual(
+    planSettlement({ openInstallments: [{ id: "a", dueDate: "2026-10-15", amount: 1 }], statements: [], closedMonths: [] }),
+    []
+  );
+});
+
+test("suggestFirstDueDate: hoje, ou o mesmo dia do primeiro mês aberto quando hoje já está em período fechado", () => {
+  const base = { today: "2026-10-07", addMonths: addMonthsClamped };
+  assert.equal(suggestFirstDueDate({ ...base, statements: [], closedMonths: [] }), "2026-10-07");
+  assert.equal(
+    suggestFirstDueDate({ ...base, statements: [{ id: "f", periodStart: "2026-10-01", periodEnd: "2026-10-31" }], closedMonths: [] }),
+    "2026-11-07"
+  );
+  assert.equal(suggestFirstDueDate({ ...base, statements: [], closedMonths: ["2026-10", "2026-11"] }), "2026-12-07");
+  // Fatura fechada só até o dia 05: hoje (07) já está fora dela.
+  assert.equal(
+    suggestFirstDueDate({ ...base, statements: [{ id: "f", periodStart: "2026-09-06", periodEnd: "2026-10-05" }], closedMonths: [] }),
+    "2026-10-07"
+  );
 });

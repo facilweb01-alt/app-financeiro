@@ -4,6 +4,7 @@ import { useActionState, useRef, useState } from "react";
 import { formatDateBR } from "@/lib/format";
 import { Money } from "@/components/Money";
 import { InstallmentsList } from "@/components/InstallmentsList";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { deleteCardPurchase, updateCardPurchase } from "@/app/actions/cards";
 import type { SimpleFormState } from "@/lib/form-state";
 
@@ -92,9 +93,12 @@ export function CardPurchaseRow({ purchase, categories }: { purchase: Purchase; 
             </button>
             <form action={deleteCardPurchase}>
               <input type="hidden" name="id" value={purchase.id} />
-              <button type="submit" className="text-xs hover:underline text-red-400">
+              <ConfirmSubmitButton
+                message={`Excluir a compra "${purchase.description}" com todas as parcelas?`}
+                className="text-xs hover:underline text-red-400"
+              >
                 excluir
-              </button>
+              </ConfirmSubmitButton>
             </form>
           </div>
         </td>
@@ -112,7 +116,7 @@ export function CardPurchaseRow({ purchase, categories }: { purchase: Purchase; 
 
               {hasLockedInstallment && (
                 <p className="col-span-2 text-xs text-amber-400 md:col-span-6">
-                  Essa compra já tem parcela paga ou em fatura fechada — só descrição, categoria e data podem ser
+                  Essa compra já tem parcela em fatura fechada: só descrição, categoria e data da compra podem ser
                   editadas.
                 </p>
               )}

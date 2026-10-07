@@ -6,12 +6,19 @@ import type { SimpleFormState } from "@/lib/form-state";
 
 type Category = { id: string; label: string };
 
-function todayStr() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-}
-
-export function PurchaseForm({ cardId, categories }: { cardId: string; categories: Category[] }) {
+export function PurchaseForm({
+  cardId,
+  categories,
+  today,
+  defaultFirstDue,
+}: {
+  cardId: string;
+  categories: Category[];
+  today: string; // "YYYY-MM-DD" no fuso de São Paulo
+  // Hoje, ou o mesmo dia do primeiro mês ainda aberto quando a fatura deste
+  // mês já foi fechada (para a compra nova não cair na fatura fechada).
+  defaultFirstDue: string;
+}) {
   const [state, action, pending] = useActionState<SimpleFormState, FormData>(createCardPurchase, undefined);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -38,7 +45,7 @@ export function PurchaseForm({ cardId, categories }: { cardId: string; categorie
         <input
           type="date"
           name="purchaseDate"
-          defaultValue={todayStr()}
+          defaultValue={today}
           required
           className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
@@ -48,7 +55,7 @@ export function PurchaseForm({ cardId, categories }: { cardId: string; categorie
         <input
           type="date"
           name="firstDueDate"
-          defaultValue={todayStr()}
+          defaultValue={defaultFirstDue}
           required
           className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
@@ -91,7 +98,17 @@ export function PurchaseForm({ cardId, categories }: { cardId: string; categorie
         </select>
       </div>
 
+      {defaultFirstDue !== today && (
+        <p className="col-span-2 text-xs text-navy-400 md:col-span-6">
+          A fatura deste mês já foi fechada: o 1º vencimento já vem sugerido para o próximo mês em aberto.
+        </p>
+      )}
       {state && !state.ok && <p className="col-span-2 text-sm md:col-span-6 text-red-400">{state.error}</p>}
+      {state?.ok && state.notice && (
+        <p className="col-span-2 text-sm md:col-span-6 text-blue-300" data-testid="purchase-notice">
+          {state.notice}
+        </p>
+      )}
 
       <div className="col-span-2 md:col-span-6">
         <button

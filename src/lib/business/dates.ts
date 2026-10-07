@@ -38,9 +38,32 @@ export function addMonthsClamped(dateStr: string, monthsToAdd: number): string {
     .padStart(2, "0")}-${targetDay.toString().padStart(2, "0")}`;
 }
 
-export function currentYearMonth(): string {
-  const now = new Date();
-  return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}`;
+/**
+ * "Hoje" (YYYY-MM-DD) no fuso de São Paulo. O servidor roda em UTC: sem
+ * isso, das 21h à meia-noite o app já estaria no dia (e, no último dia do
+ * mês, no MÊS) seguinte.
+ */
+export function todaySaoPaulo(now: Date = new Date()): string {
+  // en-CA formata como YYYY-MM-DD
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(now);
+}
+
+export function currentYearMonth(now: Date = new Date()): string {
+  return toYearMonth(todaySaoPaulo(now));
+}
+
+/** Primeiro e último dia de um mês "YYYY-MM". */
+export function monthBounds(yearMonth: string): { start: string; end: string } {
+  const { year, month } = parseYearMonth(yearMonth);
+  return {
+    start: `${yearMonth}-01`,
+    end: `${yearMonth}-${daysInMonth(year, month).toString().padStart(2, "0")}`,
+  };
 }
 
 /**

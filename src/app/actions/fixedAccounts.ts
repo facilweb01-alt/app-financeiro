@@ -34,6 +34,7 @@ export async function createFixedAccount(_prev: SimpleFormState, formData: FormD
 
   revalidatePath("/contas-fixas");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
   return { ok: true };
 }
 
@@ -46,6 +47,7 @@ export async function deleteFixedAccount(formData: FormData) {
   );
   revalidatePath("/contas-fixas");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
 }
 
 export async function toggleFixedAccountActive(formData: FormData) {
@@ -61,4 +63,5 @@ export async function toggleFixedAccountActive(formData: FormData) {
   );
   revalidatePath("/contas-fixas");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
 }

@@ -4,7 +4,7 @@ import { verifySession } from "@/lib/dal";
 import { db, withRLS } from "@/db/client";
 import { users } from "@/db/schema";
 import { loadClosingInputsForUser, listMonthClosingsForUser } from "@/lib/queries/monthClosing";
-import { computeMonthClosingSnapshot, type MonthClosingSnapshot } from "@/lib/business/monthClosing";
+import { resolveMonthSnapshot } from "@/lib/business/monthClosing";
 import { currentYearMonth } from "@/lib/business/dates";
 import { buildMonthClosingPdf } from "@/lib/pdf/monthClosingPdf";
 
@@ -29,28 +29,24 @@ export async function GET(request: NextRequest) {
     ])
   );
 
-  const income = Number(user[0]?.monthlyIncome ?? 0);
+  const liveIncome = Number(user[0]?.monthlyIncome ?? 0);
   const userName = user[0]?.name ?? "Usuário";
 
-  let yearMonth = requestedYearMonth ?? currentYearMonth();
-  let snapshot: MonthClosingSnapshot;
-
-  const closedMatch = closings.find((c) => c.yearMonth === yearMonth);
-  if (closedMatch) {
-    snapshot = JSON.parse(closedMatch.snapshot) as MonthClosingSnapshot;
-  } else {
-    // Mês ainda não fechado (ou nenhum yearMonth foi passado): gera a
-    // prévia ao vivo do mês atual, mesma lógica da tela de Fechamento.
-    yearMonth = currentYearMonth();
-    snapshot = computeMonthClosingSnapshot({
-      yearMonth,
-      income,
-      transactions: inputs.transactions,
-      cardInstallments: inputs.cardInstallments,
-      fixedAccountsTotal: inputs.fixedAccountsTotal,
-      investmentsTotal: inputs.investmentsByYearMonth(yearMonth),
-    });
-  }
+  // Mês já fechado: o relatório daquele mês. Sem yearMonth (ou mês ainda
+  // não fechado): a prévia do mês atual. Nos dois casos a conta é a mesma
+  // da tela de Fechamento e do painel (resolveMonthSnapshot).
+  const closedMatch = requestedYearMonth ? closings.find((c) => c.yearMonth === requestedYearMonth) : undefined;
+  const yearMonth = closedMatch ? closedMatch.yearMonth : currentYearMonth();
+  const snapshot = resolveMonthSnapshot({
+    yearMonth,
+    liveIncome,
+    transactions: inputs.transactions,
+    cardInstallments: inputs.cardInstallments,
+    liveFixedAccountsTotal: inputs.fixedAccountsTotal,
+    investmentsTotal: inputs.investmentsByYearMonth(yearMonth),
+    closing: closings.find((c) => c.yearMonth === yearMonth) ?? null,
+  });
+  const income = snapshot.income;
 
   const pdfBuffer = await buildMonthClosingPdf({
     userName,
