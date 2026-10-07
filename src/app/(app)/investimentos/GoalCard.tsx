@@ -5,6 +5,7 @@ import { addGoalContribution, deleteInvestmentGoal } from "@/app/actions/investm
 import { Money } from "@/components/Money";
 import { formatDateBR } from "@/lib/format";
 import type { SimpleFormState } from "@/lib/form-state";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 type Goal = {
   id: string;
@@ -40,9 +41,9 @@ export function GoalCard({ goal }: { goal: Goal }) {
         </div>
         <form action={deleteInvestmentGoal}>
           <input type="hidden" name="id" value={goal.id} />
-          <button type="submit" className="text-xs hover:underline text-red-400">
+          <ConfirmSubmitButton message="Excluir esta meta e o progresso dela?" className="text-xs hover:underline text-red-400">
             excluir
-          </button>
+          </ConfirmSubmitButton>
         </form>
       </div>
 

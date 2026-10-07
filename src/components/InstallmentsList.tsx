@@ -12,10 +12,10 @@ type Installment = {
   paid: boolean;
 };
 
-// Lista de parcelas de uma compra no cartão. Por padrão mostra só o
-// essencial (nº da parcela + valor) pra não estourar a tabela em compras
-// com muitas parcelas — um botão "ver detalhes" expande pra mostrar a data
-// de vencimento e o selo "na fatura" de cada uma.
+// Lista de parcelas de uma compra no cartão. Recolhida, mostra só as
+// parcelas EM ABERTO (nº + valor) — as que já entraram em fatura fechada
+// saem daqui e viram uma nota ("2 já em fatura fechada"). "Ver detalhes"
+// expande para todas, com vencimento e o selo "na fatura".
 export function InstallmentsList({
   installments,
   installmentsTotal,
@@ -24,6 +24,8 @@ export function InstallmentsList({
   installmentsTotal: number;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const open = installments.filter((i) => !i.paid);
+  const invoicedCount = installments.length - open.length;
 
   return (
     <div className="flex flex-col gap-1">
@@ -44,16 +46,18 @@ export function InstallmentsList({
           ))}
         </ul>
       ) : (
-        <ul className="flex flex-wrap gap-x-2 gap-y-0.5">
-          {installments.map((inst) => (
-            <li
-              key={inst.id}
-              className={`text-xs ${inst.paid ? "text-navy-500 line-through" : "text-navy-300"}`}
-            >
-              {inst.installmentNumber}/{installmentsTotal} · <Money value={inst.amount} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="flex flex-wrap gap-x-2 gap-y-0.5">
+            {open.map((inst) => (
+              <li key={inst.id} className="text-xs text-navy-300">
+                {inst.installmentNumber}/{installmentsTotal} · <Money value={inst.amount} />
+              </li>
+            ))}
+          </ul>
+          {invoicedCount > 0 && (
+            <span className="text-[11px] text-navy-500">{invoicedCount} já em fatura fechada</span>
+          )}
+        </>
       )}
       <button
         type="button"

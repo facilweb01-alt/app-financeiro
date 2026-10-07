@@ -8,6 +8,7 @@ import { formatDateBR } from "@/lib/format";
 import Link from "next/link";
 import { Money } from "@/components/Money";
 import { CollapsibleRows } from "@/components/CollapsibleList";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { TransactionForm } from "./TransactionForm";
 import { deleteTransaction } from "@/app/actions/transactions";
 
@@ -81,9 +82,12 @@ export default async function LancamentosPage() {
                     <td className="px-4 py-3 text-right">
                       <form action={deleteTransaction}>
                         <input type="hidden" name="id" value={tx.id} />
-                        <button type="submit" className="text-xs hover:underline text-red-400">
+                        <ConfirmSubmitButton
+                          message={`Excluir o lançamento "${tx.description}"?`}
+                          className="text-xs hover:underline text-red-400"
+                        >
                           excluir
-                        </button>
+                        </ConfirmSubmitButton>
                       </form>
                     </td>
                   </tr>

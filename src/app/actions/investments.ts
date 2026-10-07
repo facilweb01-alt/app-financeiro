@@ -43,6 +43,7 @@ export async function createInvestment(_prev: SimpleFormState, formData: FormDat
 
   revalidatePath("/investimentos");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
   return { ok: true };
 }
 
@@ -55,4 +56,5 @@ export async function deleteInvestment(formData: FormData) {
   );
   revalidatePath("/investimentos");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
 }

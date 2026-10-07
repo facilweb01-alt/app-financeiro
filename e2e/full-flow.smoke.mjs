@@ -82,7 +82,6 @@ const periodEnd = `${y}-${m}-${String(lastDay).padStart(2, "0")}`;
 
 await page.fill('input[name="periodStart"]', periodStart);
 await page.fill('input[name="periodEnd"]', periodEnd);
-await page.fill('input[name="closingDate"]', periodEnd);
 await page.click('button:has-text("Fechar fatura do período")');
 await page.waitForTimeout(800);
 // A lista de parcelas vem recolhida por padrão (só "1/3 · R$ 100,00" etc) —
@@ -90,7 +89,7 @@ await page.waitForTimeout(800);
 // "Ver detalhes" antes de checar.
 await page.click('button:has-text("Ver detalhes")');
 cardBody = await page.textContent("body");
-check("fatura fechada mostra 'na fatura' na 1ª parcela e período no histórico", cardBody.includes("na fatura") && cardBody.includes("Faturas já fechadas"));
+check("fatura fechada mostra 'na fatura' na 1ª parcela e período no histórico", cardBody.includes("na fatura") && cardBody.includes("Faturas fechadas"));
 
 // 6. Investimento
 await page.goto(`${BASE}/investimentos`);

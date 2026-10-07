@@ -46,6 +46,7 @@ node e2e/dashboard-cards-upgrade.smoke.mjs   # gasto do próximo mês, gráfico 
 node e2e/dashboard-mes-filtro-listas.smoke.mjs   # seletor de mês (até 3 à frente), total somado, listas colapsáveis "Ver mais"
 node e2e/dashboard-painel-didatico.smoke.mjs     # resumo didático (frase + barra + composição + investido separado), busca de categoria com detalhe, filtro por categoria nas parcelas futuras
 WHATSAPP_WEBHOOK_SECRET=... node e2e/whatsapp-webhook.smoke.mjs   # endpoint do WhatsApp (use o mesmo valor do .env.local)
+node e2e/fechamento-fatura.smoke.mjs  # total do mês com contas fixas = painel; fatura por mês/período, relatório e PDF da fatura; baixa em período já fechado; reabrir
 node e2e/admin-panel.smoke.mjs       # painel /admin: aprovar, suspender, reativar, vencimento, controle de acesso
 # Página de vendas + cobrança Pix, contra um Asaas FALSO (e2e/helpers/fakeAsaas.mjs). Suba o app assim antes:
 #   ASAAS_API_KEY='$aact_hmlg_teste' ASAAS_BASE_URL=http://localhost:3998/v3 ASAAS_WEBHOOK_TOKEN=token-teste-webhook npx next start -p 3100

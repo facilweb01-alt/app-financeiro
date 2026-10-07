@@ -190,7 +190,8 @@ await page.goto(`${BASE}/lancamentos`);
 const optionLabels = await page.$$eval('select[name="categoryId"] option', (els) => els.map((e) => e.textContent.trim()));
 check("categoria 'Pet' aparece uma vez só no app", optionLabels.filter((l) => l === "Pet").length === 1, optionLabels.join(", "));
 
-// 6c. Mês encerrado: some da lista de lançamentos e não aceita lançamento novo.
+// 6c. Mês encerrado: some da lista de lançamentos; gasto novo com data nele
+// entra direto no fechamento daquele mês (regra de 07/10/2026).
 const hoje = new Date();
 const ym = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 const mesPassado = ym(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 15));
@@ -233,16 +234,33 @@ check("depois de encerrar, o lançamento do mês passado sai da lista", !listaDe
 check("lista avisa que há lançamento de mês encerrado e aponta o Fechamento", listaDepois.includes("já encerrado") && listaDepois.includes("Ver no Fechamento"));
 check("lançamentos do mês atual continuam na lista", listaDepois.includes("banho e tosa"));
 const noFechado = await post({ description: "atrasado", amount: 10, purchaseDate: `${mesPassado}-20` });
-check("WhatsApp não lança em mês encerrado (400 com explicação)", noFechado.status === 400 && /encerrado/.test(noFechado.json.error || ""), JSON.stringify(noFechado));
+check(
+    "WhatsApp aceita gasto com data em mês encerrado e avisa que entrou no fechamento dele",
+    noFechado.status === 201 && noFechado.json.closedMonth === true && /encerrado/.test(noFechado.json.notice || "") && noFechado.json.yearMonth === mesPassado,
+    JSON.stringify(noFechado)
+);
+const cartaoFechado = await post({ description: "compra antiga no cartão", amount: 90, cardName: "Antigo", installments: 3, dueDate: `${mesPassado}-25` });
+check(
+    "WhatsApp: compra no cartão com 1ª parcela em mês encerrado -> 201, e só essa parcela entra na fatura fechada",
+    cartaoFechado.status === 201 && cartaoFechado.json.settledInstallments === 1 && /1 de 3 parcelas/.test(cartaoFechado.json.notice || ""),
+    JSON.stringify(cartaoFechado)
+);
 await page.fill('input[name="purchaseDate"]', `${mesPassado}-20`);
 await page.fill('input[name="dueDate"]', `${mesPassado}-20`);
 await page.fill('input[name="description"]', "manual atrasado");
 await page.fill('input[name="amount"]', "12");
 await page.click('button:has-text("Adicionar lançamento")');
 await page.waitForTimeout(800);
-check("formulário também recusa lançamento em mês encerrado", (await page.innerText("body")).includes("já foi encerrado"));
+const depoisManual = await page.innerText("body");
+check("formulário aceita lançamento em mês encerrado e avisa", depoisManual.includes("já está encerrado") && depoisManual.includes("entrou direto no fechamento"));
+const listaAtrasados = await abrirLista();
+check("lançamentos atrasados não aparecem na lista do dia a dia", !listaAtrasados.includes("manual atrasado") && !listaAtrasados.includes("atrasado"));
 await page.goto(`${BASE}/fechamento`);
+await page.locator('[data-testid="closing-history-item"] > summary').first().click();
+const historico = await page.innerText('[data-testid="closing-history-item"]');
 check("mês encerrado aparece no histórico do Fechamento", (await page.innerText("body")).includes("Histórico de fechamentos"));
+// 33 (antes de encerrar) + 10 (WhatsApp depois) + 30 (1ª parcela do cartão) + 12 (formulário depois) = 85
+check("os gastos lançados depois entraram no total do mês encerrado (R$ 85,00)", historico.includes("85,00"), historico.slice(0, 300));
 
 // 7. Conta suspensa (ex: admin suspendeu em /admin) -> 403, mesmo número vinculado
 await suspendUser(email);

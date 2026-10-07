@@ -12,7 +12,10 @@ import {
   cardInstallments,
   monthClosings,
 } from "@/db/schema";
-import { addMonthsClamped, currentYearMonth, toYearMonth } from "@/lib/business/dates";
+import { addMonthsClamped, toYearMonth } from "@/lib/business/dates";
+import { settleInstallmentsInClosedPeriods } from "@/lib/cardStatements";
+import { sumAmounts } from "@/lib/business/cardStatements";
+import { formatBRL, formatDateBR } from "@/lib/format";
 import { formatYearMonthBR } from "@/lib/format";
 import { generateInstallments } from "@/lib/business/installments";
 import {
@@ -177,19 +180,18 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await withRLS(user.id, async () => {
-      // Mês já encerrado não recebe lançamento novo: o fechamento é uma foto
-      // do mês, e o lançamento ficaria fora dela e fora da lista.
+      // O lançamento vale para o mês que o cliente indicou. Se esse mês já
+      // foi encerrado, ele entra direto no fechamento daquele mês (não vai
+      // para o mês seguinte nem soma no atual) — a resposta avisa isso.
       const dueMonth = toYearMonth(dueDate ?? purchaseDate);
       const [closed] = await db
         .select({ id: monthClosings.id })
         .from(monthClosings)
         .where(and(eq(monthClosings.userId, user.id), eq(monthClosings.yearMonth, dueMonth)))
         .limit(1);
-      if (closed) {
-        return {
-          error: `O mês de ${formatYearMonthBR(dueMonth)} já foi encerrado. Para lançar nele, reabra o mês na aba Fechamento do app.`,
-        };
-      }
+      const closedMonthNotice = closed
+        ? `${formatYearMonthBR(dueMonth)} já está encerrado: o lançamento entrou direto no fechamento desse mês.`
+        : null;
 
       const resolved = await resolveCategory(user.id, data, categoryKey);
       if (!resolved) {
@@ -209,13 +211,13 @@ export async function POST(request: NextRequest) {
         })
         .returning({ id: transactions.id });
 
-      return { created, category, categoryCreated: resolved.created };
+      return { created, category, categoryCreated: resolved.created, closedMonthNotice };
     });
 
     if ("error" in result) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
-    const { created, category, categoryCreated } = result;
+    const { created, category, categoryCreated, closedMonthNotice } = result;
 
     return NextResponse.json(
       {
@@ -227,7 +229,9 @@ export async function POST(request: NextRequest) {
         amount: data.amount,
         description: data.description,
         dueDate: dueDate ?? purchaseDate,
-        yearMonth: currentYearMonth(),
+        yearMonth: toYearMonth(dueDate ?? purchaseDate),
+        closedMonth: Boolean(closedMonthNotice),
+        notice: closedMonthNotice,
       },
       { status: 201 }
     );
@@ -430,9 +434,19 @@ async function registerCardPurchase(params: {
       }))
     );
 
+    // Parcela que vence em período já fechado (fatura do cartão ou mês
+    // encerrado) recebe baixa na hora nesse mesmo período.
+    const settled = await settleInstallmentsInClosedPeriods({
+      userId,
+      cardId: card.id,
+      purchaseId: purchase.id,
+      closingDate: todayIso(),
+    });
+
     return {
       status: 201,
       purchaseId: purchase.id,
+      settled,
       card,
       cardCreated,
       category,
@@ -444,10 +458,17 @@ async function registerCardPurchase(params: {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
 
+  const settledNotice =
+    result.settled.length > 0
+      ? `${result.settled.length === installmentsTotal ? "A compra entrou" : `${result.settled.length} de ${installmentsTotal} parcelas (${formatBRL(sumAmounts(result.settled.map((s) => s.amount)))}) entraram`} direto em fatura já fechada (${formatDateBR(result.settled[0].periodStart)} a ${formatDateBR(result.settled[0].periodEnd)}).`
+      : null;
+
   return NextResponse.json(
     {
       ok: true,
       kind: "cartao",
+      settledInstallments: result.settled.length,
+      notice: settledNotice,
       id: result.purchaseId,
       category: result.category.label,
       categoryCreated: result.categoryCreated,

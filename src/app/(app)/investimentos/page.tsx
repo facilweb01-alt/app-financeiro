@@ -9,6 +9,7 @@ import { deleteInvestment } from "@/app/actions/investments";
 import { InvestmentForm } from "./InvestmentForm";
 import { InvestmentGoalForm } from "./InvestmentGoalForm";
 import { GoalCard } from "./GoalCard";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 
 export default async function InvestimentosPage() {
   const session = await verifySession();
@@ -60,9 +61,9 @@ export default async function InvestimentosPage() {
                     <td className="px-4 py-3 text-right">
                       <form action={deleteInvestment}>
                         <input type="hidden" name="id" value={i.id} />
-                        <button type="submit" className="text-xs hover:underline text-red-400">
+                        <ConfirmSubmitButton message="Excluir este investimento?" className="text-xs hover:underline text-red-400">
                           excluir
-                        </button>
+                        </ConfirmSubmitButton>
                       </form>
                     </td>
                   </tr>

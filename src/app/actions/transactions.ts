@@ -18,7 +18,7 @@ const TransactionSchema = z.object({
   notes: z.string().trim().optional(),
 });
 
-export type TransactionFormState = { ok: true } | { ok: false; error: string } | undefined;
+export type TransactionFormState = { ok: true; notice?: string } | { ok: false; error: string } | undefined;
 
 export async function createTransaction(
   _prevState: TransactionFormState,
@@ -41,16 +41,17 @@ export async function createTransaction(
 
   const data = parsed.data;
 
-  // Mês já encerrado não recebe lançamento novo: o fechamento é uma foto do
-  // mês, e o lançamento ficaria fora dela e fora da lista.
+  // O lançamento sempre vale para o mês que o cliente indicou (regra do
+  // Marcelo, 07/10/2026). Se esse mês já foi encerrado, ele entra direto no
+  // fechamento daquele mês: não vai para o mês seguinte nem soma no atual,
+  // e por isso não aparece na lista do dia a dia.
   const dueMonth = toYearMonth(data.dueDate);
-  const blocked = await withRLS(session.userId, async () => {
+  const monthClosed = await withRLS(session.userId, async () => {
     const [closed] = await db
       .select({ id: monthClosings.id })
       .from(monthClosings)
       .where(and(eq(monthClosings.userId, session.userId), eq(monthClosings.yearMonth, dueMonth)))
       .limit(1);
-    if (closed) return true;
 
     await db.insert(transactions).values({
       userId: session.userId,
@@ -61,17 +62,18 @@ export async function createTransaction(
       amount: data.amount.toString(),
       notes: data.notes ?? null,
     });
-    return false;
+    return Boolean(closed);
   });
-  if (blocked) {
-    return {
-      ok: false,
-      error: `O mês de ${formatYearMonthBR(dueMonth)} já foi encerrado. Para lançar nele, reabra o mês na aba Fechamento.`,
-    };
-  }
 
   revalidatePath("/lancamentos");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
+  if (monthClosed) {
+    return {
+      ok: true,
+      notice: `${formatYearMonthBR(dueMonth)} já está encerrado: o lançamento entrou direto no fechamento desse mês e não aparece na lista abaixo. Veja na aba Fechamento.`,
+    };
+  }
   return { ok: true };
 }
 
@@ -86,4 +88,5 @@ export async function deleteTransaction(formData: FormData) {
 
   revalidatePath("/lancamentos");
   revalidatePath("/dashboard");
+  revalidatePath("/fechamento");
 }

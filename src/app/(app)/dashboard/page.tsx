@@ -2,9 +2,9 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { getCurrentUser, verifySession } from "@/lib/dal";
 import { withRLS } from "@/db/client";
-import { loadClosingInputsForUser } from "@/lib/queries/monthClosing";
+import { loadClosingInputsForUser, listMonthClosingsForUser } from "@/lib/queries/monthClosing";
 import { listCardsForUser } from "@/lib/queries/cards";
-import { computeMonthClosingSnapshot, computeFutureMonthsHorizon } from "@/lib/business/monthClosing";
+import { resolveMonthSnapshot, computeFutureMonthsHorizon } from "@/lib/business/monthClosing";
 import { computeSpendingStatus, spendingStatusSentence } from "@/lib/business/spendingStatus";
 import { currentYearMonth, addMonthsToYearMonth } from "@/lib/business/dates";
 import { formatYearMonthBR, formatBRL } from "@/lib/format";
@@ -24,13 +24,14 @@ export default async function DashboardPage({
   searchParams: Promise<{ mes?: string }>;
 }) {
   const session = await verifySession();
-  const [user, inputs, cards] = await Promise.all([
+  const [user, inputs, cards, closings] = await Promise.all([
     getCurrentUser(),
     withRLS(session.userId, () => loadClosingInputsForUser(session.userId)),
     withRLS(session.userId, () => listCardsForUser(session.userId)),
+    withRLS(session.userId, () => listMonthClosingsForUser(session.userId)),
   ]);
 
-  const income = Number(user?.monthlyIncome ?? 0);
+  const liveIncome = Number(user?.monthlyIncome ?? 0);
   const currentMonth = currentYearMonth();
 
   // Opções do seletor: mês atual + até 3 meses à frente. Se o parâmetro
@@ -41,28 +42,29 @@ export default async function DashboardPage({
   const yearMonth = monthOptions.includes(requestedMonth ?? "") ? (requestedMonth as string) : currentMonth;
   const nextYearMonth = addMonthsToYearMonth(yearMonth, 1);
 
-  const snapshot = computeMonthClosingSnapshot({
-    yearMonth,
-    income,
-    transactions: inputs.transactions,
-    cardInstallments: inputs.cardInstallments,
-    fixedAccountsTotal: inputs.fixedAccountsTotal,
-    investmentsTotal: inputs.investmentsByYearMonth(yearMonth),
-  });
+  // Mesma função que a tela de Fechamento e o PDF usam (fonte única): o
+  // total do painel e o do fechamento são sempre o mesmo número. Em mês já
+  // encerrado, renda e contas fixas são as do dia do fechamento.
+  const snapshotFor = (ym: string) =>
+    resolveMonthSnapshot({
+      yearMonth: ym,
+      liveIncome,
+      transactions: inputs.transactions,
+      cardInstallments: inputs.cardInstallments,
+      liveFixedAccountsTotal: inputs.fixedAccountsTotal,
+      investmentsTotal: inputs.investmentsByYearMonth(ym),
+      closing: closings.find((c) => c.yearMonth === ym) ?? null,
+    });
+
+  const snapshot = snapshotFor(yearMonth);
+  const income = snapshot.income;
 
   // Mesma conta do mês exibido, mas pro mês seguinte a ele — pedido do
   // Marcelo: "fazer um igual aparecendo os gastos do próximo mês também".
   // Acompanha o mês escolhido no seletor (ex: se o painel está mostrando
   // outubro, aqui aparece novembro), não fica travado no mês seguinte ao de
   // hoje.
-  const nextMonthSnapshot = computeMonthClosingSnapshot({
-    yearMonth: nextYearMonth,
-    income,
-    transactions: inputs.transactions,
-    cardInstallments: inputs.cardInstallments,
-    fixedAccountsTotal: inputs.fixedAccountsTotal,
-    investmentsTotal: inputs.investmentsByYearMonth(nextYearMonth),
-  });
+  const nextMonthSnapshot = snapshotFor(nextYearMonth);
 
   // Total comprometido do MÊS EXIBIDO (gasto variável + contas fixas do
   // próprio mês) — igual a `snapshot.totalCommitted`, é sobre esse número
@@ -165,7 +167,18 @@ export default async function DashboardPage({
             conta, cada um no seu próprio card informativo abaixo. */}
         <TiltCard className="glass-card animate-rise-in flex flex-col gap-6 rounded-2xl p-5 sm:p-7">
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs text-navy-500">{formatYearMonthBR(yearMonth)}</span>
+            <span className="flex flex-wrap items-center gap-2 text-xs text-navy-500">
+              {formatYearMonthBR(yearMonth)}
+              {snapshot.closed && (
+                <Link
+                  href="/fechamento"
+                  className="rounded-full px-2 py-0.5 text-[11px] font-medium bg-blue-900/40 text-blue-300"
+                  data-testid="closed-month-badge"
+                >
+                  Mês encerrado · mesmo total do Fechamento
+                </Link>
+              )}
+            </span>
             <span className="text-2xl font-bold text-navy-100 sm:text-3xl">
               <Money value={combinedTotal} /> comprometidos este mês
             </span>

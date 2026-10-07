@@ -6,9 +6,10 @@ import { eq } from "drizzle-orm";
 import { loadClosingInputsForUser, listMonthClosingsForUser } from "@/lib/queries/monthClosing";
 import { listSpendingLimitsForUser } from "@/lib/queries/spendingLimits";
 import { listCategoriesForUser } from "@/lib/queries/categories";
-import { computeMonthClosingSnapshot, type MonthClosingSnapshot } from "@/lib/business/monthClosing";
+import { resolveMonthSnapshot, monthTotalOf, type MonthClosingSnapshot } from "@/lib/business/monthClosing";
 import { currentYearMonth } from "@/lib/business/dates";
-import { formatYearMonthBR, formatPercentBR } from "@/lib/format";
+import { formatYearMonthBR, formatPercentBR, formatDateBR } from "@/lib/format";
+import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { Money } from "@/components/Money";
 import { CollapsibleItems } from "@/components/CollapsibleList";
 import { IncomeForm } from "./IncomeForm";
@@ -22,13 +23,21 @@ import { deleteMonthClosing } from "@/app/actions/monthClosing";
 function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
   return (
     <div className="flex flex-col gap-4">
+      {/* O "Total do mês" é o mesmo número do painel ("comprometidos este
+          mês"): gasto lançado + contas fixas. */}
+      <div className="rounded-xl border p-3 border-blue-500/40 bg-blue-500/10" data-testid="month-total">
+        <div className="text-xs text-navy-300">Total do mês (gasto lançado + contas fixas)</div>
+        <div className="mt-1 text-2xl font-bold text-navy-50">
+          <Money value={monthTotalOf(snapshot)} />
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Total gasto" value={<Money value={snapshot.totalSpent} />} />
+        <Stat label="Gasto lançado" value={<Money value={snapshot.totalSpent} />} />
+        <Stat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} />
         <Stat
           label="% da renda comprometida"
           value={snapshot.totalPercentOfIncome === null ? "—" : formatPercentBR(snapshot.totalPercentOfIncome)}
         />
-        <Stat label="Contas fixas" value={<Money value={snapshot.fixedAccountsTotal} />} />
         <Stat label="Investido no mês" value={<Money value={snapshot.investmentsTotal} />} />
       </div>
 
@@ -55,6 +64,34 @@ function SnapshotView({ snapshot }: { snapshot: MonthClosingSnapshot }) {
           </ul>
         )}
       </div>
+
+      {snapshot.categoryItems && snapshot.categoryItems.length > 0 && (
+        <details>
+          <summary className="cursor-pointer text-xs font-semibold uppercase tracking-wide text-navy-400">
+            Lançamentos e parcelas do mês ({snapshot.categoryItems.length})
+          </summary>
+          <ul className="mt-2 flex flex-col gap-1 text-xs text-navy-300">
+            <CollapsibleItems
+              itemLabel="item"
+              initialCount={15}
+              items={[...snapshot.categoryItems]
+                .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
+                .map((item, idx) => (
+                  <li key={idx} className="flex flex-wrap justify-between gap-x-3">
+                    <span>
+                      {formatDateBR(item.dueDate)} · {item.description}
+                      <span className="text-navy-500">
+                        {" "}
+                        · {item.categoryLabel} · {item.origin === "cartao" ? "cartão" : "lançamento"}
+                      </span>
+                    </span>
+                    <Money value={item.amount} />
+                  </li>
+                ))}
+            />
+          </ul>
+        </details>
+      )}
 
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-navy-400">
@@ -123,16 +160,21 @@ export default async function FechamentoPage() {
   const income = Number(user[0]?.monthlyIncome ?? 0);
   const thisMonth = currentYearMonth();
 
-  const livePreview = computeMonthClosingSnapshot({
-    yearMonth: thisMonth,
-    income,
-    transactions: inputs.transactions,
-    cardInstallments: inputs.cardInstallments,
-    fixedAccountsTotal: inputs.fixedAccountsTotal,
-    investmentsTotal: inputs.investmentsByYearMonth(thisMonth),
-  });
+  // Mesma conta do painel (resolveMonthSnapshot é a fonte única): os
+  // números do fechamento batem com os do painel, mês a mês.
+  const snapshotFor = (yearMonth: string) =>
+    resolveMonthSnapshot({
+      yearMonth,
+      liveIncome: income,
+      transactions: inputs.transactions,
+      cardInstallments: inputs.cardInstallments,
+      liveFixedAccountsTotal: inputs.fixedAccountsTotal,
+      investmentsTotal: inputs.investmentsByYearMonth(yearMonth),
+      closing: closings.find((c) => c.yearMonth === yearMonth) ?? null,
+    });
 
-  const alreadyClosedThisMonth = closings.some((c) => c.yearMonth === thisMonth);
+  const livePreview = snapshotFor(thisMonth);
+  const alreadyClosedThisMonth = livePreview.closed;
 
   return (
     <div className="flex flex-col gap-6">
@@ -161,7 +203,7 @@ export default async function FechamentoPage() {
       <div className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-navy-100">
-            Prévia — {formatYearMonthBR(thisMonth)}
+            {alreadyClosedThisMonth ? "Mês atual" : "Prévia"} — {formatYearMonthBR(thisMonth)}
           </h2>
           <div className="flex items-center gap-2">
             {alreadyClosedThisMonth ? (
@@ -198,7 +240,11 @@ export default async function FechamentoPage() {
       </div>
 
       <div className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
-        <h2 className="mb-3 text-lg font-semibold text-navy-100">Fechar um mês</h2>
+        <h2 className="mb-1 text-lg font-semibold text-navy-100">Fechar um mês</h2>
+        <p className="mb-3 text-sm text-navy-400">
+          Ao fechar, o resumo fica guardado no histórico, os lançamentos do mês saem da lista do dia a dia e a fatura
+          daquele mês é fechada em cada cartão. As parcelas que faltam continuam nos próximos meses.
+        </p>
         <CloseMonthForm />
       </div>
 
@@ -206,13 +252,15 @@ export default async function FechamentoPage() {
         <div className="flex flex-col gap-4">
           <h2 className="text-lg font-semibold text-navy-100">Histórico de fechamentos</h2>
           {closings.map((c) => {
-            const snapshot = JSON.parse(c.snapshot) as MonthClosingSnapshot;
+            const snapshot = snapshotFor(c.yearMonth);
             return (
-              <details key={c.id} className="rounded-2xl border p-4 border-navy-800 bg-navy-900">
-                <summary className="flex cursor-pointer items-center justify-between">
+              <details key={c.id} className="rounded-2xl border p-4 border-navy-800 bg-navy-900" data-testid="closing-history-item">
+                <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2">
                   <span className="font-medium">{formatYearMonthBR(c.yearMonth)}</span>
-                  <span className="flex items-center gap-3 text-sm text-navy-400">
-                    <Money value={snapshot.totalSpent} /> gastos
+                  <span className="flex flex-wrap items-center gap-3 text-sm text-navy-400">
+                    <span>
+                      <Money value={monthTotalOf(snapshot)} /> no mês
+                    </span>
                     <a
                       href={`/api/fechamento/pdf?yearMonth=${c.yearMonth}`}
                       className="text-xs hover:underline text-blue-400"
@@ -221,9 +269,12 @@ export default async function FechamentoPage() {
                     </a>
                     <form action={deleteMonthClosing}>
                       <input type="hidden" name="id" value={c.id} />
-                      <button type="submit" className="text-xs hover:underline text-red-400">
-                        excluir
-                      </button>
+                      <ConfirmSubmitButton
+                        message={`Reabrir ${formatYearMonthBR(c.yearMonth)}? O mês sai do histórico e os lançamentos dele voltam para a lista do dia a dia. As faturas de cartão continuam fechadas (para reabrir uma fatura, use a aba Cartões).`}
+                        className="text-xs hover:underline text-red-400"
+                      >
+                        reabrir mês
+                      </ConfirmSubmitButton>
                     </form>
                   </span>
                 </summary>
