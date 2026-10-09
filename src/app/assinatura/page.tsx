@@ -11,6 +11,15 @@ import { Logo } from "@/components/Logo";
 import { CardCheckoutButton, CopyPixButton, PaymentWatcher } from "./PixPayment";
 import { MetaPixel, type MetaEventSpec } from "@/components/tracking/MetaPixel";
 import { metaPixelId } from "@/lib/metaPixelId";
+import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
+
+// Nome de quem recebe o Pix, para a pessoa reconhecer no app do banco.
+// Só aparece com a variável COBRANCA_RECEBEDOR (ex.: "M.F Martins Sistema · Contay"),
+// ligada depois que a conta do Asaas passar para o CNPJ.
+function pixReceiver(): string | null {
+  const v = process.env.COBRANCA_RECEBEDOR?.trim();
+  return v ? v.slice(0, 120) : null;
+}
 
 // Tela de assinatura/pagamento. Abre para:
 // - quem acabou de se cadastrar (aguardando o 1º Pix);
@@ -81,6 +90,7 @@ export default async function AssinaturaPage({
   // Medição de anúncios (só para quem aceitou os cookies na página de
   // vendas): cadastro concluído e 1ª assinatura paga. Sem dado da pessoa.
   const pixelId = metaPixelId();
+  const receiver = pixReceiver();
   const purchase = { value: PLAN_PRICE, currency: "BRL" };
   const firstPayment = history.filter((h) => isPaidStatus(h.status)).length <= 1;
   const pixelEvents: MetaEventSpec[] = [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
@@ -278,6 +288,11 @@ export default async function AssinaturaPage({
                 <CopyPixButton payload={openPayment.pixPayload} />
               </>
             )}
+            {receiver && (
+              <p className="text-center text-xs text-navy-300" data-testid="pix-receiver">
+                🏢 Recebedor do Pix: <b className="text-navy-100">{receiver}</b>
+              </p>
+            )}
           </div>
         )}
 
@@ -294,7 +309,10 @@ export default async function AssinaturaPage({
                   ? `Passe a pagar no cartão: a cobrança de ${formatBRL(PLAN_PRICE)} é feita hoje e depois todo mês, sozinha. O Pix em aberto é cancelado.`
                   : `Passe a pagar no cartão: a primeira cobrança será em ${formatDateBR(cardFirstDue)} (no lugar do Pix) e depois todo mês, sozinha.`}
             </p>
-            <CardCheckoutButton label={user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"} />
+            <CardCheckoutButton
+              label={user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"}
+              defaultOpen
+            />
             <p className="text-center text-xs text-navy-500">
               🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.
             </p>
@@ -344,8 +362,17 @@ export default async function AssinaturaPage({
           </div>
         )}
 
-        <p className="text-center text-xs text-navy-500">
-          Pagamento processado pelo Asaas. Dúvidas? Fale com o suporte pelo WhatsApp do app.
+        <p className="text-center text-xs text-navy-500" data-testid="assinatura-support">
+          Pagamento processado pelo Asaas. Dúvidas? Fale com o suporte no WhatsApp{" "}
+          <a
+            href={whatsappSupportLink("Olá! Tenho uma dúvida sobre o pagamento do Contay.")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-emerald-400 hover:text-emerald-300"
+          >
+            {WHATSAPP_BOT_DISPLAY}
+          </a>
+          .
         </p>
       </div>
     </div>

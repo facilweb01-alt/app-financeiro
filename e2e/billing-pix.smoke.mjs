@@ -57,6 +57,8 @@ try {
   check("página de vendas mostra dores, comparação e dúvidas", landing.includes("Você se reconhece?") && landing.includes("Planilha, app comum ou Contay?") && landing.includes("Perguntas frequentes"));
   check("página de vendas tem a seção de privacidade e o rodapé sem outra marca", landing.includes("Seu dinheiro é assunto seu") && landing.includes("LGPD") && landing.includes("© 2026 Contay") && !landing.includes("Fácil Web"));
   check("destaca o WhatsApp", landing.includes("WhatsApp"));
+  const supportHref = await page.getAttribute('[data-testid="footer-support"] a', "href");
+  check("rodapé tem o WhatsApp de suporte com link", landing.includes("Suporte no WhatsApp: (83) 98199-5301") && (supportHref ?? "").startsWith("https://wa.me/5583981995301?text="), supportHref);
   const ctaHref = await page.getAttribute('main a:has-text("Quero esse app")', "href");
   check("botão 'Quero esse app' leva ao cadastro", ctaHref === "/registrar", ctaHref);
 
@@ -110,6 +112,15 @@ try {
   // de pagamento (que ficou aberta) leva a pessoa para o app sozinha.
   await page.goto(`${BASE}/assinatura`);
   await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
+  {
+    const assin = await page.textContent("body");
+    const recebedor = process.env.COBRANCA_RECEBEDOR;
+    check(
+      recebedor ? "mostra o recebedor do Pix (COBRANCA_RECEBEDOR)" : "sem COBRANCA_RECEBEDOR não mostra linha de recebedor",
+      recebedor ? assin.includes(`Recebedor do Pix: ${recebedor}`) : !assin.includes("Recebedor do Pix")
+    );
+    check("assinatura mostra o WhatsApp de suporte", assin.includes("Fale com o suporte no WhatsApp (83) 98199-5301"));
+  }
   await fetch(`http://localhost:3998/__test/pay/${firstPayment.id}`, { method: "POST" });
   const paidPayment = fake.state.payments.get(firstPayment.id);
   const eventId = `evt_pago_${Date.now()}`;
