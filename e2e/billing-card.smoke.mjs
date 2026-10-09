@@ -90,7 +90,7 @@ try {
   const pageA = await browser.newPage();
   const emailA = await signup(pageA, "a");
   let body = await pageA.textContent("body");
-  check("tela de pagamento oferece Pix E cartão", body.includes("Falta só o pagamento") && body.includes("Prefere cartão de crédito?"));
+  check("tela de pagamento oferece Pix E cartão", body.includes("Falta só o pagamento") && body.includes("1ª opção: cartão de crédito") && body.includes("2ª opção: Pix"));
   check("formulário do cartão já vem aberto, com os passos (endereço e depois os dados do cartão)", (await pageA.locator("#card-cep").count()) === 1 && body.includes("nome impresso, número") && body.includes("código de segurança (CVV)"));
   check("avisa que o cartão é digitado na página do Asaas", body.includes("página segura do Asaas"));
   let a = await userRow(emailA);
