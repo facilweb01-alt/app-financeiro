@@ -7,6 +7,7 @@ import { PLAN_PRICE } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
 import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
+import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 
 // Página de vendas pública (rota "/" para quem não está logado).
 //
@@ -425,6 +426,12 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
             <Link href="/login">Entrar</Link>
           </div>
           <div>© 2026 Contay</div>
+          <div className="support" data-testid="footer-support">
+            Suporte no WhatsApp:{" "}
+            <a href={whatsappSupportLink("Olá! Preciso de ajuda com o Contay.")} target="_blank" rel="noopener noreferrer">
+              {WHATSAPP_BOT_DISPLAY}
+            </a>
+          </div>
         </div>
       </footer>
 

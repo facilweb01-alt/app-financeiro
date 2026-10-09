@@ -259,6 +259,10 @@ html:has(.lp){scroll-behavior:smooth}
 .lp footer a{text-decoration:none}
 .lp footer a:hover{color:var(--text)}
 @media (min-width:860px){.lp footer .wrap{padding-block:28px}}
+.lp footer .support{flex-basis:100%;font-size:14px}
+@media (min-width:860px){.lp footer .support{text-align:center}}
+.lp footer .support a{color:#25d366;font-weight:600;white-space:nowrap}
+.lp footer .support a:hover{color:#5ee08f}
 
 /* barra fixa no celular */
 .lp .sticky{position:fixed;left:0;right:0;bottom:0;z-index:20;padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));background:rgba(10,17,40,.92);backdrop-filter:blur(10px);border-top:1px solid var(--line);display:flex;gap:12px;align-items:center;transition:transform .3s}

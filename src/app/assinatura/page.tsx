@@ -11,6 +11,15 @@ import { Logo } from "@/components/Logo";
 import { CardCheckoutButton, CopyPixButton, PaymentWatcher } from "./PixPayment";
 import { MetaPixel, type MetaEventSpec } from "@/components/tracking/MetaPixel";
 import { metaPixelId } from "@/lib/metaPixelId";
+import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
+
+// Nome de quem recebe o Pix, para a pessoa reconhecer no app do banco.
+// Só aparece com a variável COBRANCA_RECEBEDOR (ex.: "M.F Martins Sistema · Contay"),
+// ligada depois que a conta do Asaas passar para o CNPJ.
+function pixReceiver(): string | null {
+  const v = process.env.COBRANCA_RECEBEDOR?.trim();
+  return v ? v.slice(0, 120) : null;
+}
 
 // Tela de assinatura/pagamento. Abre para:
 // - quem acabou de se cadastrar (aguardando o 1º Pix);
@@ -81,6 +90,7 @@ export default async function AssinaturaPage({
   // Medição de anúncios (só para quem aceitou os cookies na página de
   // vendas): cadastro concluído e 1ª assinatura paga. Sem dado da pessoa.
   const pixelId = metaPixelId();
+  const receiver = pixReceiver();
   const purchase = { value: PLAN_PRICE, currency: "BRL" };
   const firstPayment = history.filter((h) => isPaidStatus(h.status)).length <= 1;
   const pixelEvents: MetaEventSpec[] = [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
@@ -104,7 +114,7 @@ export default async function AssinaturaPage({
     title = "Falta só o pagamento para liberar seu acesso";
     subtitle = card
       ? "Estamos aguardando a confirmação do cartão. A liberação é automática, em poucos segundos."
-      : "Pague com Pix (QR Code ou copia-e-cola) ou com cartão de crédito. A liberação é automática, em poucos segundos.";
+      : "Pague com cartão de crédito ou com Pix. A liberação é automática, em poucos segundos.";
   } else if (state.kind === "blocked") {
     title = "Seu acesso está pausado";
     subtitle = cardDeclined
@@ -157,13 +167,17 @@ export default async function AssinaturaPage({
             </div>
             <div className="text-right">
               <div className="text-2xl font-extrabold text-navy-50">{formatBRL(PLAN_PRICE)}</div>
-              <div className="text-xs text-navy-400">por mês · Pix ou cartão</div>
+              <div className="text-xs text-navy-400">por mês · cartão ou Pix</div>
             </div>
           </div>
           <div className="mt-3 border-t border-navy-700/60 pt-3 text-sm text-navy-300">
             Forma de pagamento:{" "}
             <span className="font-semibold text-navy-100">
-              {card ? "cartão de crédito (cobrança automática)" : "Pix"}
+              {card
+                ? "cartão de crédito (cobrança automática)"
+                : user.status === "pending"
+                  ? "cartão de crédito ou Pix (escolha abaixo)"
+                  : "Pix"}
             </span>
           </div>
           {user.subscriptionDueDate && user.status === "active" && !canceled && (
@@ -243,10 +257,39 @@ export default async function AssinaturaPage({
           </div>
         )}
 
+        {/* Cartão de crédito em 1º lugar (pedido do Marcelo, 09/10), já aberto;
+            o Pix vem logo abaixo como segunda opção. */}
+        {configured && !card && !canceled && !error && (
+          <div className="glass-card flex flex-col gap-3 rounded-2xl p-5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold text-navy-50">💳 {user.status === "pending" ? "1ª opção: cartão de crédito" : "Pagar com cartão de crédito"}</div>
+              {user.status === "pending" && (
+                <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">Recomendado</span>
+              )}
+            </div>
+            <p className="text-sm text-navy-300">
+              {user.status === "pending"
+                ? `Pague com cartão e esqueça: os ${formatBRL(PLAN_PRICE)} são cobrados sozinhos todo mês, sem precisar pagar Pix.`
+                : cardFirstDue === today
+                  ? `Passe a pagar no cartão: a cobrança de ${formatBRL(PLAN_PRICE)} é feita hoje e depois todo mês, sozinha. O Pix em aberto é cancelado.`
+                  : `Passe a pagar no cartão: a primeira cobrança será em ${formatDateBR(cardFirstDue)} (no lugar do Pix) e depois todo mês, sozinha.`}
+            </p>
+            <CardCheckoutButton
+              label={user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"}
+              defaultOpen
+            />
+            <p className="text-center text-xs text-navy-500">
+              🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.
+            </p>
+          </div>
+        )}
+
         {openPayment && openPayment.billingType !== "CREDIT_CARD" && (
           <div className="glass-card flex flex-col gap-4 rounded-2xl p-5">
             <div className="flex items-baseline justify-between">
-              <div className="font-semibold text-navy-50">Pagar com Pix</div>
+              <div className="font-semibold text-navy-50">
+                {configured && !card && !canceled && !error && user.status === "pending" ? "2ª opção: Pix" : "Pagar com Pix"}
+              </div>
               <div className="text-sm text-navy-300">
                 {formatBRL(openPayment.value)} · vence {formatDateBR(openPayment.dueDate)}
               </div>
@@ -278,26 +321,11 @@ export default async function AssinaturaPage({
                 <CopyPixButton payload={openPayment.pixPayload} />
               </>
             )}
-          </div>
-        )}
-
-        {/* Pix hoje: opção de pagar / passar a pagar no cartão de crédito recorrente */}
-        {configured && !card && !canceled && !error && (
-          <div className="glass-card flex flex-col gap-3 rounded-2xl p-5">
-            <div className="font-semibold text-navy-50">
-              {user.status === "pending" ? "Prefere cartão de crédito?" : "Pagar com cartão de crédito"}
-            </div>
-            <p className="text-sm text-navy-300">
-              {user.status === "pending"
-                ? `Pague com cartão e esqueça: os ${formatBRL(PLAN_PRICE)} são cobrados sozinhos todo mês, sem precisar pagar Pix.`
-                : cardFirstDue === today
-                  ? `Passe a pagar no cartão: a cobrança de ${formatBRL(PLAN_PRICE)} é feita hoje e depois todo mês, sozinha. O Pix em aberto é cancelado.`
-                  : `Passe a pagar no cartão: a primeira cobrança será em ${formatDateBR(cardFirstDue)} (no lugar do Pix) e depois todo mês, sozinha.`}
-            </p>
-            <CardCheckoutButton label={user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"} />
-            <p className="text-center text-xs text-navy-500">
-              🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.
-            </p>
+            {receiver && (
+              <p className="text-center text-xs text-navy-300" data-testid="pix-receiver">
+                🏢 Recebedor do Pix: <b className="text-navy-100">{receiver}</b>
+              </p>
+            )}
           </div>
         )}
 
@@ -344,8 +372,17 @@ export default async function AssinaturaPage({
           </div>
         )}
 
-        <p className="text-center text-xs text-navy-500">
-          Pagamento processado pelo Asaas. Dúvidas? Fale com o suporte pelo WhatsApp do app.
+        <p className="text-center text-xs text-navy-500" data-testid="assinatura-support">
+          Pagamento processado pelo Asaas. Dúvidas? Fale com o suporte no WhatsApp{" "}
+          <a
+            href={whatsappSupportLink("Olá! Tenho uma dúvida sobre o pagamento do Contay.")}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-emerald-400 hover:text-emerald-300"
+          >
+            {WHATSAPP_BOT_DISPLAY}
+          </a>
+          .
         </p>
       </div>
     </div>

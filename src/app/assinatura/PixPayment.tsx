@@ -129,9 +129,18 @@ export function PaymentWatcher({
  * segura do Asaas, onde o cliente digita o cartão (os dados do cartão nunca
  * passam pelo app).
  */
-export function CardCheckoutButton({ label, variant = "primary" }: { label: string; variant?: "primary" | "secondary" }) {
+export function CardCheckoutButton({
+  label,
+  variant = "primary",
+  defaultOpen = false,
+}: {
+  label: string;
+  variant?: "primary" | "secondary";
+  /** Já mostra o formulário (sem precisar clicar no botão antes). */
+  defaultOpen?: boolean;
+}) {
   const [state, formAction, pending] = useActionState(payWithCard, { error: null });
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [cep, setCep] = useState("");
   const [street, setStreet] = useState("");
   const [district, setDistrict] = useState("");
@@ -174,7 +183,16 @@ export function CardCheckoutButton({ label, variant = "primary" }: { label: stri
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-2.5">
+    <form action={formAction} className="flex flex-col gap-2.5" data-testid="card-form">
+      <ol className="flex flex-col gap-1 rounded-xl border border-navy-700/70 bg-navy-950/60 p-3 text-xs text-navy-300" data-testid="card-steps">
+        <li>
+          <b className="text-navy-100">1.</b> Preencha abaixo o endereço de cobrança do cartão.
+        </li>
+        <li>
+          <b className="text-navy-100">2.</b> Na tela seguinte, segura, do Asaas, digite os dados do cartão: nome impresso, número,
+          validade e código de segurança (CVV).
+        </li>
+      </ol>
       <div className="text-sm font-medium text-navy-100">Endereço de cobrança do cartão</div>
       <p className="-mt-1 text-xs text-navy-400">O Asaas pede o endereço para cobrar no cartão. Ele não fica guardado no Contay.</p>
       <div>
@@ -239,7 +257,7 @@ export function CardCheckoutButton({ label, variant = "primary" }: { label: stri
         />
       </div>
       <button type="submit" disabled={pending} className={btnClass}>
-        {pending ? "Abrindo pagamento seguro..." : "Continuar para o pagamento seguro"}
+        {pending ? "Abrindo pagamento seguro..." : "Continuar para os dados do cartão"}
       </button>
       {state.error && <p className="text-center text-xs text-red-300">{state.error}</p>}
     </form>

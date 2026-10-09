@@ -71,13 +71,15 @@ const userRow = async (email) =>
 
 /** Clica em pagar com cartão e espera cair na página (falsa) do Checkout. Devolve o checkout criado. */
 async function goToCheckout(page, buttonLabel, customer) {
-  await page.click(`button:has-text("${buttonLabel}")`);
+  // O formulário do cartão já vem aberto na escolha Pix/cartão; nos outros
+  // blocos (trocar de cartão, cartão recusado) ainda abre pelo botão.
+  if ((await page.locator("#card-cep").count()) === 0) await page.click(`button:has-text("${buttonLabel}")`);
   // 2ª etapa: endereço de cobrança (o Asaas exige endereço para o cartão)
   await page.fill("#card-cep", "58310000");
   await page.fill("#card-address", "Rua das Flores");
   await page.fill("#card-number", "12");
   await page.fill("#card-province", "Centro");
-  await page.click('button:has-text("Continuar para o pagamento seguro")');
+  await page.click('button:has-text("Continuar para os dados do cartão")');
   await page.waitForURL(/\/__checkout\/checkoutSession\/show\?id=/, { timeout: 15000 });
   const id = new URL(page.url()).searchParams.get("id");
   return fake.checkoutsOf(customer).find((c) => c.id === id);
@@ -88,20 +90,20 @@ try {
   const pageA = await browser.newPage();
   const emailA = await signup(pageA, "a");
   let body = await pageA.textContent("body");
-  check("tela de pagamento oferece Pix E cartão", body.includes("Falta só o pagamento") && body.includes("Pagar com cartão de crédito"));
+  check("tela de pagamento oferece Pix E cartão", body.includes("Falta só o pagamento") && body.includes("1ª opção: cartão de crédito") && body.includes("2ª opção: Pix"));
+  check("formulário do cartão já vem aberto, com os passos (endereço e depois os dados do cartão)", (await pageA.locator("#card-cep").count()) === 1 && body.includes("nome impresso, número") && body.includes("código de segurança (CVV)"));
   check("avisa que o cartão é digitado na página do Asaas", body.includes("página segura do Asaas"));
   let a = await userRow(emailA);
   const pixSubA = a.asaas_subscription_id;
   check("começa no Pix", a.billing_method === "PIX" && Boolean(pixSubA));
 
   // sem número -> o navegador/servidor não deixa seguir
-  await pageA.click('button:has-text("Pagar com cartão de crédito")');
   check("pede o endereço de cobrança antes de ir para o Asaas", (await pageA.locator("#card-cep").count()) === 1);
   await pageA.fill("#card-cep", "58310000");
   await pageA.fill("#card-address", "Rua das Flores");
   await pageA.fill("#card-number", "  ");
   await pageA.fill("#card-province", "Centro");
-  await pageA.click('button:has-text("Continuar para o pagamento seguro")');
+  await pageA.click('button:has-text("Continuar para os dados do cartão")');
   await pageA.waitForSelector("text=Informe o número", { timeout: 10000 }).catch(() => {});
   check("número em branco mostra erro claro e não sai do app", (await pageA.textContent("body")).includes("Informe o número") && pageA.url().includes("/assinatura"));
   await pageA.goto(`${BASE}/assinatura`);
@@ -179,7 +181,7 @@ try {
 
   await pageB.goto(`${BASE}/assinatura`);
   body = await pageB.textContent("body");
-  check("[B] oferece passar a pagar no cartão, com a data da 1ª cobrança", body.includes("Usar cartão de crédito") && body.includes(`primeira cobrança será em ${br(dueB)}`));
+  check("[B] oferece passar a pagar no cartão, com a data da 1ª cobrança", body.includes("Pagar com cartão de crédito") && (await pageB.locator("#card-cep").count()) === 1 && body.includes(`primeira cobrança será em ${br(dueB)}`));
   const coB = await goToCheckout(pageB, "Usar cartão de crédito", b.asaas_customer_id);
   check("[B] checkout: 1ª cobrança no vencimento que já existia (não cobra 2x o mesmo mês)", coB?.subscription?.nextDueDate?.startsWith(dueB), coB?.subscription?.nextDueDate);
   await fetch(`http://localhost:3998/__test/checkout/${coB.id}`, { method: "POST" });
