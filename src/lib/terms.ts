@@ -6,10 +6,10 @@
 // a data de hoje) — quem já aceitou uma versão anterior será mandado de
 // novo para /aceitar-termos automaticamente, porque termsVersion salvo no
 // banco vai deixar de bater com esta constante.
-export const CURRENT_TERMS_VERSION = "2026-10-06.2";
+export const CURRENT_TERMS_VERSION = "2026-10-09.1";
 
 export const TERMS_CHECKBOX_LABEL =
-  "Li e aceito os Termos de Uso e a Política de Privacidade do Contay. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, não são vendidos nem repassados a anunciantes, passam apenas pelos serviços contratados para o Contay funcionar (cobrança pelo Asaas, WhatsApp, inteligência artificial que lê as mensagens e hospedagem), descritos nos Termos, e são acessados pela equipe do Contay apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço.";
+  "Li e aceito os Termos de Uso e a Política de Privacidade do Contay. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, não são vendidos nem repassados a anunciantes, passam apenas pelos serviços contratados para o Contay funcionar (cobrança pelo Asaas, WhatsApp, inteligência artificial que lê as mensagens e hospedagem), descritos nos Termos, e são acessados pela equipe do Contay apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço. Aceito receber mensagens do Contay no WhatsApp que informei, e posso parar as ofertas respondendo SAIR.";
 
 export const TERMS_SECTIONS: { title: string; body: string }[] = [
   {
@@ -31,6 +31,10 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   {
     title: "Lançamentos e dúvidas pelo WhatsApp",
     body: "Usar o WhatsApp é opcional: tudo pode ser feito direto no app. Quando você manda uma mensagem para o número do Contay, ela chega a um número de atendimento da nossa equipe, que consegue ver a conversa, como em qualquer conversa de WhatsApp — é por ali que o suporte atende. Para ler a mensagem e responder na hora, ela passa pela Z-API (serviço que liga o número ao sistema) e pelo nosso servidor de automação, e o texto é enviado ao Google (inteligência artificial Gemini), que identifica o gasto ou a dúvida. Ao Google segue só o texto que você escreveu, sem o seu nome, telefone ou CPF. O Google trata esse texto conforme os termos do próprio serviço, o que pode incluir o uso para melhorar os serviços dele. Por isso, não escreva nas mensagens senhas, número de cartão, documentos ou outras informações sensíveis.",
+  },
+  {
+    title: "Mensagens do Contay no seu WhatsApp",
+    body: "Usamos o número de WhatsApp do cadastro para falar com você sobre o Contay: boas-vindas com o manual, respostas às suas dúvidas, um lembrete com dicas para começar se a conta ficar 7 e 14 dias sem nenhum lançamento e, se você começar o cadastro e não concluir o pagamento, uma mensagem perguntando se ficou alguma dúvida e algumas ofertas curtas (no máximo 6, uma a cada 15 dias). As mensagens saem só das 8h às 22h. Para não receber mais as ofertas, responda SAIR a qualquer momento.",
   },
   {
     title: "Onde os dados ficam guardados",

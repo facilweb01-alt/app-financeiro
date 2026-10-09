@@ -15,7 +15,7 @@ export function NewCardForm() {
   }, [state, pending]);
 
   return (
-    <form ref={formRef} action={action} className="flex flex-wrap items-end gap-3">
+    <form ref={formRef} action={action} className="flex flex-wrap items-end gap-3" data-testid="new-card-form">
       <div>
         <label className="mb-1 block text-xs font-medium text-navy-400">Novo cartão</label>
         <input
@@ -26,6 +26,28 @@ export function NewCardForm() {
           className="w-56 rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
         />
       </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Dia do fechamento</label>
+        <input
+          type="number"
+          name="closingDay"
+          min={1}
+          max={31}
+          placeholder="Ex: 3"
+          className="w-28 rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
+        />
+      </div>
+      <div>
+        <label className="mb-1 block text-xs font-medium text-navy-400">Dia do vencimento</label>
+        <input
+          type="number"
+          name="dueDay"
+          min={1}
+          max={31}
+          placeholder="Ex: 10"
+          className="w-28 rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-950"
+        />
+      </div>
       <button
         type="submit"
         disabled={pending}
@@ -33,7 +55,12 @@ export function NewCardForm() {
       >
         {pending ? "Adicionando..." : "Adicionar cartão"}
       </button>
-      {state && !state.ok && <p className="text-sm text-red-400">{state.error}</p>}
+      <p className="w-full text-xs text-navy-400">
+        Os dias estão na fatura do cartão. Com eles, você lança a compra só com a data em que ela aconteceu e o Contay
+        calcula o vencimento sozinho (compra a partir do dia do fechamento vai para a fatura seguinte). Sem os dias, o
+        vencimento de cada compra é informado à mão.
+      </p>
+      {state && !state.ok && <p className="w-full text-sm text-red-400">{state.error}</p>}
     </form>
   );
 }

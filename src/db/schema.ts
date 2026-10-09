@@ -57,6 +57,9 @@ export const users = pgTable("users", {
     welcomeRequestedAt: timestamp("welcome_requested_at", { withTimezone: true }),
     welcomeSentAt: timestamp("welcome_sent_at", { withTimezone: true }),
     welcomeError: text("welcome_error"),
+    // Respondeu SAIR no WhatsApp: não recebe mais as ofertas automáticas
+    // (migração 0013).
+    marketingOptOutAt: timestamp("marketing_opt_out_at", { withTimezone: true }),
     // --- Painel administrativo / SaaS pago (ver drizzle/migrations/0004) -----
     // role: quem pode acessar /admin. status: controla se a conta consegue
     // usar o app de verdade — contas novas nascem "pending" e ficam bloqueadas
@@ -137,6 +140,24 @@ export const billingWebhookEvents = pgTable("billing_webhook_events", {
     paymentId: text("payment_id"),
     receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// Mensagens automáticas pelo WhatsApp (migração 0013). Uma linha por envio;
+// a chave única (userId, kind, step) impede mandar a mesma mensagem duas
+// vezes. kind: "sem_uso" (cliente ativo sem lançamento) | "nao_pagou"
+// (cadastro sem pagamento). Só o modo serviço lê/grava (RLS).
+export const automationMessages = pgTable("automation_messages", {
+    id: id(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    step: integer("step").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    attempts: integer("attempts").notNull().default(0),
+    lastAttemptAt: timestamp("last_attempt_at", { withTimezone: true }),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    error: text("error"),
+}, (t) => ({
+    userKindStep: uniqueIndex("automation_messages_user_kind_step_idx").on(t.userId, t.kind, t.step),
+}));
 
 // ---------------------------------------------------------------------------
 // Sessões de login (database sessions). O cookie do navegador guarda só um
@@ -226,6 +247,11 @@ export const creditCards = pgTable("credit_cards", {
     id: id(),
     userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(), // ex: Nubank, Itaú
+    // Dia do fechamento e dia do vencimento da fatura (1–31; os dois juntos
+    // ou nenhum — migração 0013). Com eles, o 1º vencimento da compra é
+    // calculado pela data da compra (src/lib/business/cardCycle.ts).
+    closingDay: integer("closing_day"),
+    dueDay: integer("due_day"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

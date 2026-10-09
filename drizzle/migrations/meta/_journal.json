@@ -92,6 +92,13 @@
       "when": 1790400000000,
       "tag": "0012_welcome_message",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790500000000,
+      "tag": "0013_card_cycle_and_automations",
+      "breakpoints": true
     }
   ]
 }

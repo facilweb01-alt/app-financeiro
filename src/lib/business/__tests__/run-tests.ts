@@ -18,6 +18,21 @@ import {
   sumAmounts,
 } from "../cardStatements";
 import { computeSpendingStatus, spendingStatusSentence } from "../spendingStatus";
+import {
+  describeCardCycle,
+  firstDueDateForPurchase,
+  hasCardCycle,
+  statementClosingDateForPurchase,
+} from "../cardCycle";
+import {
+  AUTOMATION_RULES,
+  buildAutomationMessage,
+  isOptOutMessage,
+  isWithinSendWindow,
+  nextAutomation,
+  type AutomationCandidate,
+  type AutomationRecord,
+} from "../automations";
 
 // ---------------------------------------------------------------------------
 // money.ts
@@ -1015,4 +1030,172 @@ test("suggestFirstDueDate: hoje, ou o mesmo dia do primeiro mês aberto quando h
     suggestFirstDueDate({ ...base, statements: [{ id: "f", periodStart: "2026-09-06", periodEnd: "2026-10-05" }], closedMonths: [] }),
     "2026-10-07"
   );
+});
+
+// ---------------------------------------------------------------------------
+// cardCycle.ts — 1º vencimento pelo dia de fechamento/vencimento do cartão
+// ---------------------------------------------------------------------------
+
+test("cardCycle: fecha dia 3 e vence dia 10 — antes do fechamento vence no mesmo mês; no dia ou depois, no seguinte", () => {
+  const c = { closingDay: 3, dueDay: 10 };
+  assert.equal(statementClosingDateForPurchase("2026-10-02", c), "2026-10-03");
+  assert.equal(firstDueDateForPurchase("2026-10-02", c), "2026-10-10");
+  // No próprio dia do fechamento a compra já vai para a fatura seguinte.
+  assert.equal(firstDueDateForPurchase("2026-10-03", c), "2026-11-10");
+  assert.equal(firstDueDateForPurchase("2026-10-25", c), "2026-11-10");
+});
+
+test("cardCycle: vencimento menor que o fechamento cai no mês seguinte ao fechamento (fecha 28, vence 5)", () => {
+  const c = { closingDay: 28, dueDay: 5 };
+  assert.equal(firstDueDateForPurchase("2026-10-20", c), "2026-11-05");
+  assert.equal(firstDueDateForPurchase("2026-10-28", c), "2026-12-05");
+  // Virada de ano.
+  assert.equal(firstDueDateForPurchase("2026-12-29", c), "2027-02-05");
+  assert.equal(firstDueDateForPurchase("2026-12-01", c), "2027-01-05");
+});
+
+test("cardCycle: dia que não existe no mês vira o último dia (fecha 31, vence 30 em fevereiro)", () => {
+  const c = { closingDay: 31, dueDay: 30 };
+  // Fevereiro de 2027 tem 28 dias: fecha em 28/02; vencimento 30 é <= 31, então vai para março.
+  assert.equal(statementClosingDateForPurchase("2027-02-10", c), "2027-02-28");
+  assert.equal(firstDueDateForPurchase("2027-02-10", c), "2027-03-30");
+  // Compra no último dia de fevereiro (= dia do fechamento ajustado) vai para o fechamento de março.
+  assert.equal(statementClosingDateForPurchase("2027-02-28", c), "2027-03-31");
+  assert.equal(firstDueDateForPurchase("2027-02-28", c), "2027-04-30");
+  // Vencimento 31 em abril vira 30.
+  assert.equal(firstDueDateForPurchase("2026-03-05", { closingDay: 10, dueDay: 31 }), "2026-03-31");
+  assert.equal(firstDueDateForPurchase("2026-04-12", { closingDay: 10, dueDay: 31 }), "2026-05-31");
+  assert.equal(firstDueDateForPurchase("2026-04-05", { closingDay: 10, dueDay: 31 }), "2026-04-30");
+});
+
+test("cardCycle: fechamento e vencimento no mesmo dia vencem no mês seguinte ao fechamento", () => {
+  assert.equal(firstDueDateForPurchase("2026-10-01", { closingDay: 15, dueDay: 15 }), "2026-11-15");
+});
+
+test("cardCycle: hasCardCycle exige os dois dias válidos; describeCardCycle", () => {
+  assert.equal(hasCardCycle({ closingDay: 3, dueDay: 10 }), true);
+  assert.equal(hasCardCycle({ closingDay: null, dueDay: 10 }), false);
+  assert.equal(hasCardCycle({ closingDay: 0, dueDay: 10 }), false);
+  assert.equal(hasCardCycle({ closingDay: 3, dueDay: 32 }), false);
+  assert.equal(describeCardCycle({ closingDay: 3, dueDay: 10 }), "fecha dia 3 e vence dia 10");
+});
+
+// ---------------------------------------------------------------------------
+// automations.ts — mensagens automáticas (sem uso / não pagou)
+// ---------------------------------------------------------------------------
+
+const H = 60 * 60 * 1000;
+const D = 24 * H;
+const START = new Date("2026-10-09T00:00:00-03:00");
+const T0 = new Date("2026-10-10T10:00:00-03:00").getTime();
+const at = (ms: number) => new Date(T0 + ms);
+function cand(over: Partial<AutomationCandidate> = {}): AutomationCandidate {
+  return {
+    role: "user",
+    status: "pending",
+    createdAt: at(0),
+    approvedAt: null,
+    billingCanceledAt: null,
+    hasPhone: true,
+    optedOut: false,
+    hasUsage: false,
+    ...over,
+  };
+}
+const sent = (kind: "sem_uso" | "nao_pagou", step: number, when: Date): AutomationRecord => ({
+  kind,
+  step,
+  attempts: 1,
+  lastAttemptAt: when,
+  sentAt: when,
+});
+
+test("automações: não pagou — 1ª mensagem só depois de 1 hora do cadastro", () => {
+  assert.equal(nextAutomation(cand(), [], at(59 * 60 * 1000), START), null);
+  assert.deepEqual(nextAutomation(cand(), [], at(H), START), { kind: "nao_pagou", step: 0, retry: false });
+});
+
+test("automações: não pagou — ofertas a cada 15 dias contados do envio anterior, no máximo 6", () => {
+  const h0 = [sent("nao_pagou", 0, at(2 * H))];
+  assert.equal(nextAutomation(cand(), h0, at(2 * H + 15 * D - 1), START), null);
+  assert.deepEqual(nextAutomation(cand(), h0, at(2 * H + 15 * D), START), { kind: "nao_pagou", step: 1, retry: false });
+  const all = [0, 1, 2, 3, 4, 5, 6].map((step) => sent("nao_pagou", step, at(2 * H + step * 15 * D)));
+  assert.equal(nextAutomation(cand(), all, at(400 * D), START), null);
+  const five = all.slice(0, 6); // passos 0..5
+  assert.deepEqual(nextAutomation(cand(), five, at(2 * H + 6 * 15 * D), START), { kind: "nao_pagou", step: 6, retry: false });
+  assert.equal(AUTOMATION_RULES.naoPagouMaxOffers, 6);
+});
+
+test("automações: não pagou — para com SAIR, cancelamento, sem telefone, cadastro antigo ou admin", () => {
+  const late = at(2 * H);
+  assert.equal(nextAutomation(cand({ optedOut: true }), [], late, START), null);
+  assert.equal(nextAutomation(cand({ billingCanceledAt: at(0) }), [], late, START), null);
+  assert.equal(nextAutomation(cand({ hasPhone: false }), [], late, START), null);
+  assert.equal(nextAutomation(cand({ createdAt: new Date("2026-10-01T10:00:00-03:00") }), [], late, START), null);
+  assert.equal(nextAutomation(cand({ role: "admin" }), [], late, START), null);
+  assert.equal(nextAutomation(cand({ status: "suspended" }), [], late, START), null);
+});
+
+test("automações: sem uso — 7 dias e reforço aos 14 (pelo menos 5 dias depois do 1º); para ao lançar", () => {
+  const c = cand({ status: "active", approvedAt: at(0) });
+  assert.equal(nextAutomation(c, [], at(7 * D - 1), START), null);
+  assert.deepEqual(nextAutomation(c, [], at(7 * D), START), { kind: "sem_uso", step: 1, retry: false });
+  // 1º enviado só no dia 12 (ex.: app fora do ar): o 2º espera até o dia 17.
+  const h1 = [sent("sem_uso", 1, at(12 * D))];
+  assert.equal(nextAutomation(c, h1, at(14 * D), START), null);
+  assert.deepEqual(nextAutomation(c, h1, at(17 * D), START), { kind: "sem_uso", step: 2, retry: false });
+  const h2 = [sent("sem_uso", 1, at(7 * D)), sent("sem_uso", 2, at(14 * D))];
+  assert.equal(nextAutomation(c, h2, at(60 * D), START), null);
+  assert.equal(nextAutomation({ ...c, hasUsage: true }, [], at(8 * D), START), null);
+  // Liberado antes do início das automações: nada.
+  assert.equal(nextAutomation({ ...c, approvedAt: new Date("2026-10-01T10:00:00-03:00") }, [], at(8 * D), START), null);
+});
+
+test("automações: quem pagou depois de receber ofertas entra na regra de sem uso", () => {
+  const history = [sent("nao_pagou", 0, at(2 * H))];
+  const c = cand({ status: "active", approvedAt: at(3 * D) });
+  assert.equal(nextAutomation(c, history, at(5 * D), START), null);
+  assert.deepEqual(nextAutomation(c, history, at(10 * D), START), { kind: "sem_uso", step: 1, retry: false });
+});
+
+test("automações: falha tenta de novo depois de 6 horas, no máximo 3 tentativas", () => {
+  const failed = (attempts: number, last: Date): AutomationRecord => ({ kind: "nao_pagou", step: 0, attempts, lastAttemptAt: last, sentAt: null });
+  assert.equal(nextAutomation(cand(), [failed(1, at(2 * H))], at(7 * H), START), null);
+  assert.deepEqual(nextAutomation(cand(), [failed(1, at(2 * H))], at(8 * H), START), { kind: "nao_pagou", step: 0, retry: true });
+  assert.equal(nextAutomation(cand(), [failed(3, at(2 * H))], at(30 * D), START), null);
+});
+
+test("automações: janela das 8h às 22h (Brasília)", () => {
+  assert.equal(isWithinSendWindow(new Date("2026-10-10T07:59:00-03:00")), false);
+  assert.equal(isWithinSendWindow(new Date("2026-10-10T08:00:00-03:00")), true);
+  assert.equal(isWithinSendWindow(new Date("2026-10-10T21:59:00-03:00")), true);
+  assert.equal(isWithinSendWindow(new Date("2026-10-10T22:00:00-03:00")), false);
+  assert.equal(isWithinSendWindow(new Date("2026-10-11T00:30:00Z")), true); // 21h30 em Brasília
+  assert.equal(isWithinSendWindow(new Date("2026-10-11T01:30:00Z")), false); // 22h30 em Brasília
+});
+
+test("automações: textos — nome, link, preço e SAIR só nas mensagens de oferta", () => {
+  const base = { name: "lucas bernardes", appUrl: "https://contay.com.br" };
+  const s1 = buildAutomationMessage({ ...base, kind: "sem_uso", step: 1 });
+  assert.match(s1, /^Oi, Lucas!/);
+  assert.match(s1, /contay\.com\.br\/manual/);
+  assert.doesNotMatch(s1, /SAIR/);
+  const p0 = buildAutomationMessage({ ...base, kind: "nao_pagou", step: 0 });
+  assert.match(p0, /dúvida/);
+  assert.match(p0, /R\$ 29,90/);
+  assert.match(p0, /contay\.com\.br\/assinatura/);
+  assert.match(p0, /SAIR/);
+  const offers = [1, 2, 3, 4, 5, 6].map((step) => buildAutomationMessage({ ...base, kind: "nao_pagou", step }));
+  assert.equal(new Set(offers).size, 3); // 3 textos que se alternam
+  for (const o of offers) {
+    assert.match(o, /SAIR/);
+    assert.match(o, /R\$ 29,90/);
+    assert.ok(o.length < 600, "oferta curta");
+  }
+  assert.match(buildAutomationMessage({ name: null, appUrl: "x", kind: "nao_pagou", step: 0 }), /^Oi! 👋/);
+});
+
+test("automações: reconhece SAIR / PARAR / STOP e não confunde com outras mensagens", () => {
+  for (const t of ["SAIR", "sair", " Sair. ", "PARAR", "pare", "stop", "Não quero mais receber"]) assert.equal(isOptOutMessage(t), true, t);
+  for (const t of ["quero sair do vermelho", "gastei 45 no mercado", "cancelar assinatura", "", null]) assert.equal(isOptOutMessage(t), false, String(t));
 });

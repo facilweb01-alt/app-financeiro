@@ -13,6 +13,7 @@ import {
   monthClosings,
 } from "@/db/schema";
 import { addMonthsClamped, toYearMonth } from "@/lib/business/dates";
+import { firstDueDateForPurchase, hasCardCycle } from "@/lib/business/cardCycle";
 import { settleInstallmentsInClosedPeriods } from "@/lib/cardStatements";
 import { sumAmounts } from "@/lib/business/cardStatements";
 import { formatBRL, formatDateBR } from "@/lib/format";
@@ -123,6 +124,12 @@ export async function POST(request: NextRequest) {
   // vínculo entre este remetente e a conta que gerou o código no app.
   if (json && typeof json === "object" && "linkCode" in json && (json as { linkCode?: unknown }).linkCode) {
     return linkSender(json as Record<string, unknown>);
+  }
+
+  // "SAIR" no WhatsApp (o n8n manda optOut: true): para as ofertas
+  // automáticas para este número (src/lib/whatsapp/automations.ts).
+  if (json && typeof json === "object" && (json as { optOut?: unknown }).optOut === true) {
+    return optOutSender(json as Record<string, unknown>);
   }
 
   const parsed = BodySchema.safeParse(json);
@@ -251,6 +258,28 @@ function parseSender(raw: string): { isLid: boolean; digits: string } {
   return { isLid: /@lid\b/i.test(raw), digits: raw.replace(/\D/g, "") };
 }
 
+// Pedido para não receber mais as mensagens automáticas. Responde 200 mesmo
+// quando o número não tem conta (não há nada a parar), para o n8n confirmar.
+async function optOutSender(json: Record<string, unknown>) {
+  const sender = parseSender(String(json.phone ?? ""));
+  if (!/^\d{10,20}$/.test(sender.digits)) {
+    return NextResponse.json({ error: "Remetente inválido." }, { status: 400 });
+  }
+  const updated = await withServiceMode(() =>
+    db
+      .update(users)
+      .set({ marketingOptOutAt: new Date() })
+      .where(
+        and(
+          isNull(users.marketingOptOutAt),
+          sender.isLid ? eq(users.whatsappLid, sender.digits) : inArray(users.whatsappPhone, phoneCandidates(sender.digits))
+        )
+      )
+      .returning({ id: users.id })
+  );
+  return NextResponse.json({ ok: true, kind: "optout", updated: updated.length }, { status: 200 });
+}
+
 const LinkSchema = z.object({
   phone: z.string().trim().min(5, "Remetente inválido."),
   linkCode: z.coerce.string().trim().regex(/^\d{6}$/, "Código inválido."),
@@ -355,7 +384,9 @@ async function resolveCategory(
 // Compra no cartão pelo WhatsApp: mesma regra da tela Cartões
 // (src/app/actions/cards.ts#createCardPurchase) — grava a compra e já gera
 // todas as parcelas, uma por mês, a partir do 1º vencimento. Sem vencimento
-// informado, a 1ª parcela vence um mês depois da compra.
+// informado: calculado pelo dia de fechamento/vencimento do cartão (09/10);
+// cartão sem esses dias (antigo ou criado agora pelo WhatsApp) continua com a
+// regra antiga — a 1ª parcela vence um mês depois da compra.
 async function registerCardPurchase(params: {
   userId: string;
   data: ParsedBody;
@@ -365,12 +396,6 @@ async function registerCardPurchase(params: {
 }) {
   const { userId, data, categoryKey, purchaseDate } = params;
   const installmentsTotal = data.installments ?? 1;
-  const firstDueDate = params.dueDate ?? addMonthsClamped(purchaseDate, 1);
-  const generated = generateInstallments({
-    totalAmount: data.amount,
-    installmentsTotal,
-    firstDueDate,
-  });
 
   const result = await withRLS(userId, async () => {
     const resolved = await resolveCategory(userId, data, categoryKey);
@@ -380,11 +405,11 @@ async function registerCardPurchase(params: {
     const { category } = resolved;
 
     const cards = await db
-      .select({ id: creditCards.id, name: creditCards.name })
+      .select({ id: creditCards.id, name: creditCards.name, closingDay: creditCards.closingDay, dueDay: creditCards.dueDay })
       .from(creditCards)
       .where(eq(creditCards.userId, userId));
 
-    let card: { id: string; name: string } | null = null;
+    let card: { id: string; name: string; closingDay: number | null; dueDay: number | null } | null = null;
     let cardCreated = false;
     if (data.cardName) {
       card = matchCard(cards, data.cardName);
@@ -395,7 +420,7 @@ async function registerCardPurchase(params: {
         const [created] = await db
           .insert(creditCards)
           .values({ userId, name })
-          .returning({ id: creditCards.id, name: creditCards.name });
+          .returning({ id: creditCards.id, name: creditCards.name, closingDay: creditCards.closingDay, dueDay: creditCards.dueDay });
         card = created;
         cardCreated = true;
       }
@@ -412,6 +437,15 @@ async function registerCardPurchase(params: {
         error: `Qual cartão? Você tem: ${cards.map((c) => c.name).join(", ")}.`,
       } as const;
     }
+
+    const dueFromCycle = !params.dueDate && hasCardCycle(card);
+    const firstDueDate =
+      params.dueDate ?? (hasCardCycle(card) ? firstDueDateForPurchase(purchaseDate, card) : addMonthsClamped(purchaseDate, 1));
+    const generated = generateInstallments({
+      totalAmount: data.amount,
+      installmentsTotal,
+      firstDueDate,
+    });
 
     const [purchase] = await db
       .insert(cardPurchases)
@@ -451,6 +485,9 @@ async function registerCardPurchase(params: {
       cardCreated,
       category,
       categoryCreated: resolved.created,
+      generated,
+      firstDueDate,
+      dueFromCycle,
     } as const;
   });
 
@@ -477,9 +514,13 @@ async function registerCardPurchase(params: {
       cardName: result.card.name,
       cardCreated: result.cardCreated,
       installments: installmentsTotal,
-      installmentAmount: generated[0].amount,
-      firstDueDate,
-      lastDueDate: generated[generated.length - 1].dueDate,
+      installmentAmount: result.generated[0].amount,
+      firstDueDate: result.firstDueDate,
+      lastDueDate: result.generated[result.generated.length - 1].dueDate,
+      // true = vencimento calculado pelo dia de fechamento/vencimento do cartão.
+      dueFromCardCycle: result.dueFromCycle,
+      // Cartão sem os dias cadastrados: o n8n pode lembrar o cliente de informar.
+      cardCycleMissing: !hasCardCycle(result.card),
     },
     { status: 201 }
   );

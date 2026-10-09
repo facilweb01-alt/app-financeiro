@@ -19,7 +19,7 @@ export type ManualSection = {
 
 export const MANUAL_TITLE = "Manual do Contay";
 export const MANUAL_SUBTITLE = "Tudo o que o app faz, explicado passo a passo.";
-export const MANUAL_UPDATED = "02/10/2026";
+export const MANUAL_UPDATED = "09/10/2026";
 
 export const MANUAL_SECTIONS: ManualSection[] = [
   {
@@ -40,7 +40,8 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     items: [
       "Gasto simples: “gastei 45 no mercado”, “uber 18,50”, “farmácia 42,90”.",
       "Com vencimento: “dentista 250 vence dia 15/10”.",
-      "Compra no cartão: “300 no cartão Nubank em 3x”. O app cria as parcelas, uma por mês.",
+      "Compra no cartão: “300 no cartão Nubank em 3x”. O app cria as parcelas, uma por mês. O 1º vencimento segue o dia de fechamento e de vencimento cadastrados no cartão.",
+      "Se o cartão ainda não existir no app, ele é criado na hora com o nome que você falou. Depois, abra Cartões e informe o dia do fechamento e do vencimento dele.",
       "Cartão à vista: “89,90 no cartão Nubank”.",
       "Categoria: o Contay escolhe sozinho (mercado vai para Compra de alimentos, posto vai para Gasolina). Para escolher, diga a categoria: “ração 80 categoria pet”. Se ela não existir, é criada na hora.",
       "O valor é sempre o total da compra. Mande uma compra por mensagem.",
@@ -79,8 +80,10 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     title: "5. Cartões",
     intro: "Controle das compras no cartão de crédito e das parcelas.",
     items: [
-      "Cadastre cada cartão pelo nome (por exemplo, Nubank) em “Novo cartão”.",
-      "Em “Adicionar compra”, informe a descrição, a data da compra, o 1º vencimento, o valor total e o número de parcelas. O app cria uma parcela por mês.",
+      "Cadastre cada cartão em “Novo cartão” com o nome (por exemplo, Nubank), o dia do fechamento e o dia do vencimento da fatura. Esses dias estão na fatura do seu cartão.",
+      "Em “Adicionar compra”, informe a descrição, a data em que a compra aconteceu, o valor total e o número de parcelas. O 1º vencimento é calculado sozinho pelo cartão: compra feita antes do dia do fechamento entra na fatura que vence neste ciclo; compra feita no dia do fechamento ou depois vai para a fatura seguinte. Se precisar, você pode alterar o vencimento.",
+      "O app cria uma parcela por mês, a partir do 1º vencimento.",
+      "Cartão cadastrado antes, sem os dias: toque em “informar dias” (ou “editar cartão”) logo abaixo do nome do cartão. A mudança vale para as próximas compras; as já lançadas não mudam.",
       "As parcelas que faltam já aparecem somadas nos próximos meses, no Painel e no Fechamento.",
       "A lista mostra só as parcelas em aberto. “Em aberto por mês de vencimento” traz o total de cada mês, com o botão “Fechar fatura” daquele mês.",
       "“Fechar fatura do período”: se preferir, informe duas datas. Entram as parcelas que vencem entre elas, mesmo pegando mais de um mês.",
@@ -145,6 +148,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       "Cartão de crédito: a mensalidade é cobrada sozinha todo mês. O cartão é digitado na página segura do Asaas, e o Contay não vê nem guarda os dados dele.",
       "Se a mensalidade ficar 3 dias vencida, o acesso é pausado. Os seus dados continuam guardados, e o acesso volta assim que o pagamento é confirmado.",
       "Para cancelar a assinatura, fale com o suporte. Você continua usando até o fim do período já pago.",
+      "Mensagens do Contay: quem ainda não fez nenhum lançamento recebe um lembrete com dicas para começar (7 e 14 dias depois de a conta ser liberada).",
     ],
   },
   {
@@ -165,6 +169,20 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       "Cada conta é isolada das outras, e a senha é guardada criptografada.",
       "O Contay não se conecta ao seu banco e não pede senha de banco.",
       "Os Termos de Uso e a Política de Privacidade estão no rodapé da página inicial.",
+    ],
+  },
+  {
+    id: "assinar",
+    title: "13. Para quem ainda não é cliente",
+    intro: "O Contay é um app de controle de gastos: você lança pelo WhatsApp ou pelo app e vê o mês inteiro num painel.",
+    items: [
+      "O que ele faz: gastos por categoria com a porcentagem da renda, cartões com parcelas e faturas, contas fixas, investimentos e metas, e o resumo do mês em PDF.",
+      "Quanto custa: R$ 29,90 por mês, sem fidelidade. Pode cancelar quando quiser.",
+      "Como assinar: na página contay.com.br, toque em começar, preencha nome, e-mail, WhatsApp, CPF e senha e pague com Pix ou cartão de crédito. Com o Pix pago, o acesso é liberado na hora.",
+      "Começou o cadastro e não pagou? Entre em contay.com.br/assinatura com o e-mail e a senha do cadastro e conclua com Pix ou cartão.",
+      "Depois do pagamento chegam, por este WhatsApp, as boas-vindas e este manual em PDF.",
+      "Quem começou o cadastro e não concluiu pode receber algumas mensagens do Contay. Para não receber mais, responda SAIR.",
+      "O Contay não se conecta ao seu banco e não pede senha de banco.",
     ],
   },
 ];
