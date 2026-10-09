@@ -12,6 +12,8 @@ import { CollapsibleRows, CollapsibleItems } from "@/components/CollapsibleList"
 import { ConfirmSubmitButton } from "@/components/ConfirmSubmitButton";
 import { deleteCard } from "@/app/actions/cards";
 import { NewCardForm } from "./NewCardForm";
+import { CardSettingsForm } from "./CardSettingsForm";
+import { hasCardCycle } from "@/lib/business/cardCycle";
 import { PurchaseForm } from "./PurchaseForm";
 import { StatementForm } from "./StatementForm";
 import { OpenMonthsPanel } from "./OpenMonthsPanel";
@@ -89,7 +91,15 @@ export default async function CartoesPage() {
             </div>
 
             <div className="flex flex-col gap-4 p-4">
-              <PurchaseForm cardId={card.id} categories={categories} today={today} defaultFirstDue={defaultFirstDue} />
+              <CardSettingsForm card={{ id: card.id, name: card.name, closingDay: card.closingDay, dueDay: card.dueDay }} />
+
+              <PurchaseForm
+                cardId={card.id}
+                categories={categories}
+                today={today}
+                defaultFirstDue={defaultFirstDue}
+                cycle={hasCardCycle(card) ? { closingDay: card.closingDay, dueDay: card.dueDay } : null}
+              />
 
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">

@@ -55,6 +55,10 @@ node e2e/billing-card.smoke.mjs      # cartão recorrente: Checkout, troca Pix->
 # Manual + boas-vindas pelo WhatsApp, contra um Z-API FALSO (e2e/helpers/fakeZapi.mjs). Suba o app (sem Asaas) com:
 #   ZAPI_BASE_URL=http://localhost:3997 ZAPI_INSTANCE_ID=inst-teste ZAPI_INSTANCE_TOKEN=tok-teste ZAPI_CLIENT_TOKEN=client-teste npx next start -p 3100
 node e2e/welcome.smoke.mjs           # página /manual, PDF, envio único, falha registrada, reenvio (as mesmas ZAPI_* valem para o billing-pix)
+# Cartão com dia de fechamento/vencimento + mensagens automáticas (sem uso / não pagou / SAIR), contra o Z-API FALSO. Suba o app com:
+#   ZAPI_BASE_URL=http://localhost:3997 ZAPI_INSTANCE_ID=inst-teste ZAPI_INSTANCE_TOKEN=tok-teste ZAPI_CLIENT_TOKEN=client-teste \
+#   AUTOMACOES_IGNORAR_HORARIO=1 AUTOMACOES_INTERVALO_MS=0 AUTOMACOES_DESDE=2026-09-15T00:00:00-03:00 npx next start -p 3100
+WHATSAPP_WEBHOOK_SECRET=... node e2e/cartao-ciclo-automacoes.smoke.mjs
 ```
 
 Precisam do Chromium do Playwright instalado (`npx playwright install chromium`, se ainda não tiver). Os testes que criam usuários usam `e2e/helpers/testDb.mjs` (conecta direto no banco com `DATABASE_URL`) para simular ações que só um admin faria em `/admin` — sem isso, todo teste de outra funcionalidade teria que primeiro passar pela UI do painel administrativo.
@@ -176,3 +180,12 @@ Ainda não publicado — nada foi colocado em produção nesta sessão. O caminh
 - Quando a conta é liberada (1º pagamento, ou aprovação no painel admin), o app manda no WhatsApp do cadastro uma mensagem de boas-vindas pedindo para salvar o contato, e em seguida o manual em PDF (`src/lib/whatsapp/welcome.ts`). Colunas de controle: migração `0012_welcome_message`.
 - O envio usa o Z-API direto. Variáveis no Render (serviço `app-financeiro`): `ZAPI_INSTANCE_ID`, `ZAPI_INSTANCE_TOKEN`, `ZAPI_CLIENT_TOKEN`. Sem elas nada é enviado, e o painel admin mostra o erro e permite reenviar.
 - Falha de envio não é repetida sozinha (para nunca duplicar mensagem): o painel admin tem o botão "Enviar/Reenviar boas-vindas", que marca o pedido e chama `POST /api/boas-vindas/processar`.
+
+## Mensagens automáticas pelo WhatsApp (09/10/2026)
+
+Regras em `src/lib/business/automations.ts`, envio em `src/lib/whatsapp/automations.ts`:
+- **Sem uso**: conta ativa sem nenhum lançamento (gasto, compra no cartão ou conta fixa) recebe uma mensagem aos 7 dias e um reforço aos 14 dias depois de liberada.
+- **Não pagou**: cadastro sem pagamento recebe "ficou alguma dúvida?" 1 hora depois e até 6 ofertas curtas, uma a cada 15 dias. Para ao pagar ou ao responder **SAIR** (o n8n manda `optOut: true` para `/api/whatsapp/lancamento`; grava `users.marketing_opt_out_at`).
+- Só das 8h às 22h (Brasília). Nunca repete (tabela `automation_messages`, chave única). Falha: tenta de novo após 6 h, até 3 vezes.
+- Rotina: `src/instrumentation.ts` chama `POST /api/automacoes/processar` a cada 10 minutos, **só com `AUTOMACOES_WHATSAPP=1`**.
+- Variáveis opcionais: `AUTOMACOES_DESDE` (data ISO; só entra quem se cadastrou/foi liberado a partir dela; padrão 09/10/2026), e, só para testes, `AUTOMACOES_IGNORAR_HORARIO=1` e `AUTOMACOES_INTERVALO_MS`.

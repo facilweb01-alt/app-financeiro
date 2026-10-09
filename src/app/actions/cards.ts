@@ -17,6 +17,7 @@ import {
 } from "@/lib/cardStatements";
 import { monthBounds, todaySaoPaulo } from "@/lib/business/dates";
 import { sumAmounts } from "@/lib/business/cardStatements";
+import { firstDueDateForPurchase, hasCardCycle } from "@/lib/business/cardCycle";
 import { formatBRL, formatDateBR, formatYearMonthBR } from "@/lib/format";
 import type { SimpleFormState } from "@/lib/form-state";
 
@@ -43,19 +44,62 @@ function settledNotice(settled: SettledInstallment[], installmentsTotal: number)
 // ---------------------------------------------------------------------------
 // Cartão
 // ---------------------------------------------------------------------------
-const CardSchema = z.object({
-  name: z.string().trim().min(1, "Informe o nome do cartão."),
-});
+// Dia do fechamento e do vencimento: os dois juntos (1–31) ou nenhum.
+const cycleDay = z.preprocess(
+  (v) => (v === null || v === undefined || String(v).trim() === "" ? null : Number(v)),
+  z.number().int("Dia inválido.").min(1, "O dia vai de 1 a 31.").max(31, "O dia vai de 1 a 31.").nullable()
+);
+
+const CardSchema = z
+  .object({
+    name: z.string().trim().min(1, "Informe o nome do cartão."),
+    closingDay: cycleDay,
+    dueDay: cycleDay,
+  })
+  .refine((d) => (d.closingDay === null) === (d.dueDay === null), {
+    message: "Informe o dia do fechamento e o dia do vencimento (os dois).",
+  });
+
+function parseCardForm(formData: FormData) {
+  return CardSchema.safeParse({
+    name: formData.get("name"),
+    closingDay: formData.get("closingDay"),
+    dueDay: formData.get("dueDay"),
+  });
+}
 
 export async function createCard(_prev: SimpleFormState, formData: FormData): Promise<SimpleFormState> {
   const session = await verifySession();
-  const parsed = CardSchema.safeParse({ name: formData.get("name") });
+  const parsed = parseCardForm(formData);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
-  await withRLS(session.userId, () => db.insert(creditCards).values({ userId: session.userId, name: parsed.data.name }));
+  const { name, closingDay, dueDay } = parsed.data;
+  await withRLS(session.userId, () => db.insert(creditCards).values({ userId: session.userId, name, closingDay, dueDay }));
   revalidatePath("/cartoes");
   return { ok: true };
+}
+
+/** Editar nome, dia do fechamento e dia do vencimento de um cartão. Não mexe em compras já lançadas. */
+export async function updateCard(_prev: SimpleFormState, formData: FormData): Promise<SimpleFormState> {
+  const session = await verifySession();
+  const id = String(formData.get("id") ?? "");
+  const parsed = parseCardForm(formData);
+  if (!id) return { ok: false, error: "Cartão não encontrado." };
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+  const { name, closingDay, dueDay } = parsed.data;
+  const updated = await withRLS(session.userId, () =>
+    db
+      .update(creditCards)
+      .set({ name, closingDay, dueDay })
+      .where(and(eq(creditCards.id, id), eq(creditCards.userId, session.userId)))
+      .returning({ id: creditCards.id })
+  );
+  if (updated.length === 0) return { ok: false, error: "Cartão não encontrado." };
+  revalidateCardViews();
+  return { ok: true, notice: "Cartão atualizado. Vale para as próximas compras; as já lançadas não mudam." };
 }
 
 export async function deleteCard(formData: FormData) {
@@ -74,7 +118,8 @@ export async function deleteCard(formData: FormData) {
 const CardPurchaseSchema = z.object({
   cardId: z.string().min(1),
   purchaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data da compra inválida."),
-  firstDueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de vencimento inválida."),
+  // Vazio = calcular pelo dia de fechamento/vencimento do cartão.
+  firstDueDate: z.union([z.literal(""), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Data de vencimento inválida.")]),
   description: z.string().trim().min(1, "Informe a descrição da compra."),
   categoryId: z.string().optional(),
   totalAmount: z.coerce.number().positive("Valor precisa ser maior que zero."),
@@ -87,7 +132,7 @@ export async function createCardPurchase(_prev: SimpleFormState, formData: FormD
   const parsed = CardPurchaseSchema.safeParse({
     cardId: formData.get("cardId"),
     purchaseDate: formData.get("purchaseDate"),
-    firstDueDate: formData.get("firstDueDate"),
+    firstDueDate: formData.get("firstDueDate") ?? "",
     description: formData.get("description"),
     categoryId: formData.get("categoryId") || undefined,
     totalAmount: formData.get("totalAmount"),
@@ -99,26 +144,38 @@ export async function createCardPurchase(_prev: SimpleFormState, formData: FormD
   }
   const data = parsed.data;
 
-  let generated;
-  try {
-    generated = generateInstallments({
-      totalAmount: data.totalAmount,
-      installmentsTotal: data.installmentsTotal,
-      firstDueDate: data.firstDueDate,
-    });
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Não foi possível gerar as parcelas." };
-  }
-
   const result = await withRLS(session.userId, async (): Promise<{ ok: true; notice?: string } | { ok: false; error: string }> => {
     // Garante que o cartão pertence ao usuário logado.
     const [card] = await db
-      .select({ id: creditCards.id })
+      .select({ id: creditCards.id, closingDay: creditCards.closingDay, dueDay: creditCards.dueDay })
       .from(creditCards)
       .where(and(eq(creditCards.id, data.cardId), eq(creditCards.userId, session.userId)))
       .limit(1);
     if (!card) {
       return { ok: false, error: "Cartão não encontrado." };
+    }
+
+    // 1º vencimento: o informado; vazio = calculado pelo fechamento/vencimento do cartão.
+    let firstDueDate = data.firstDueDate;
+    if (!firstDueDate) {
+      if (!hasCardCycle(card)) {
+        return {
+          ok: false,
+          error: "Informe o 1º vencimento (ou cadastre o dia do fechamento e do vencimento do cartão para o app calcular sozinho).",
+        };
+      }
+      firstDueDate = firstDueDateForPurchase(data.purchaseDate, card);
+    }
+
+    let generated;
+    try {
+      generated = generateInstallments({
+        totalAmount: data.totalAmount,
+        installmentsTotal: data.installmentsTotal,
+        firstDueDate,
+      });
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : "Não foi possível gerar as parcelas." };
     }
 
     const [purchase] = await db

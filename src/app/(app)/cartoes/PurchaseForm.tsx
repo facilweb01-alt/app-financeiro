@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { createCardPurchase } from "@/app/actions/cards";
 import type { SimpleFormState } from "@/lib/form-state";
+import { describeCardCycle, firstDueDateForPurchase, type CardCycle } from "@/lib/business/cardCycle";
 
 type Category = { id: string; label: string };
 
@@ -11,16 +12,37 @@ export function PurchaseForm({
   categories,
   today,
   defaultFirstDue,
+  cycle,
 }: {
   cardId: string;
   categories: Category[];
   today: string; // "YYYY-MM-DD" no fuso de São Paulo
-  // Hoje, ou o mesmo dia do primeiro mês ainda aberto quando a fatura deste
-  // mês já foi fechada (para a compra nova não cair na fatura fechada).
+  // Cartão SEM dia de fechamento/vencimento: hoje, ou o mesmo dia do
+  // primeiro mês ainda aberto quando a fatura deste mês já foi fechada.
   defaultFirstDue: string;
+  // Dia do fechamento e do vencimento do cartão (null = cartão sem os dias).
+  cycle: CardCycle | null;
 }) {
   const [state, action, pending] = useActionState<SimpleFormState, FormData>(createCardPurchase, undefined);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // Com o ciclo do cartão, o 1º vencimento acompanha a data da compra até a
+  // pessoa mudar o vencimento à mão. Sem ciclo, vale a sugestão do servidor
+  // (que muda sozinha quando a fatura do mês é fechada).
+  const [purchaseDate, setPurchaseDate] = useState(today);
+  const [manualDue, setManualDue] = useState<string | null>(null);
+  const autoDue = cycle && /^\d{4}-\d{2}-\d{2}$/.test(purchaseDate) ? firstDueDateForPurchase(purchaseDate, cycle) : defaultFirstDue;
+  const firstDue = manualDue ?? autoDue;
+
+  // Compra salva: volta para "hoje" e para o vencimento automático.
+  const [handledState, setHandledState] = useState(state);
+  if (state !== handledState) {
+    setHandledState(state);
+    if (state?.ok) {
+      setPurchaseDate(today);
+      setManualDue(null);
+    }
+  }
 
   useEffect(() => {
     if (!pending && state?.ok) {
@@ -45,7 +67,8 @@ export function PurchaseForm({
         <input
           type="date"
           name="purchaseDate"
-          defaultValue={today}
+          value={purchaseDate}
+          onChange={(e) => setPurchaseDate(e.target.value)}
           required
           className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
@@ -55,7 +78,9 @@ export function PurchaseForm({
         <input
           type="date"
           name="firstDueDate"
-          defaultValue={defaultFirstDue}
+          value={firstDue}
+          onChange={(e) => setManualDue(e.target.value)}
+          data-testid="purchase-first-due"
           required
           className="w-full rounded-lg border px-2 py-1.5 text-sm border-navy-700 bg-navy-900"
         />
@@ -98,10 +123,17 @@ export function PurchaseForm({
         </select>
       </div>
 
-      {defaultFirstDue !== today && (
-        <p className="col-span-2 text-xs text-navy-400 md:col-span-6">
-          A fatura deste mês já foi fechada: o 1º vencimento já vem sugerido para o próximo mês em aberto.
+      {cycle ? (
+        <p className="col-span-2 text-xs text-navy-400 md:col-span-6" data-testid="purchase-cycle-hint">
+          Lance com a data em que a compra aconteceu: o 1º vencimento é calculado pelo cartão ({describeCardCycle(cycle)}).
+          Se precisar, altere o vencimento.
         </p>
+      ) : (
+        defaultFirstDue !== today && (
+          <p className="col-span-2 text-xs text-navy-400 md:col-span-6">
+            A fatura deste mês já foi fechada: o 1º vencimento já vem sugerido para o próximo mês em aberto.
+          </p>
+        )
       )}
       {state && !state.ok && <p className="col-span-2 text-sm md:col-span-6 text-red-400">{state.error}</p>}
       {state?.ok && state.notice && (
