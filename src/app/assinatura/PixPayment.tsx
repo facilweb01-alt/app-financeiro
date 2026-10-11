@@ -10,12 +10,27 @@ import { trackMeta } from "@/components/tracking/metaPixel";
 // Asaas atualiza o banco; a cada 30s também pergunta direto ao Asaas, caso o
 // webhook atrase). Quando o pagamento cai, avisa e leva para o app.
 
-export function CopyPixButton({ payload }: { payload: string }) {
+// "Começou a pagar" (clicou para copiar o Pix ou seguiu para o cartão): avisa
+// a medição de anúncios, só de quem aceitou os cookies e só na 1ª mensalidade.
+// Uma vez por navegador. Sem dado da pessoa: só o valor do plano.
+export type PixelCheckout = { pixelId: string; value: number; currency: string } | null;
+
+function trackCheckoutStart(pixel: PixelCheckout, method: "pix" | "cartao") {
+  if (!pixel) return;
+  try {
+    trackMeta(pixel.pixelId, "InitiateCheckout", { value: pixel.value, currency: pixel.currency, content_name: method }, "checkout");
+  } catch {
+    // medição nunca pode atrapalhar o pagamento
+  }
+}
+
+export function CopyPixButton({ payload, pixel = null }: { payload: string; pixel?: PixelCheckout }) {
   const [copied, setCopied] = useState(false);
   return (
     <button
       type="button"
       onClick={async () => {
+        trackCheckoutStart(pixel, "pix");
         try {
           await navigator.clipboard.writeText(payload);
         } catch {
@@ -133,11 +148,14 @@ export function CardCheckoutButton({
   label,
   variant = "primary",
   defaultOpen = false,
+  pixel = null,
 }: {
   label: string;
   variant?: "primary" | "secondary";
   /** Já mostra o formulário (sem precisar clicar no botão antes). */
   defaultOpen?: boolean;
+  /** Só na 1ª mensalidade: conta "começou a pagar" ao seguir para o cartão. */
+  pixel?: PixelCheckout;
 }) {
   const [state, formAction, pending] = useActionState(payWithCard, { error: null });
   const [open, setOpen] = useState(defaultOpen);
@@ -183,7 +201,7 @@ export function CardCheckoutButton({
   }
 
   return (
-    <form action={formAction} className="flex flex-col gap-2.5" data-testid="card-form">
+    <form action={formAction} onSubmit={() => trackCheckoutStart(pixel, "cartao")} className="flex flex-col gap-2.5" data-testid="card-form">
       <ol className="flex flex-col gap-1 rounded-xl border border-navy-700/70 bg-navy-950/60 p-3 text-xs text-navy-300" data-testid="card-steps">
         <li>
           <b className="text-navy-100">1.</b> Preencha abaixo o endereço de cobrança do cartão.

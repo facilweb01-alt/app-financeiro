@@ -18,6 +18,7 @@ import {
   sumAmounts,
 } from "../cardStatements";
 import { computeSpendingStatus, spendingStatusSentence } from "../spendingStatus";
+import { describeSignupSource, normalizeSignupSource, registerHrefWithSource, SIGNUP_SOURCE_MAX_LENGTH } from "../signupSource";
 import {
   describeCardCycle,
   firstDueDateForPurchase,
@@ -1198,4 +1199,71 @@ test("automações: textos — nome, link, preço e SAIR só nas mensagens de of
 test("automações: reconhece SAIR / PARAR / STOP e não confunde com outras mensagens", () => {
   for (const t of ["SAIR", "sair", " Sair. ", "PARAR", "pare", "stop", "Não quero mais receber"]) assert.equal(isOptOutMessage(t), true, t);
   for (const t of ["quero sair do vermelho", "gastei 45 no mercado", "cancelar assinatura", "", null]) assert.equal(isOptOutMessage(t), false, String(t));
+});
+
+// ---------------------------------------------------------------------------
+// Origem do cadastro (11/10/2026) — src/lib/business/signupSource.ts
+// ---------------------------------------------------------------------------
+
+test("origem do cadastro: lê os utm_* do endereço do anúncio, em ordem fixa", () => {
+  const url = "?utm_content=VID%20REAL%201&utm_source=meta&utm_medium=cpc&utm_campaign=C1+Vendas&fbclid=IwAR123abc";
+  assert.equal(normalizeSignupSource(url), "utm_source=meta&utm_medium=cpc&utm_campaign=C1+Vendas&utm_content=VID+REAL+1");
+});
+
+test("origem do cadastro: nunca guarda identificador de clique nem parâmetro desconhecido", () => {
+  const out = normalizeSignupSource("utm_source=meta&fbclid=abc&gclid=def&email=a@b.com&cpf=12345678909") ?? "";
+  assert.equal(out, "utm_source=meta");
+  assert.doesNotMatch(out, /fbclid|gclid|email|cpf/);
+});
+
+test("origem do cadastro: sem parâmetros conhecidos vira nulo (acesso direto)", () => {
+  for (const v of ["", "?", "?fbclid=abc", "?utm_source=", "?utm_source=%20%20", null, undefined]) {
+    assert.equal(normalizeSignupSource(v), null, String(v));
+  }
+  assert.equal(normalizeSignupSource({}), null);
+});
+
+test("origem do cadastro: aceita o searchParams do Next e URLSearchParams; limpa e corta valores", () => {
+  assert.equal(normalizeSignupSource({ utm_source: ["meta", "outro"], utm_content: "IMG01", x: "y" }), "utm_source=meta&utm_content=IMG01");
+  assert.equal(normalizeSignupSource(new URLSearchParams("utm_campaign=C2%20Trafego")), "utm_campaign=C2+Trafego");
+  const long = normalizeSignupSource({ utm_campaign: "a".repeat(500) })!;
+  assert.equal(new URLSearchParams(long).get("utm_campaign")!.length, 80);
+  // quebra de linha e caractere de controle viram espaço; nada de marcação passa cru
+  const dirty = normalizeSignupSource({ utm_content: "linha1\nlinha2\u0000<script>" })!;
+  assert.equal(new URLSearchParams(dirty).get("utm_content"), "linha1 linha2 <script>");
+  assert.doesNotMatch(dirty, /[<>\n]/);
+  // o valor completo cabe no limite da coluna (check de 400 caracteres da migração 0014)
+  // o texto gravado nunca passa do limite da coluna (check de 400 caracteres da migração 0014),
+  // nem com acentos e emojis, que ocupam mais espaço depois de codificados
+  for (const ch of ["a", "ç", "😀", "%", " x"]) {
+    const worst = normalizeSignupSource({ utm_source: ch.repeat(300), utm_medium: ch.repeat(300), utm_campaign: ch.repeat(300), utm_content: ch.repeat(300) });
+    assert.ok(worst === null || worst.length <= SIGNUP_SOURCE_MAX_LENGTH, `${ch}: ${worst?.length}`);
+    if (worst) assert.equal(normalizeSignupSource(worst), worst, "normalizar de novo não muda");
+  }
+  assert.ok(normalizeSignupSource({ utm_campaign: "ç".repeat(300) })!.length <= SIGNUP_SOURCE_MAX_LENGTH);
+});
+
+test("origem do cadastro: normalizar duas vezes dá o mesmo resultado (o cadastro revalida o que o navegador mandou)", () => {
+  const once = normalizeSignupSource("?utm_source=meta&utm_campaign=C1%20%7C%20Vendas%20%26%20Cadastro&utm_content=CAR%20B");
+  assert.equal(normalizeSignupSource(once), once);
+});
+
+test("origem do cadastro: link do cadastro leva a origem; sem origem fica /registrar", () => {
+  assert.equal(registerHrefWithSource({ utm_source: "meta", utm_content: "VID A", fbclid: "zzz" }), "/registrar?utm_source=meta&utm_content=VID+A");
+  assert.equal(registerHrefWithSource({ fbclid: "zzz" }), "/registrar");
+  assert.equal(registerHrefWithSource(undefined), "/registrar");
+});
+
+test("origem do cadastro: descrição curta para relatório", () => {
+  assert.equal(describeSignupSource("utm_source=meta&utm_medium=cpc&utm_campaign=C1+Vendas&utm_content=VID+REAL+1"), "meta · C1 Vendas · VID REAL 1");
+  assert.equal(describeSignupSource(null), "Direto (sem anúncio identificado)");
+  assert.equal(describeSignupSource("fbclid=1"), "Direto (sem anúncio identificado)");
+});
+
+test("garantia de 7 dias aparece nas mensagens de quem não pagou", () => {
+  const base = { name: "ana", appUrl: "https://contay.com.br" };
+  for (const step of [0, 1, 2, 3]) {
+    assert.match(buildAutomationMessage({ ...base, kind: "nao_pagou", step }), /garantia de 7 dias/);
+  }
+  assert.doesNotMatch(buildAutomationMessage({ ...base, kind: "sem_uso", step: 1 }), /garantia/);
 });

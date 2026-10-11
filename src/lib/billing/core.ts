@@ -19,6 +19,11 @@ import { addMonthsClamped } from "@/lib/business/dates";
 
 export const PLAN_PRICE = 29.9;
 export const PLAN_NAME = "Contay — plano mensal";
+// Garantia do primeiro pagamento: quem pedir o cancelamento ao suporte em até
+// 7 dias depois de pagar a 1ª mensalidade recebe o valor de volta (é também o
+// prazo de arrependimento das compras pela internet). Usado nos textos da
+// página de vendas, do cadastro, da tela de pagamento e dos Termos.
+export const GUARANTEE_DAYS = 7;
 export const GRACE_DAYS = 3; // dias de tolerância depois do vencimento
 export const REMIND_DAYS = 5; // começa a avisar no app X dias antes de vencer
 

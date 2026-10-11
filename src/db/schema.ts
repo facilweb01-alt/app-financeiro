@@ -60,6 +60,9 @@ export const users = pgTable("users", {
     // Respondeu SAIR no WhatsApp: não recebe mais as ofertas automáticas
     // (migração 0013).
     marketingOptOutAt: timestamp("marketing_opt_out_at", { withTimezone: true }),
+    // De qual anúncio/link veio o cadastro ("utm_source=meta&utm_campaign=...").
+    // Ver src/lib/business/signupSource.ts e a migração 0014.
+    signupSource: text("signup_source"),
     // --- Painel administrativo / SaaS pago (ver drizzle/migrations/0004) -----
     // role: quem pode acessar /admin. status: controla se a conta consegue
     // usar o app de verdade — contas novas nascem "pending" e ficam bloqueadas

@@ -19,7 +19,7 @@ export type ManualSection = {
 
 export const MANUAL_TITLE = "Manual do Contay";
 export const MANUAL_SUBTITLE = "Tudo o que o app faz, explicado passo a passo.";
-export const MANUAL_UPDATED = "09/10/2026";
+export const MANUAL_UPDATED = "11/10/2026";
 
 export const MANUAL_SECTIONS: ManualSection[] = [
   {
@@ -178,6 +178,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     items: [
       "O que ele faz: gastos por categoria com a porcentagem da renda, cartões com parcelas e faturas, contas fixas, investimentos e metas, e o resumo do mês em PDF.",
       "Quanto custa: R$ 29,90 por mês, sem fidelidade. Pode cancelar quando quiser.",
+      "Garantia de 7 dias: se assinar e não gostar, avise o suporte por este WhatsApp em até 7 dias depois do primeiro pagamento e o valor é devolvido.",
       "Como assinar: na página contay.com.br, toque em começar, preencha nome, e-mail, WhatsApp, CPF e senha e pague com Pix ou cartão de crédito. Com o Pix pago, o acesso é liberado na hora.",
       "Começou o cadastro e não pagou? Entre em contay.com.br/assinatura com o e-mail e a senha do cadastro e conclua com Pix ou cartão.",
       "Depois do pagamento chegam, por este WhatsApp, as boas-vindas e este manual em PDF.",

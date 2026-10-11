@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getRawSession } from "@/lib/dal";
 import { logout } from "@/app/actions/auth";
 import { getBillingOverview } from "@/lib/billing/service";
-import { cardFirstDueDate, computeBillingState, PLAN_PRICE, todayInSaoPaulo, isPaidStatus } from "@/lib/billing/core";
+import { cardFirstDueDate, computeBillingState, GUARANTEE_DAYS, PLAN_PRICE, todayInSaoPaulo, isPaidStatus } from "@/lib/billing/core";
 import { formatBRL, formatDateBR, formatDateTimeBR } from "@/lib/format";
 import { Logo } from "@/components/Logo";
 import { CardCheckoutButton, CopyPixButton, PaymentWatcher } from "./PixPayment";
@@ -94,6 +94,12 @@ export default async function AssinaturaPage({
   const purchase = { value: PLAN_PRICE, currency: "BRL" };
   const firstPayment = history.filter((h) => isPaidStatus(h.status)).length <= 1;
   const pixelEvents: MetaEventSpec[] = [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
+  // "Começou a pagar" (copiou o Pix ou seguiu para o cartão): só enquanto a
+  // pessoa ainda espera a 1ª mensalidade.
+  const checkoutPixel = pixelId && user.status === "pending" ? { pixelId, ...purchase } : null;
+  const firstPaymentPending = user.status === "pending" && !canceled;
+  const showPixBlock = Boolean(openPayment && openPayment.billingType !== "CREDIT_CARD");
+  const showCardBlock = configured && !card && !canceled && !error;
   // Voltou do Checkout do cartão já com a conta liberada (no Pix, quem avisa
   // é o PaymentWatcher, na hora em que o pagamento cai).
   if (cartaoParam === "ok" && user.status === "active" && firstPayment) {
@@ -189,6 +195,22 @@ export default async function AssinaturaPage({
           )}
         </div>
 
+        {firstPaymentPending && (
+          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-100" data-testid="assinatura-garantia">
+            <b>Garantia de {GUARANTEE_DAYS} dias.</b> Assine, use à vontade e, se não gostar, avise o suporte pelo WhatsApp em até{" "}
+            {GUARANTEE_DAYS} dias: cancelamos e devolvemos o valor. Sem fidelidade.
+          </div>
+        )}
+
+        {firstPaymentPending && showCardBlock && showPixBlock && (
+          <p className="-mt-2 text-center text-sm text-navy-300">
+            Prefere pagar com Pix?{" "}
+            <a href="#pagar-pix" className="font-semibold text-emerald-400 underline hover:text-emerald-300" data-testid="ir-para-pix">
+              Ir para o Pix ↓
+            </a>
+          </p>
+        )}
+
         {!configured && (
           <div className="rounded-2xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm text-amber-200">
             A cobrança automática está sendo configurada. Seu cadastro foi recebido — em breve o Pix aparece aqui.
@@ -259,7 +281,7 @@ export default async function AssinaturaPage({
 
         {/* Cartão de crédito em 1º lugar (pedido do Marcelo, 09/10), já aberto;
             o Pix vem logo abaixo como segunda opção. */}
-        {configured && !card && !canceled && !error && (
+        {showCardBlock && (
           <div className="glass-card flex flex-col gap-3 rounded-2xl p-5">
             <div className="flex items-center justify-between gap-2">
               <div className="font-semibold text-navy-50">💳 {user.status === "pending" ? "1ª opção: cartão de crédito" : "Pagar com cartão de crédito"}</div>
@@ -277,6 +299,7 @@ export default async function AssinaturaPage({
             <CardCheckoutButton
               label={user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"}
               defaultOpen
+              pixel={checkoutPixel}
             />
             <p className="text-center text-xs text-navy-500">
               🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.
@@ -285,7 +308,7 @@ export default async function AssinaturaPage({
         )}
 
         {openPayment && openPayment.billingType !== "CREDIT_CARD" && (
-          <div className="glass-card flex flex-col gap-4 rounded-2xl p-5">
+          <div id="pagar-pix" className="glass-card flex scroll-mt-4 flex-col gap-4 rounded-2xl p-5">
             <div className="flex items-baseline justify-between">
               <div className="font-semibold text-navy-50">
                 {configured && !card && !canceled && !error && user.status === "pending" ? "2ª opção: Pix" : "Pagar com Pix"}
@@ -318,7 +341,7 @@ export default async function AssinaturaPage({
                   rows={3}
                   className="w-full resize-none rounded-xl border border-navy-700 bg-navy-950 p-3 font-mono text-[11px] text-navy-200"
                 />
-                <CopyPixButton payload={openPayment.pixPayload} />
+                <CopyPixButton payload={openPayment.pixPayload} pixel={checkoutPixel} />
               </>
             )}
             {receiver && (

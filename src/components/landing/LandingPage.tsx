@@ -3,7 +3,7 @@ import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/figtree";
 import "./landing.css";
 import { LogoSymbol } from "@/components/Logo";
-import { PLAN_PRICE } from "@/lib/billing/core";
+import { GUARANTEE_DAYS, PLAN_PRICE } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
 import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
@@ -23,7 +23,15 @@ import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 const PRICE = formatBRL(PLAN_PRICE);
 const PRICE_NUMBER = PLAN_PRICE.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
-export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
+export function LandingPage({
+  pixelId = null,
+  registerHref = "/registrar",
+}: {
+  pixelId?: string | null;
+  // Endereço do cadastro, já com a origem do anúncio ("/registrar?utm_source=...")
+  // quando a pessoa chegou por um anúncio. Ver src/app/page.tsx.
+  registerHref?: string;
+}) {
   return (
     <div className="lp">
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
@@ -46,7 +54,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
             <a className="link hide-sm" href="#como-funciona">Como funciona</a>
             <a className="link hide-sm" href="#duvidas">Dúvidas</a>
             <Link className="link" href="/login">Entrar</Link>
-            <Link className="btn btn-cta" href="/registrar">Quero esse app</Link>
+            <Link className="btn btn-cta" href={registerHref}>Quero esse app</Link>
           </nav>
         </div>
       </header>
@@ -62,13 +70,14 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
               <h1>Seu dinheiro acaba antes do mês <span className="grad">e você não sabe para onde foi?</span></h1>
               <p className="lead"><strong>O Contay mostra para onde vai cada real.</strong> Você manda o gasto pelo WhatsApp e acompanha tudo no app, no celular ou no computador: cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
               <div className="ctas">
-                <Link className="btn btn-cta" href="/registrar">Quero ter controle do meu dinheiro <span aria-hidden="true">→</span></Link>
+                <Link className="btn btn-cta" href={registerHref}>Quero ter controle do meu dinheiro <span aria-hidden="true">→</span></Link>
                 <a className="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
               </div>
               <div className="trust">
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem planilha</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Não pede senha do banco</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem fidelidade</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Garantia de {GUARANTEE_DAYS} dias</span>
               </div>
             </div>
 
@@ -125,7 +134,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
             </div>
             <div className="turn">
               <p>Você não precisa de mais força de vontade. Precisa de um jeito que <strong>dê menos trabalho do que gastar.</strong> Mandar uma mensagem leva 5 segundos.</p>
-              <Link className="btn btn-cta" href="/registrar">Quero resolver isso <span aria-hidden="true">→</span></Link>
+              <Link className="btn btn-cta" href={registerHref}>Quero resolver isso <span aria-hidden="true">→</span></Link>
             </div>
           </div>
         </section>
@@ -357,8 +366,9 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Manual em PDF e suporte pelo WhatsApp</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Pague com Pix ou cartão de crédito recorrente</li>
                   </ul>
-                  <Link className="btn btn-cta" href="/registrar">Quero esse app <span aria-hidden="true">→</span></Link>
+                  <Link className="btn btn-cta" href={registerHref}>Quero esse app <span aria-hidden="true">→</span></Link>
                   <p className="fine">Pix ou cartão de crédito (cobrança automática), todo mês no dia em que você contratou. Sem fidelidade.</p>
+                  <p className="fine" data-testid="landing-guarantee"><strong>Garantia de {GUARANTEE_DAYS} dias:</strong> assinou e não gostou? Avise o suporte pelo WhatsApp em até {GUARANTEE_DAYS} dias e devolvemos o valor da primeira mensalidade.</p>
                 </div>
               </div>
             </div>
@@ -375,6 +385,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
               <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não precisa baixar nada da loja. O Contay abre no navegador do celular ou do computador. Para ter o ícone na tela inicial e abrir como aplicativo: no Android (Chrome), toque no menu e em “Adicionar à tela inicial”; no iPhone (Safari), toque em Compartilhar e em “Adicionar à Tela de Início”.</p></details>
               <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>{PRICE} por mês, no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
               <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
+              <details><summary>E se eu assinar e não gostar?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem {GUARANTEE_DAYS} dias de garantia. Se nesse prazo, contado do primeiro pagamento, você achar que o Contay não é para você, avise o suporte pelo WhatsApp: cancelamos a assinatura e devolvemos o valor da primeira mensalidade, sem precisar explicar o motivo.</p></details>
               <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou.</p></details>
               <details><summary>E se eu tiver dúvida para usar?<span className="pl" aria-hidden="true">+</span></summary><p>Pergunte no mesmo WhatsApp em que você lança os gastos, por exemplo “como cadastro um cartão?”. A resposta vem na hora, com base no manual. Quando o caso precisa de uma pessoa, um atendente continua a conversa. O <Link href="/manual">manual completo</Link> também fica disponível no app, em Ajuda.</p></details>
               <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos não são vendidos nem repassados a anunciantes. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
@@ -409,8 +420,8 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
             <div className="final">
               <h2>Daqui a 30 dias você pode estar no mesmo lugar. Ou pode saber exatamente para onde foi cada real.</h2>
               <p>Crie sua conta, pague com Pix ou cartão e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.</p>
-              <Link className="btn btn-cta" href="/registrar">Quero ter controle agora <span aria-hidden="true">→</span></Link>
-              <div className="fine">{PRICE}/mês · Pix ou cartão de crédito · sem fidelidade</div>
+              <Link className="btn btn-cta" href={registerHref}>Quero ter controle agora <span aria-hidden="true">→</span></Link>
+              <div className="fine">{PRICE}/mês · Pix ou cartão de crédito · sem fidelidade · garantia de {GUARANTEE_DAYS} dias</div>
             </div>
           </div>
         </section>
@@ -435,7 +446,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
         </div>
       </footer>
 
-      <LandingEffects />
+      <LandingEffects registerHref={registerHref} />
     </div>
   );
 }

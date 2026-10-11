@@ -4,6 +4,7 @@ import { getOptionalSession } from "@/lib/dal";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { CookieBanner, MetaPixel } from "@/components/tracking/MetaPixel";
 import { metaPixelId } from "@/lib/metaPixelId";
+import { registerHrefWithSource } from "@/lib/business/signupSource";
 
 export const metadata: Metadata = {
   title: "Contay — controle financeiro pelo WhatsApp",
@@ -22,13 +23,20 @@ export const metadata: Metadata = {
 
 // "/" é a página de vendas para quem não está logado; quem já tem sessão vai
 // direto para o app.
-export default async function RootPage() {
+export default async function RootPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const session = await getOptionalSession();
   if (session) redirect("/dashboard");
   const pixelId = metaPixelId();
+  // Quem chega por um anúncio traz "utm_*" no endereço; os botões de cadastro
+  // levam isso adiante para o cadastro saber de qual anúncio a pessoa veio.
+  const registerHref = registerHrefWithSource(await searchParams);
   return (
     <>
-      <LandingPage pixelId={pixelId} />
+      <LandingPage pixelId={pixelId} registerHref={registerHref} />
       <MetaPixel pixelId={pixelId} events={[{ name: "ViewContent", params: { content_name: "Página de vendas" } }]} />
       <CookieBanner pixelId={pixelId} />
     </>

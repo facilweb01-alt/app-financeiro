@@ -59,6 +59,10 @@ node e2e/welcome.smoke.mjs           # página /manual, PDF, envio único, falha
 #   ZAPI_BASE_URL=http://localhost:3997 ZAPI_INSTANCE_ID=inst-teste ZAPI_INSTANCE_TOKEN=tok-teste ZAPI_CLIENT_TOKEN=client-teste \
 #   AUTOMACOES_IGNORAR_HORARIO=1 AUTOMACOES_INTERVALO_MS=0 AUTOMACOES_DESDE=2026-09-15T00:00:00-03:00 npx next start -p 3100
 WHATSAPP_WEBHOOK_SECRET=... node e2e/cartao-ciclo-automacoes.smoke.mjs
+# Ajustes de conversão (11/10/2026): origem do cadastro (utm_* do anúncio gravados em users.signup_source), garantia de 7 dias,
+# atalho para o Pix e evento "começou a pagar". Suba o app como no pixel.smoke.mjs (META_PIXEL_ID de teste + Asaas falso com
+# ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout + Z-API falso):
+node e2e/conversao-origem-garantia.smoke.mjs
 ```
 
 Precisam do Chromium do Playwright instalado (`npx playwright install chromium`, se ainda não tiver). Os testes que criam usuários usam `e2e/helpers/testDb.mjs` (conecta direto no banco com `DATABASE_URL`) para simular ações que só um admin faria em `/admin` — sem isso, todo teste de outra funcionalidade teria que primeiro passar pela UI do painel administrativo.

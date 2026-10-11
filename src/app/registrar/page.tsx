@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { signup } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
+import { GUARANTEE_DAYS } from "@/lib/billing/core";
+import { normalizeSignupSource } from "@/lib/business/signupSource";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 border-navy-700 bg-navy-950";
@@ -15,6 +17,15 @@ function FieldError({ errors }: { errors?: string[] }) {
 
 export default function RegistrarPage() {
   const [state, action, pending] = useActionState(signup, undefined);
+  // De qual anúncio a pessoa veio: a página de vendas manda os "utm_*" no
+  // endereço desta página. Vai num campo escondido do formulário; nada fica
+  // gravado no navegador.
+  const [source, setSource] = useState("");
+  useEffect(() => {
+    // Lido depois de montar: o endereço só existe no navegador.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSource(normalizeSignupSource(window.location.search) ?? "");
+  }, []);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
@@ -28,12 +39,18 @@ export default function RegistrarPage() {
 
         <div className="rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
           <h1 className="mb-1 text-xl font-semibold text-navy-100">Quero o Contay</h1>
-          <p className="mb-5 text-sm text-navy-400">
-            Preencha seus dados. No passo seguinte aparece o Pix de <strong className="text-navy-200">R$ 29,90</strong>{" "}
-            — pagou, o acesso é liberado na hora.
+          <p className="mb-3 text-sm text-navy-400">
+            Preencha seus dados. No passo seguinte você paga <strong className="text-navy-200">R$ 29,90</strong> com
+            cartão de crédito ou Pix — pagou, o acesso é liberado na hora.
           </p>
+          <ul className="mb-5 flex flex-col gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-xs text-emerald-100" data-testid="registrar-garantias">
+            <li>✅ <b>Garantia de {GUARANTEE_DAYS} dias:</b> não gostou, avise o suporte e devolvemos o valor.</li>
+            <li>✅ Sem fidelidade: cancele quando quiser.</li>
+            <li>✅ Não pedimos senha de banco nem acesso à sua conta.</li>
+          </ul>
 
           <form action={action} className="flex flex-col gap-4">
+            <input type="hidden" name="source" value={source} readOnly />
             <div>
               <label htmlFor="name" className="mb-1 block text-sm font-medium text-navy-300">
                 Nome completo
@@ -81,7 +98,7 @@ export default function RegistrarPage() {
                 placeholder="000.000.000-00"
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-navy-500">Necessário para emitir a cobrança Pix.</p>
+              <p className="mt-1 text-xs text-navy-500">O banco exige o CPF para emitir a cobrança. Não fazemos consulta de crédito.</p>
               <FieldError errors={state?.errors?.cpf} />
             </div>
 

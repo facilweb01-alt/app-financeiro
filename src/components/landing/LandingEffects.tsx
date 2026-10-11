@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 //   2. o celular do topo (#stage dentro de #scene) inclina seguindo o mouse,
 //      só em computador e só se a pessoa não pediu "reduzir movimento".
 // Sem JavaScript a página continua completa; só perde esses dois detalhes.
-export function LandingEffects() {
+export function LandingEffects({ registerHref = "/registrar" }: { registerHref?: string }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export function LandingEffects() {
         <br />
         pelo WhatsApp, a partir de hoje
       </div>
-      <Link className="btn btn-cta" href="/registrar" tabIndex={visible ? 0 : -1}>
+      <Link className="btn btn-cta" href={registerHref} tabIndex={visible ? 0 : -1}>
         Quero esse app
       </Link>
     </div>

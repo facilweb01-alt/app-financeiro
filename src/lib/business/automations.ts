@@ -191,7 +191,7 @@ export function buildAutomationMessage(input: { kind: AutomationKind; step: numb
       "",
       "Vi que você começou seu cadastro, mas o pagamento ainda não foi concluído. Ficou alguma dúvida sobre o Contay? Pergunte aqui que eu respondo na hora.",
       "",
-      `Para concluir, entre em ${appUrl}/assinatura com o e-mail e a senha do cadastro e escolha Pix ou cartão. São R$ 29,90 por mês, sem fidelidade.`,
+      `Para concluir, entre em ${appUrl}/assinatura com o e-mail e a senha do cadastro e escolha Pix ou cartão. São R$ 29,90 por mês, sem fidelidade e com garantia de 7 dias: se não gostar, é só avisar aqui que devolvemos o valor.`,
       "",
       OPT_OUT_LINE,
     ].join("\n");
@@ -220,7 +220,7 @@ export function buildAutomationMessage(input: { kind: AutomationKind; step: numb
   return [
     ...body,
     "",
-    `R$ 29,90 por mês, sem fidelidade. Para concluir: ${appUrl}/assinatura`,
+    `R$ 29,90 por mês, sem fidelidade e com garantia de 7 dias. Para concluir: ${appUrl}/assinatura`,
     "Dúvidas? Responda aqui.",
     OPT_OUT_LINE,
   ].join("\n");

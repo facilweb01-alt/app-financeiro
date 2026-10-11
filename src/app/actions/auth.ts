@@ -12,6 +12,7 @@ import { LoginFormSchema, SignupFormSchema, type AuthFormState } from "@/lib/def
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { isAsaasConfigured } from "@/lib/billing/asaas";
 import { whatsappPhoneVariants } from "@/lib/billing/core";
+import { normalizeSignupSource } from "@/lib/business/signupSource";
 
 export async function signup(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {
     const validated = SignupFormSchema.safeParse({
@@ -57,6 +58,11 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
 
   const passwordHash = await bcrypt.hash(password, 10);
 
+  // De qual anúncio/link a pessoa veio (campo escondido do formulário, que a
+  // página de cadastro preenche com os "utm_*" do endereço). Só os nomes da
+  // origem, campanha e anúncio; valor desconhecido ou estranho vira nulo.
+  const signupSource = normalizeSignupSource(String(formData.get("source") ?? ""));
+
   // Aceite dos termos gravado no mesmo insert (data/hora + versão do texto
   // aceito, não só um booleano) — ver src/lib/terms.ts.
   const [created] = await withServiceMode(() =>
@@ -69,6 +75,7 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
                                                           whatsappPhone,
                                                           cpf,
                                                           billingEnabled,
+                                                          signupSource,
                                                           termsAcceptedAt: new Date(),
                                                           termsVersion: CURRENT_TERMS_VERSION,
                                                 })
