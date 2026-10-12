@@ -29,6 +29,8 @@ export function BillingBanner({
 }) {
   const plan = planInfo(billingPlan);
   const card = billingMethod === "CREDIT_CARD";
+  // Plano anual pago no cartão (à vista ou em até 12x): sem cobrança automática; perto do fim pede renovação.
+  const installmentPaid = billingMethod === "CARD_INSTALLMENT";
   const state = computeBillingState({ billingEnabled, status, subscriptionDueDate, today: todayInSaoPaulo(), canceledAt, trialEndsAt, billingMethod });
   // Teste grátis em andamento: mostra quantos dias faltam e o caminho para
   // assinar. Nos 2 últimos dias fica em destaque (âmbar).
@@ -80,6 +82,40 @@ export function BillingBanner({
   if (!state.dueDate || state.daysUntilDue === null) return null;
 
   const overdue = state.kind === "overdue";
+  if (installmentPaid) {
+    const ends =
+      state.daysUntilDue === 0 ? "termina hoje" : state.daysUntilDue === 1 ? "termina amanhã" : `termina em ${state.daysUntilDue} dias`;
+    return (
+      <div
+        className={`mb-5 flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+          overdue ? "border-red-500/40 bg-red-500/10" : "border-amber-400/40 bg-amber-400/10"
+        }`}
+        role="status"
+        data-testid="renovar-anual"
+      >
+        <div className="text-sm">
+          <div className={`font-semibold ${overdue ? "text-red-300" : "text-amber-200"}`}>
+            {overdue
+              ? `Seu plano anual terminou em ${formatDateBR(state.dueDate)}`
+              : `Seu plano anual ${ends} (${formatDateBR(state.dueDate)})`}
+          </div>
+          <div className="mt-0.5 text-navy-300">
+            {overdue && state.blockDate
+              ? `Renove até ${formatDateBR(state.blockDate)} para não ter o acesso pausado: no cartão em até 12x ou no Pix.`
+              : "Renove por mais um ano no cartão em até 12x ou no Pix e continue sem pausa."}
+          </div>
+        </div>
+        <Link
+          href="/assinatura"
+          className={`shrink-0 rounded-xl px-4 py-2 text-center text-sm font-semibold text-white ${
+            overdue ? "bg-red-600 hover:bg-red-700" : "bg-emerald-600 hover:bg-emerald-700"
+          }`}
+        >
+          Renovar o plano
+        </Link>
+      </div>
+    );
+  }
   const when =
     state.daysUntilDue === 0 ? "vence hoje" : state.daysUntilDue === 1 ? "vence amanhã" : `vence em ${state.daysUntilDue} dias`;
 

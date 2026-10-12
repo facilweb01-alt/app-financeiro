@@ -149,6 +149,7 @@ export function CardCheckoutButton({
   variant = "primary",
   defaultOpen = false,
   pixel = null,
+  installments = null,
 }: {
   label: string;
   variant?: "primary" | "secondary";
@@ -156,6 +157,8 @@ export function CardCheckoutButton({
   defaultOpen?: boolean;
   /** Só na 1ª mensalidade: conta "começou a pagar" ao seguir para o cartão. */
   pixel?: PixelCheckout;
+  /** Plano anual: o Checkout deixa pagar à vista ou em até N vezes. */
+  installments?: number | null;
 }) {
   const [state, formAction, pending] = useActionState(payWithCard, { error: null });
   const [open, setOpen] = useState(defaultOpen);
@@ -209,6 +212,7 @@ export function CardCheckoutButton({
         <li>
           <b className="text-navy-100">2.</b> Na tela seguinte, segura, do Asaas, digite os dados do cartão: nome impresso, número,
           validade e código de segurança (CVV).
+          {installments ? ` Lá você escolhe pagar à vista ou em até ${installments}x.` : null}
         </li>
       </ol>
       <div className="text-sm font-medium text-navy-100">Endereço de cobrança do cartão</div>

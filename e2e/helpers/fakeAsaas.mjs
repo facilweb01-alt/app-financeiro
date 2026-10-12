@@ -100,6 +100,49 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
         co.status = "PAID";
         return send(200, { checkout: co, subscription: sub, payment: pay });
       }
+      // cliente concluiu o Checkout de COMPRA (anual no cartão, 12/10/2026):
+      // o Asaas cobra na hora e cria uma cobrança por parcela, todas com o
+      // mesmo id de parcelamento e já confirmadas (como no cartão de verdade).
+      // json: { installments: 1..12, status?: "CONFIRMED" | "AWAITING_RISK_ANALYSIS" }
+      if (action === "purchase") {
+        const co = state.checkouts.get(id);
+        if (!co) return send(404, { error: "no checkout" });
+        const n = Math.max(1, Math.min(json?.installments ?? 1, co.installment?.maxInstallmentCount ?? 1));
+        const total = co.items[0].value;
+        const cents = Math.round(total * 100);
+        const base = Math.floor(cents / n);
+        const installmentId = n > 1 ? nextId("ins") : null;
+        const created = [];
+        for (let i = 0; i < n; i++) {
+          const [y, m, d] = todaySP().split("-").map(Number);
+          const last = new Date(Date.UTC(y, m - 1 + i + 1, 0)).getUTCDate();
+          const due = new Date(Date.UTC(y, m - 1 + i, Math.min(d, last))).toISOString().slice(0, 10);
+          const value = (i === n - 1 ? cents - base * (n - 1) : base) / 100;
+          const status = json?.status ?? "CONFIRMED";
+          const p = {
+            id: nextId("pay"),
+            customer: co.customer,
+            subscription: null,
+            installment: installmentId,
+            installmentNumber: installmentId ? i + 1 : null,
+            value,
+            netValue: value - 0.5,
+            billingType: "CREDIT_CARD",
+            status,
+            dueDate: due,
+            paymentDate: null,
+            clientPaymentDate: null,
+            confirmedDate: status === "CONFIRMED" ? todaySP() : null,
+            invoiceUrl: `https://sandbox.asaas.com/i/${co.id}-${i + 1}`,
+            externalReference: co.externalReference,
+            deleted: false,
+          };
+          state.payments.set(p.id, p);
+          created.push(p);
+        }
+        co.status = "PAID";
+        return send(200, { checkout: co, payments: created });
+      }
       if (action === "decline") {
         const p = state.payments.get(id);
         if (!p) return send(404, { error: "no payment" });
@@ -150,7 +193,9 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
     if (req.method === "POST" && path === "/v3/checkouts") {
       const errs = [];
       if (JSON.stringify(json?.billingTypes) !== '["CREDIT_CARD"]') errs.push("billingTypes");
-      if (JSON.stringify(json?.chargeTypes) !== '["RECURRENT"]') errs.push("chargeTypes");
+      // assinatura (RECURRENT) ou compra à vista/parcelada (DETACHED + INSTALLMENT, anual no cartão)
+      const purchase = JSON.stringify(json?.chargeTypes) === '["DETACHED","INSTALLMENT"]';
+      if (JSON.stringify(json?.chargeTypes) !== '["RECURRENT"]' && !purchase) errs.push("chargeTypes");
       if (!json?.customer || !state.customers.has(json.customer)) errs.push("customer");
       else {
         // como o Asaas real (descoberto no 1º teste no sandbox): o cliente precisa ter endereço
@@ -163,7 +208,12 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       if (!json?.callback?.successUrl || !json?.callback?.cancelUrl || !json?.callback?.expiredUrl) errs.push("callback");
       const item = json?.items?.[0];
       if (!item?.name || !item?.value || !item?.quantity || !item?.imageBase64) errs.push("items");
-      if (!["MONTHLY", "YEARLY"].includes(json?.subscription?.cycle) || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(json?.subscription?.nextDueDate ?? "")) errs.push("subscription");
+      if (purchase) {
+        // como o Asaas: installment é obrigatório com INSTALLMENT (1 a 21 parcelas); sem subscription
+        const max = json?.installment?.maxInstallmentCount;
+        if (!Number.isInteger(max) || max < 1 || max > 21) errs.push("installment");
+        if (json?.subscription) errs.push("subscription sem RECURRENT");
+      } else if (!["MONTHLY", "YEARLY"].includes(json?.subscription?.cycle) || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(json?.subscription?.nextDueDate ?? "")) errs.push("subscription");
       if (errs.length) return send(400, { errors: errs.map((e) => ({ code: "invalid", description: `campo inválido: ${e}` })) });
       const co = { id: `co_${++state.seq}${Date.now().toString(36)}`, status: "ACTIVE", ...json };
       state.checkouts.set(co.id, co);
@@ -205,6 +255,14 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       const data = [...state.payments.values()].filter((p) => p.subscription === m[1]);
       return send(200, { object: "list", hasMore: false, totalCount: data.length, data });
     }
+    if (req.method === "GET" && path === "/v3/payments") {
+      const customer = url.searchParams.get("customer");
+      const billingType = url.searchParams.get("billingType");
+      const data = [...state.payments.values()].filter(
+        (p) => p.customer === customer && !p.deleted && (!billingType || p.billingType === billingType)
+      );
+      return send(200, { object: "list", hasMore: false, totalCount: data.length, data });
+    }
     m = path.match(/^\/v3\/payments\/([^/]+)\/pixQrCode$/);
     if (req.method === "GET" && m) {
       if (!state.payments.has(m[1])) return send(404, { errors: [{ description: "not found" }] });
@@ -229,6 +287,7 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
     checkoutsOf: (customer) => [...state.checkouts.values()].filter((c) => c.customer === customer),
     subsOf: (customer) => [...state.subscriptions.values()].filter((s) => s.customer === customer),
     paymentsOf: (subId) => [...state.payments.values()].filter((p) => p.subscription === subId),
+    purchasePaymentsOf: (customer) => [...state.payments.values()].filter((p) => p.customer === customer && !p.subscription),
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
