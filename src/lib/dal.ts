@@ -7,6 +7,7 @@ import { users } from "@/db/schema";
 import { verifySessionInDb } from "@/lib/session";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { computeBillingState, todayInSaoPaulo } from "@/lib/billing/core";
+import type { VerifiedSession } from "@/lib/session";
 
 /**
  * Data Access Layer — centraliza a checagem "de verdade" (contra o banco) de
@@ -24,13 +25,32 @@ import { computeBillingState, todayInSaoPaulo } from "@/lib/billing/core";
  * cache() garante que, dentro do mesmo request/render, várias chamadas a
  * verifySession() não repitam a consulta ao banco.
  */
+/** Situação da cobrança da sessão (teste grátis, em dia, bloqueada...). */
+export function sessionBillingKind(session: VerifiedSession) {
+    return computeBillingState({
+          billingEnabled: session.billingEnabled,
+          status: session.status,
+          subscriptionDueDate: session.subscriptionDueDate,
+          today: todayInSaoPaulo(),
+          canceledAt: session.billingCanceledAt,
+          trialEndsAt: session.trialEndsAt,
+          billingMethod: session.billingMethod,
+    }).kind;
+}
+
+/** Conta em teste grátis ainda valendo: usa o app mesmo sem ter pago (status 'pending'). */
+export function sessionInTrial(session: VerifiedSession): boolean {
+    return session.status === "pending" && session.billingEnabled && sessionBillingKind(session) === "trial";
+}
+
 export const verifySession = cache(async (): Promise<{ userId: string }> => {
     const session = await verifySessionInDb();
     if (!session) {
           redirect("/login");
     }
-    if (session.status !== "active") {
-          // Cadastro pela página de vendas ainda sem o 1º Pix pago -> tela de
+    if (session.status !== "active" && !sessionInTrial(session)) {
+          // Cadastro pela página de vendas sem pagamento e sem teste grátis
+          // valendo (teste encerrado ou cadastro antigo) -> tela de
           // pagamento; conta suspensa (ou do fluxo antigo, aguardando
           // aprovação manual) -> tela de espera.
           redirect(session.status === "pending" && session.billingEnabled ? "/assinatura" : "/conta-pendente");
@@ -38,13 +58,7 @@ export const verifySession = cache(async (): Promise<{ userId: string }> => {
     // Mensalidade vencida há mais de GRACE_DAYS dias: só a tela de pagamento
     // abre, até o Pix ser pago (o webhook do Asaas libera na hora). Vale
     // também para qualquer Server Action, já que todas passam por aqui.
-    const billingKind = computeBillingState({
-          billingEnabled: session.billingEnabled,
-          status: session.status,
-          subscriptionDueDate: session.subscriptionDueDate,
-          today: todayInSaoPaulo(),
-          canceledAt: session.billingCanceledAt,
-    }).kind;
+    const billingKind = sessionBillingKind(session);
     // Assinatura cancelada e período pago encerrado: mesma tela, que explica.
     if (billingKind === "blocked" || billingKind === "canceled") {
           redirect("/assinatura");
@@ -95,6 +109,8 @@ export const getCurrentUser = cache(async () => {
                                                                                    subscriptionDueDate: users.subscriptionDueDate,
                                                                                    billingCanceledAt: users.billingCanceledAt,
                                                                                    billingMethod: users.billingMethod,
+                                                                                   trialEndsAt: users.trialEndsAt,
+                                                                                   billingPlan: users.billingPlan,
                                                                          })
                                                                          .from(users)
                                                                          .where(eq(users.id, session.userId))

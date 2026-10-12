@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 //   2. o celular do topo (#stage dentro de #scene) inclina seguindo o mouse,
 //      só em computador e só se a pessoa não pediu "reduzir movimento".
 // Sem JavaScript a página continua completa; só perde esses dois detalhes.
-export function LandingEffects() {
+export function LandingEffects({ registerHref = "/registrar" }: { registerHref?: string }) {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -64,12 +64,12 @@ export function LandingEffects() {
   return (
     <div className={`sticky${visible ? "" : " off"}`} aria-hidden={!visible} data-testid="landing-sticky">
       <div className="txt">
-        <b>Controle do seu dinheiro</b>
+        <b>Teste o Contay 7 dias grátis</b>
         <br />
-        pelo WhatsApp, a partir de hoje
+        sem cartão e sem pagar nada
       </div>
-      <Link className="btn btn-cta" href="/registrar" tabIndex={visible ? 0 : -1}>
-        Quero esse app
+      <Link className="btn btn-cta" href={registerHref} tabIndex={visible ? 0 : -1}>
+        Testar grátis
       </Link>
     </div>
   );

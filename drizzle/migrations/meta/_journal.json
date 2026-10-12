@@ -99,6 +99,27 @@
       "when": 1790500000000,
       "tag": "0013_card_cycle_and_automations",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0014_signup_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0015_free_trial",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790800000000,
+      "tag": "0016_billing_plan",
+      "breakpoints": true
     }
   ]
 }

@@ -100,7 +100,7 @@ try {
   check("página de vendas conta visita e conteúdo visto", JSON.stringify(names(ev)) === JSON.stringify(["PageView", "ViewContent"]), JSON.stringify(names(ev)));
 
   // 5. Clica no botão da página -> cadastro conta nova visita (sem duplicar).
-  await page.click('main a:has-text("Quero esse app")');
+  await page.click('main a:has-text("Testar grátis por 7 dias")');
   await page.waitForURL(`${BASE}/registrar`, { timeout: 10000 });
   await page.waitForFunction(() => (window.__px || []).filter((e) => e[1] === "PageView").length === 2, null, { timeout: 10000 });
   check("cadastro conta 1 visita e não mostra o aviso de novo", (await page.$('[data-testid="cookie-banner"]')) === null);
@@ -109,7 +109,8 @@ try {
   const email = `pixel.${Date.now()}@example.com`;
   const { phone, cpf } = await fillSignup(page, { name: "Cliente Pixel", email, password: "SenhaForte123" });
   await page.click('button[type="submit"]');
-  await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
+  // o cadastro abre o teste grátis: o "cadastro concluído" é contado na tela de boas-vindas
+  await page.waitForURL(`${BASE}/bem-vindo`, { timeout: 15000 });
   await page.waitForFunction(() => (window.__px || []).some((e) => e[1] === "CompleteRegistration"), null, { timeout: 10000 });
   const all = await page.evaluate(() => JSON.stringify(window.__px || []));
   check("cadastro concluído é contado", true);
@@ -120,7 +121,14 @@ try {
   await page.waitForTimeout(500);
   check("recarregar não conta o cadastro de novo", !names(await events(page)).includes("CompleteRegistration") && !names(await events(page)).includes("Purchase"), JSON.stringify(names(await events(page))));
 
-  // 7. Pix pago -> assinatura contada 1 vez com o valor do plano.
+  // 7. Vai assinar durante o teste: informa o CPF na tela de pagamento (o
+  //    cadastro não pede mais) e paga o Pix -> assinatura contada 1 vez.
+  await page.goto(`${BASE}/assinatura`);
+  await page.waitForFunction(() => (window.__px || []).some((e) => e[1] === "PageView"), null, { timeout: 10000 });
+  check("abrir a tela de pagamento não conta o cadastro de novo", !names(await events(page)).includes("CompleteRegistration"), JSON.stringify(names(await events(page))));
+  await page.fill("#pay-cpf", cpf);
+  await page.click('[data-testid="cpf-form"] button[type="submit"]');
+  await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
   const [user] = await sql`select id, asaas_subscription_id from users where email = ${email}`;
   const [firstPayment] = fake.paymentsOf(user.asaas_subscription_id);
   await fetch(`http://localhost:3998/__test/pay/${firstPayment.id}`, { method: "POST" });

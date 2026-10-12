@@ -32,6 +32,8 @@ export default async function AppShellLayout({ children }: { children: React.Rea
                 subscriptionDueDate={user.subscriptionDueDate}
                 canceledAt={user.billingCanceledAt}
                 billingMethod={user.billingMethod}
+                trialEndsAt={user.trialEndsAt}
+                billingPlan={user.billingPlan}
               />
             )}
             {pendingMonth && (

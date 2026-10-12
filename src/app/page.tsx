@@ -4,16 +4,17 @@ import { getOptionalSession } from "@/lib/dal";
 import { LandingPage } from "@/components/landing/LandingPage";
 import { CookieBanner, MetaPixel } from "@/components/tracking/MetaPixel";
 import { metaPixelId } from "@/lib/metaPixelId";
+import { registerHrefWithSource } from "@/lib/business/signupSource";
 
 export const metadata: Metadata = {
   title: "Contay — controle financeiro pelo WhatsApp",
   description:
-    "O salário some e você não sabe onde gastou? Mande seus gastos pelo WhatsApp e o Contay organiza tudo: cartões e parcelas, contas fixas, investimentos, gráficos e fechamento do mês. Pix ou cartão, sem fidelidade.",
+    "O salário some e você não sabe onde gastou? Mande seus gastos pelo WhatsApp e o Contay organiza tudo: cartões e parcelas, contas fixas, investimentos, gráficos e fechamento do mês. Teste grátis por 7 dias, sem cartão.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "Contay — saiba para onde vai cada real",
     description:
-      "Controle financeiro pessoal com lançamento pelo WhatsApp: cartões, parcelas, contas fixas e quanto ainda sobra no mês. Pix ou cartão de crédito, sem fidelidade.",
+      "Controle financeiro pessoal com lançamento pelo WhatsApp: cartões, parcelas, contas fixas e quanto ainda sobra no mês. Teste grátis por 7 dias, sem cartão e sem fidelidade.",
     images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
     locale: "pt_BR",
     type: "website",
@@ -22,13 +23,20 @@ export const metadata: Metadata = {
 
 // "/" é a página de vendas para quem não está logado; quem já tem sessão vai
 // direto para o app.
-export default async function RootPage() {
+export default async function RootPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   const session = await getOptionalSession();
   if (session) redirect("/dashboard");
   const pixelId = metaPixelId();
+  // Quem chega por um anúncio traz "utm_*" no endereço; os botões de cadastro
+  // levam isso adiante para o cadastro saber de qual anúncio a pessoa veio.
+  const registerHref = registerHrefWithSource(await searchParams);
   return (
     <>
-      <LandingPage pixelId={pixelId} />
+      <LandingPage pixelId={pixelId} registerHref={registerHref} />
       <MetaPixel pixelId={pixelId} events={[{ name: "ViewContent", params: { content_name: "Página de vendas" } }]} />
       <CookieBanner pixelId={pixelId} />
     </>

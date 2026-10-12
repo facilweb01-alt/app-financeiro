@@ -1,9 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { signup } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
+import { PLAN_PRICE, TRIAL_DAYS } from "@/lib/billing/core";
+import { formatBRL } from "@/lib/format";
+import { normalizeSignupSource } from "@/lib/business/signupSource";
 
 const inputClass =
   "w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 border-navy-700 bg-navy-950";
@@ -15,6 +18,15 @@ function FieldError({ errors }: { errors?: string[] }) {
 
 export default function RegistrarPage() {
   const [state, action, pending] = useActionState(signup, undefined);
+  // De qual anúncio a pessoa veio: a página de vendas manda os "utm_*" no
+  // endereço desta página. Vai num campo escondido do formulário; nada fica
+  // gravado no navegador.
+  const [source, setSource] = useState("");
+  useEffect(() => {
+    // Lido depois de montar: o endereço só existe no navegador.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSource(normalizeSignupSource(window.location.search) ?? "");
+  }, []);
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
@@ -27,13 +39,19 @@ export default function RegistrarPage() {
         </Link>
 
         <div className="rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
-          <h1 className="mb-1 text-xl font-semibold text-navy-100">Quero o Contay</h1>
-          <p className="mb-5 text-sm text-navy-400">
-            Preencha seus dados. No passo seguinte aparece o Pix de <strong className="text-navy-200">R$ 29,90</strong>{" "}
-            — pagou, o acesso é liberado na hora.
+          <h1 className="mb-1 text-xl font-semibold text-navy-100">Teste o Contay grátis por {TRIAL_DAYS} dias</h1>
+          <p className="mb-3 text-sm text-navy-400">
+            Preencha seus dados e o acesso é liberado na hora. Você <strong className="text-navy-200">não paga nada agora</strong>{" "}
+            e não informa cartão.
           </p>
+          <ul className="mb-5 flex flex-col gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-xs text-emerald-100" data-testid="registrar-garantias">
+            <li>✅ <b>{TRIAL_DAYS} dias grátis</b>, com tudo liberado, inclusive o WhatsApp.</li>
+            <li>✅ Depois, {formatBRL(PLAN_PRICE)} por mês só se você quiser continuar. Sem fidelidade.</li>
+            <li>✅ Não pedimos senha de banco nem acesso à sua conta.</li>
+          </ul>
 
           <form action={action} className="flex flex-col gap-4">
+            <input type="hidden" name="source" value={source} readOnly />
             <div>
               <label htmlFor="name" className="mb-1 block text-sm font-medium text-navy-300">
                 Nome completo
@@ -66,23 +84,6 @@ export default function RegistrarPage() {
               />
               <p className="mt-1 text-xs text-navy-500">É por esse número que você vai lançar gastos pelo WhatsApp.</p>
               <FieldError errors={state?.errors?.whatsappPhone} />
-            </div>
-
-            <div>
-              <label htmlFor="cpf" className="mb-1 block text-sm font-medium text-navy-300">
-                CPF
-              </label>
-              <input
-                id="cpf"
-                name="cpf"
-                type="text"
-                required
-                inputMode="numeric"
-                placeholder="000.000.000-00"
-                className={inputClass}
-              />
-              <p className="mt-1 text-xs text-navy-500">Necessário para emitir a cobrança Pix.</p>
-              <FieldError errors={state?.errors?.cpf} />
             </div>
 
             <div>
@@ -121,8 +122,8 @@ export default function RegistrarPage() {
                   <Link href="/termos" target="_blank" className="font-medium underline text-blue-400">
                     Termos de Uso e a Política de Privacidade
                   </Link>
-                  . Meus dados são de acesso restrito e só são compartilhados com o processador de pagamentos
-                  (Asaas), para emitir a cobrança.
+                  . Meus dados são de acesso restrito. Se eu assinar depois do teste, os dados de cobrança vão para o
+                  processador de pagamentos (Asaas).
                 </span>
               </label>
               <FieldError errors={state?.errors?.terms} />
@@ -135,7 +136,7 @@ export default function RegistrarPage() {
               disabled={pending}
               className="mt-1 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
             >
-              {pending ? "Criando sua conta..." : "Continuar para o pagamento"}
+              {pending ? "Criando sua conta..." : "Começar meu teste grátis"}
             </button>
           </form>
 

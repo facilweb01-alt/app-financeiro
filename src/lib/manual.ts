@@ -19,7 +19,7 @@ export type ManualSection = {
 
 export const MANUAL_TITLE = "Manual do Contay";
 export const MANUAL_SUBTITLE = "Tudo o que o app faz, explicado passo a passo.";
-export const MANUAL_UPDATED = "09/10/2026";
+export const MANUAL_UPDATED = "11/10/2026";
 
 export const MANUAL_SECTIONS: ManualSection[] = [
   {
@@ -177,11 +177,13 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     intro: "O Contay é um app de controle de gastos: você lança pelo WhatsApp ou pelo app e vê o mês inteiro num painel.",
     items: [
       "O que ele faz: gastos por categoria com a porcentagem da renda, cartões com parcelas e faturas, contas fixas, investimentos e metas, e o resumo do mês em PDF.",
-      "Quanto custa: R$ 29,90 por mês, sem fidelidade. Pode cancelar quando quiser.",
-      "Como assinar: na página contay.com.br, toque em começar, preencha nome, e-mail, WhatsApp, CPF e senha e pague com Pix ou cartão de crédito. Com o Pix pago, o acesso é liberado na hora.",
-      "Começou o cadastro e não pagou? Entre em contay.com.br/assinatura com o e-mail e a senha do cadastro e conclua com Pix ou cartão.",
-      "Depois do pagamento chegam, por este WhatsApp, as boas-vindas e este manual em PDF.",
-      "Quem começou o cadastro e não concluiu pode receber algumas mensagens do Contay. Para não receber mais, responda SAIR.",
+      "Teste grátis: os primeiros 7 dias são de graça, com tudo liberado. Não precisa de cartão nem de pagamento para começar.",
+      "Quanto custa depois do teste: R$ 29,90 por mês, sem fidelidade (pode cancelar quando quiser), ou R$ 304,98 por ano no plano anual, que tem 15% de desconto e sai por R$ 25,42 por mês. O plano é escolhido na tela de assinatura.",
+      "Como começar: na página contay.com.br, toque em testar grátis e preencha nome, e-mail, WhatsApp e senha. O acesso é liberado na hora e as boas-vindas chegam por este WhatsApp, com este manual em PDF.",
+      "Um dia antes de o teste terminar e no último dia, o Contay avisa por este WhatsApp e manda o endereço para assinar.",
+      "Como assinar: entre em contay.com.br/assinatura com o e-mail e a senha do cadastro, informe o CPF e escolha Pix ou cartão de crédito. Assinando durante o teste você não perde nenhum dia: a mensalidade só começa a contar no fim dele.",
+      "O teste terminou e você não assinou? O acesso fica pausado e nada é cobrado. Seus lançamentos continuam guardados: é só assinar em contay.com.br/assinatura para voltar.",
+      "Quem termina o teste sem assinar pode receber algumas mensagens do Contay. Para não receber mais, responda SAIR.",
       "O Contay não se conecta ao seu banco e não pede senha de banco.",
     ],
   },

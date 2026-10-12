@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
-import { fillSignup, randomCpf } from "./helpers/signup.mjs";
+import { fillSignup, makeLegacyPending, randomCpf } from "./helpers/signup.mjs";
 
 // Página de vendas + cobrança mensal via Pix (Asaas), de ponta a ponta, contra
 // um servidor FALSO do Asaas (e2e/helpers/fakeAsaas.mjs) — nunca o real.
@@ -59,23 +59,30 @@ try {
   check("destaca o WhatsApp", landing.includes("WhatsApp"));
   const supportHref = await page.getAttribute('[data-testid="footer-support"] a', "href");
   check("rodapé tem o WhatsApp de suporte com link", landing.includes("Suporte no WhatsApp: (83) 98199-5301") && (supportHref ?? "").startsWith("https://wa.me/5583981995301?text="), supportHref);
-  const ctaHref = await page.getAttribute('main a:has-text("Quero esse app")', "href");
-  check("botão 'Quero esse app' leva ao cadastro", ctaHref === "/registrar", ctaHref);
+  const ctaHref = await page.getAttribute('main a:has-text("Começar meu teste grátis")', "href");
+  check("botão do plano leva ao cadastro", ctaHref === "/registrar", ctaHref);
 
-  // 2. Cadastro: CPF inválido é recusado com mensagem clara
+  // 2. Cadastro abre o teste grátis; o CPF só é pedido na tela de pagamento
+  //    (o caminho completo do teste está em e2e/teste-gratis.smoke.mjs).
   await page.goto(`${BASE}/registrar`);
   const email = `pix.${Date.now()}@example.com`;
   const password = "SenhaForte123";
-  await fillSignup(page, { name: "Cliente Pix", email, password, cpf: "12345678900" });
-  await page.click('button[type="submit"]');
-  await page.waitForSelector("text=CPF inválido", { timeout: 10000 });
-  check("CPF inválido mostra erro", true);
-
-  // 3. Cadastro válido -> tela de pagamento com o Pix
   const cpf = randomCpf();
   const { phone } = await fillSignup(page, { name: "Cliente Pix", email, password, cpf });
   await page.click('button[type="submit"]');
-  await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
+  await page.waitForURL(`${BASE}/bem-vindo`, { timeout: 15000 });
+  check("cadastro abre a tela de teste grátis liberado", (await page.textContent("body")).includes("teste grátis de 7 dias está liberado"));
+
+  // 3. Esta suíte cobre a cobrança de quem NÃO está em teste (cadastro antigo
+  //    ou teste encerrado): sem teste, a conta só entra depois de pagar.
+  // espera as boas-vindas do teste grátis terminarem de sair (texto + PDF)
+  for (let i = 0; i < 60 && zapi.sentTo(`55${phone}`).length < 2; i++) await new Promise((r) => setTimeout(r, 150));
+  check("cadastro com teste grátis já manda as boas-vindas (texto + manual)", zapi.sentTo(`55${phone}`).length === 2, `${zapi.sentTo(`55${phone}`).length}`);
+  await makeLegacyPending(sql, email, cpf);
+  // esquece as boas-vindas do teste grátis (enviadas no cadastro): daqui em
+  // diante vale a regra de quem não tem teste, que só as recebe ao pagar
+  for (let i = zapi.state.sent.length - 1; i >= 0; i--) if (zapi.state.sent[i].body.phone === `55${phone}`) zapi.state.sent.splice(i, 1);
+  await page.goto(`${BASE}/assinatura`);
   await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
   const payTxt = await page.textContent("body");
   check("tela de pagamento pede o Pix", payTxt.includes("Falta só o pagamento") && payTxt.includes("2ª opção: Pix"));

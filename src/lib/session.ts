@@ -103,6 +103,8 @@ export type VerifiedSession = {
     billingEnabled: boolean;
     subscriptionDueDate: string | null;
     billingCanceledAt: Date | null;
+    trialEndsAt: string | null;
+    billingMethod: string;
 };
 
 /**
@@ -132,6 +134,8 @@ export async function verifySessionInDb(): Promise<VerifiedSession | null> {
                     billingEnabled: users.billingEnabled,
                     subscriptionDueDate: users.subscriptionDueDate,
                     billingCanceledAt: users.billingCanceledAt,
+                    trialEndsAt: users.trialEndsAt,
+                    billingMethod: users.billingMethod,
           })
           .from(sessions)
           .innerJoin(users, eq(sessions.userId, users.id))
@@ -154,6 +158,8 @@ export async function verifySessionInDb(): Promise<VerifiedSession | null> {
                                      billingEnabled: row.billingEnabled,
                                      subscriptionDueDate: row.subscriptionDueDate,
                                      billingCanceledAt: row.billingCanceledAt,
+                                     trialEndsAt: row.trialEndsAt,
+                                     billingMethod: row.billingMethod,
                              };
   });
 }

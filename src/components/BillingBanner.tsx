@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { computeBillingState, PLAN_PRICE, todayInSaoPaulo } from "@/lib/billing/core";
+import { computeBillingState, planInfo, TRIAL_DAYS, todayInSaoPaulo } from "@/lib/billing/core";
 import { formatBRL, formatDateBR } from "@/lib/format";
 
 // Aviso de mensalidade no topo do app (só para contas com cobrança
@@ -14,15 +14,57 @@ export function BillingBanner({
   subscriptionDueDate,
   canceledAt = null,
   billingMethod = "PIX",
+  trialEndsAt = null,
+  billingPlan = "MONTHLY",
 }: {
   billingEnabled: boolean;
   status: string;
   subscriptionDueDate: string | null;
   canceledAt?: Date | null;
   billingMethod?: string;
+  /** último dia do teste grátis (nulo = conta sem teste) */
+  trialEndsAt?: string | null;
+  /** 'MONTHLY' ou 'YEARLY' (plano anual) */
+  billingPlan?: string;
 }) {
+  const plan = planInfo(billingPlan);
   const card = billingMethod === "CREDIT_CARD";
-  const state = computeBillingState({ billingEnabled, status, subscriptionDueDate, today: todayInSaoPaulo(), canceledAt });
+  const state = computeBillingState({ billingEnabled, status, subscriptionDueDate, today: todayInSaoPaulo(), canceledAt, trialEndsAt, billingMethod });
+  // Teste grátis em andamento: mostra quantos dias faltam e o caminho para
+  // assinar. Nos 2 últimos dias fica em destaque (âmbar).
+  if (state.kind === "trial" && trialEndsAt) {
+    const left = state.daysUntilDue ?? 0;
+    const ending = left <= 1;
+    const when = left <= 0 ? "termina hoje" : left === 1 ? "termina amanhã" : `faltam ${left} dias`;
+    return (
+      <div
+        className={`mb-5 flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+          ending && !card ? "border-amber-400/40 bg-amber-400/10" : "border-emerald-400/30 bg-emerald-500/10"
+        }`}
+        role="status"
+        data-testid="trial-banner"
+      >
+        <div className="text-sm">
+          <div className={`font-semibold ${ending && !card ? "text-amber-200" : "text-emerald-200"}`}>
+            🎁 Teste grátis de {TRIAL_DAYS} dias: {when} ({formatDateBR(trialEndsAt)})
+          </div>
+          <div className="mt-0.5 text-navy-300">
+            {card
+              ? `Cartão cadastrado: a 1ª ${plan.chargeName} de ${formatBRL(plan.price)} será cobrada em ${formatDateBR(trialEndsAt)} e o app continua liberado.`
+              : `Para continuar depois disso, assine por ${formatBRL(plan.price)} ${plan.per}, no cartão ou no Pix${plan.plan === "MONTHLY" ? ", sem fidelidade" : ""}. Assinando antes você não perde nenhum dia do teste.`}
+          </div>
+        </div>
+        {!card && (
+          <Link
+            href="/assinatura"
+            className="shrink-0 rounded-xl bg-emerald-600 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-emerald-700"
+          >
+            Assinar o Contay
+          </Link>
+        )}
+      </div>
+    );
+  }
   if (state.kind === "canceled_active" && state.dueDate) {
     return (
       <div className="mb-5 rounded-2xl border border-navy-600 bg-navy-800/60 p-4 text-sm" role="status">
@@ -51,10 +93,10 @@ export function BillingBanner({
       <div className="text-sm">
         <div className={`font-semibold ${overdue ? "text-red-300" : "text-amber-200"}`}>
           {overdue && card
-            ? `Não conseguimos cobrar a mensalidade de ${formatDateBR(state.dueDate)} no seu cartão`
+            ? `Não conseguimos cobrar a ${plan.chargeName} de ${formatDateBR(state.dueDate)} no seu cartão`
             : overdue
-            ? `Sua mensalidade venceu em ${formatDateBR(state.dueDate)}`
-            : `Sua mensalidade de ${formatBRL(PLAN_PRICE)} ${when} (${formatDateBR(state.dueDate)})`}
+            ? `Sua ${plan.chargeName} venceu em ${formatDateBR(state.dueDate)}`
+            : `Sua ${plan.chargeName} de ${formatBRL(plan.price)} ${when} (${formatDateBR(state.dueDate)})`}
         </div>
         <div className="mt-0.5 text-navy-300">
           {overdue && card && state.blockDate

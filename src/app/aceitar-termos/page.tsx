@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getRawSession } from "@/lib/dal";
+import { getRawSession, sessionInTrial } from "@/lib/dal";
 import { acceptTerms, logout } from "@/app/actions/auth";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
@@ -15,7 +15,8 @@ export default async function AceitarTermosPage() {
   if (!session) {
     redirect("/login");
   }
-  if (session.status !== "active") {
+  // Conta em teste grátis também aceita os termos por aqui.
+  if (session.status !== "active" && !sessionInTrial(session)) {
     redirect("/conta-pendente");
   }
   if (session.termsAcceptedAt !== null && session.termsVersion === CURRENT_TERMS_VERSION) {

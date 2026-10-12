@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
-import { fillSignup } from "./helpers/signup.mjs";
+import { fillSignup, makeLegacyPending } from "./helpers/signup.mjs";
 
 // Cartão de crédito recorrente (Checkout do Asaas), de ponta a ponta, contra
 // o servidor FALSO do Asaas (e2e/helpers/fakeAsaas.mjs) — nunca o real.
@@ -61,7 +61,13 @@ async function signup(page, name) {
   await page.goto(`${BASE}/registrar`);
   await fillSignup(page, { name: `Cliente ${name}`, email, password: "SenhaForte123" });
   await page.click('button[type="submit"]');
-  await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
+  // O cadastro agora abre o teste grátis (tela /bem-vindo). Esta suíte cobre a
+  // cobrança de quem NÃO está em teste (cadastro antigo ou teste encerrado):
+  // deixa a conta nesse estado e abre a tela de pagamento.
+  await page.waitForURL(`${BASE}/bem-vindo`, { timeout: 15000 });
+  await makeLegacyPending(sql, email);
+  await page.goto(`${BASE}/assinatura`);
+  await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
   await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
   return email;
 }

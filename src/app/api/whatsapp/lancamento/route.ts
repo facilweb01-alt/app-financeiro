@@ -26,7 +26,7 @@ import {
   normalizeFlexibleDate,
   resolveWhatsappCategory,
 } from "@/lib/business/whatsappInput";
-import { todayInSaoPaulo, whatsappPhoneVariants } from "@/lib/billing/core";
+import { hasAppAccess, todayInSaoPaulo, whatsappPhoneVariants } from "@/lib/billing/core";
 
 // Bug real encontrado testando com mensagens de WhatsApp de verdade: o Z-API
 // entrega o telefone como "55" (DDI) + DDD + 8 dígitos (sem o "9" do celular
@@ -144,7 +144,15 @@ export async function POST(request: NextRequest) {
   const sender = parseSender(data.phone);
   const [user] = await withServiceMode(() =>
     db
-      .select({ id: users.id, status: users.status })
+      .select({
+        id: users.id,
+        status: users.status,
+        billingEnabled: users.billingEnabled,
+        subscriptionDueDate: users.subscriptionDueDate,
+        billingCanceledAt: users.billingCanceledAt,
+        trialEndsAt: users.trialEndsAt,
+        billingMethod: users.billingMethod,
+      })
       .from(users)
       .where(
         sender.isLid
@@ -166,8 +174,29 @@ export async function POST(request: NextRequest) {
 
   // Mesma regra do resto do app (ver src/lib/dal.ts, verifySession): conta
   // pendente de aprovação ou suspensa não grava lançamento por nenhum canal.
-  if (user.status !== "active") {
-    return NextResponse.json({ error: "Acesso a esta conta não está ativo no momento." }, { status: 403 });
+  // Vale também para o teste grátis (entra sem ter pago, até o último dia) e
+  // para mensalidade vencida há mais de 3 dias (acesso pausado).
+  const canUse = hasAppAccess({
+    billingEnabled: user.billingEnabled,
+    status: user.status,
+    subscriptionDueDate: user.subscriptionDueDate,
+    today: todayInSaoPaulo(),
+    canceledAt: user.billingCanceledAt,
+    trialEndsAt: user.trialEndsAt,
+    billingMethod: user.billingMethod,
+  });
+  if (!canUse) {
+    // Teste grátis encerrado sem pagamento: diz o que fazer para voltar.
+    const trialOver = user.status === "pending" && Boolean(user.trialEndsAt);
+    return NextResponse.json(
+      {
+        error: trialOver
+          ? "Seu teste grátis do Contay terminou. Para continuar lançando, assine em contay.com.br/assinatura (seus lançamentos estão guardados)."
+          : "Acesso a esta conta não está ativo no momento.",
+        ...(trialOver ? { reason: "trial_ended" } : {}),
+      },
+      { status: 403 }
+    );
   }
 
   const categoryKey = data.categoryKey || "outros";

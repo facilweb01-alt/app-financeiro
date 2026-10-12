@@ -3,9 +3,11 @@ import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/figtree";
 import "./landing.css";
 import { LogoSymbol } from "@/components/Logo";
-import { PLAN_PRICE } from "@/lib/billing/core";
+import { ANNUAL_DISCOUNT_PERCENT, PLAN_PRICE, TRIAL_DAYS, planInfo } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
+import { ChatDemo } from "./ChatDemo";
+import { TESTIMONIALS } from "./testimonials";
 import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
 import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 
@@ -16,14 +18,25 @@ import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 // (WhatsApp, cartões e parcelas, % da renda), compara com planilha e app
 // comum, e só no fim mostra o preço. Veio da prévia aprovada pelo Marcelo.
 //
-// É um Server Component: o único JavaScript no navegador é o
-// LandingEffects (barra fixa do celular e inclinação 3D do celular no
-// computador). O visual fica em landing.css, todo dentro de ".lp".
+// É um Server Component: o JavaScript no navegador fica em dois pedaços,
+// o LandingEffects (barra fixa do celular e inclinação 3D do celular no
+// computador) e o ChatDemo (demonstração animada do WhatsApp). O visual fica em landing.css, todo dentro de ".lp".
 
 const PRICE = formatBRL(PLAN_PRICE);
 const PRICE_NUMBER = PLAN_PRICE.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+const YEARLY = planInfo("YEARLY");
+const PRICE_YEARLY = formatBRL(YEARLY.price);
+const PRICE_YEARLY_PER_MONTH = formatBRL(YEARLY.monthlyEquivalent);
 
-export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
+export function LandingPage({
+  pixelId = null,
+  registerHref = "/registrar",
+}: {
+  pixelId?: string | null;
+  // Endereço do cadastro, já com a origem do anúncio ("/registrar?utm_source=...")
+  // quando a pessoa chegou por um anúncio. Ver src/app/page.tsx.
+  registerHref?: string;
+}) {
   return (
     <div className="lp">
       <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
@@ -46,7 +59,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
             <a className="link hide-sm" href="#como-funciona">Como funciona</a>
             <a className="link hide-sm" href="#duvidas">Dúvidas</a>
             <Link className="link" href="/login">Entrar</Link>
-            <Link className="btn btn-cta" href="/registrar">Quero esse app</Link>
+            <Link className="btn btn-cta" href={registerHref}>Testar grátis</Link>
           </nav>
         </div>
       </header>
@@ -62,11 +75,12 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
               <h1>Seu dinheiro acaba antes do mês <span className="grad">e você não sabe para onde foi?</span></h1>
               <p className="lead"><strong>O Contay mostra para onde vai cada real.</strong> Você manda o gasto pelo WhatsApp e acompanha tudo no app, no celular ou no computador: cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
               <div className="ctas">
-                <Link className="btn btn-cta" href="/registrar">Quero ter controle do meu dinheiro <span aria-hidden="true">→</span></Link>
+                <Link className="btn btn-cta" href={registerHref}>Testar grátis por {TRIAL_DAYS} dias <span aria-hidden="true">→</span></Link>
                 <a className="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
               </div>
               <div className="trust">
-                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem planilha</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>{TRIAL_DAYS} dias grátis</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem cartão para testar</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Não pede senha do banco</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem fidelidade</span>
               </div>
@@ -125,7 +139,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
             </div>
             <div className="turn">
               <p>Você não precisa de mais força de vontade. Precisa de um jeito que <strong>dê menos trabalho do que gastar.</strong> Mandar uma mensagem leva 5 segundos.</p>
-              <Link className="btn btn-cta" href="/registrar">Quero resolver isso <span aria-hidden="true">→</span></Link>
+              <Link className="btn btn-cta" href={registerHref}>Quero testar grátis <span aria-hidden="true">→</span></Link>
             </div>
           </div>
         </section>
@@ -155,12 +169,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Responde na hora confirmando o que foi lançado</li>
                   </ul>
                 </div>
-                <div className="msgs" aria-label="Exemplos de mensagens">
-                  <div className="msg"><div className="you">Você: <b>“gastei 32 na padaria”</b></div><div className="ok">✓ Padaria · R$ 32,00 · Compra de alimentos</div></div>
-                  <div className="msg"><div className="you">Você: <b>“uber 18,50”</b></div><div className="ok">✓ Uber · R$ 18,50 · Serviço</div></div>
-                  <div className="msg"><div className="you">Você: <b>“cinema com a família 96”</b></div><div className="ok">✓ Cinema · R$ 96,00 · Lazer</div></div>
-                  <div className="msg"><div className="you">Você: <b>“dentista 250 vence dia 15”</b></div><div className="ok">✓ Dentista · R$ 250,00 · Saúde · vence 15/10</div></div>
-                </div>
+                <ChatDemo />
               </article>
 
         
@@ -314,17 +323,40 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
           <div className="wrap">
             <div className="sec-head center">
               <span className="eyebrow">Como funciona</span>
-              <h2>Em 3 passos você começa hoje</h2>
+              <h2>Em 3 passos você começa hoje, de graça</h2>
             </div>
             <div className="steps">
-              <div className="step"><div className="n">1</div><h3>Crie sua conta</h3><p>Nome, e-mail, WhatsApp e CPF. Leva menos de um minuto.</p></div>
-              <div className="step"><div className="n">2</div><h3>Pague com Pix ou cartão</h3><p>No cartão de crédito a mensalidade é cobrada sozinha todo mês. Pagou, o acesso é liberado em segundos e o manual chega no seu WhatsApp.</p></div>
-              <div className="step"><div className="n">3</div><h3>Mande seu primeiro gasto</h3><p>Pelo WhatsApp ou direto no app. Ele organiza, soma e mostra para onde vai o seu dinheiro.</p></div>
+              <div className="step"><div className="n">1</div><h3>Crie sua conta</h3><p>Nome, e-mail, WhatsApp e senha. Leva menos de um minuto, sem cartão e sem pagar nada.</p></div>
+              <div className="step"><div className="n">2</div><h3>Use {TRIAL_DAYS} dias grátis</h3><p>O acesso é liberado na hora e o manual chega no seu WhatsApp. Mande seu primeiro gasto e veja o app se organizando sozinho.</p></div>
+              <div className="step"><div className="n">3</div><h3>Gostou? Continue por {PRICE}/mês</h3><p>Um dia antes de o teste terminar avisamos pelo WhatsApp, com o link para assinar no Pix ou no cartão. Não gostou? É só não assinar.</p></div>
             </div>
           </div>
         </section>
 
   
+        <section className="sec" id="depoimentos" style={{ paddingTop: "24px" }}>
+          <div className="wrap">
+            <div className="sec-head center">
+              <span className="eyebrow">Quem usa, conta</span>
+              <h2>O que os clientes mandam no nosso WhatsApp</h2>
+              <p>Mensagens reais, recebidas no número do Contay.</p>
+            </div>
+            <div className="deps">
+              {TESTIMONIALS.map((t) => (
+                <figure className="dep" key={t.image} data-testid="depoimento">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={t.image} alt={`Print de mensagem no WhatsApp: “${t.text}”`} width={t.width} height={t.height} loading="lazy" decoding="async" />
+                  <figcaption>
+                    <span className="dep-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.7 7.4L3 21l1.7-5.1A8.5 8.5 0 1 1 21 12z" /></svg></span>
+                    <span><b>{t.who}</b>{t.detail}</span>
+                  </figcaption>
+                </figure>
+              ))}
+            </div>
+            <p className="deps-note">Prints de conversas reais. Nome, foto e número foram ocultados.</p>
+          </div>
+        </section>
+
         <section className="sec" id="preco" style={{ paddingTop: "24px" }}>
           <div className="wrap">
             <div className="price-wrap">
@@ -346,7 +378,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
                 <div className="plan">
                   <div className="row"><strong style={{ color: "var(--text)", fontSize: "19px" }}>Contay</strong><span className="pill">Plano único</span></div>
                   <div className="amount"><span className="rs">R$</span><span className="v">{PRICE_NUMBER}</span><span className="per">/mês</span></div>
-                  <div className="day">Menos de R$ 1 por dia para ter controle total.</div>
+                  <div className="day">Menos de R$ 1 por dia. Os primeiros {TRIAL_DAYS} dias são grátis.</div>
                   <ul className="checks">
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Lançamento pelo WhatsApp com inteligência artificial</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cartões, parcelas e fechamento de fatura</li>
@@ -357,8 +389,10 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Manual em PDF e suporte pelo WhatsApp</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Pague com Pix ou cartão de crédito recorrente</li>
                   </ul>
-                  <Link className="btn btn-cta" href="/registrar">Quero esse app <span aria-hidden="true">→</span></Link>
-                  <p className="fine">Pix ou cartão de crédito (cobrança automática), todo mês no dia em que você contratou. Sem fidelidade.</p>
+                  <Link className="btn btn-cta" href={registerHref}>Começar meu teste grátis <span aria-hidden="true">→</span></Link>
+                  <p className="fine" data-testid="landing-trial"><strong>{TRIAL_DAYS} dias grátis para testar:</strong> você não paga nada e não informa cartão para começar. Só assina se gostar.</p>
+                  <p className="fine">Depois do teste: Pix ou cartão de crédito (cobrança automática), todo mês. Sem fidelidade.</p>
+                  <p className="fine" data-testid="landing-anual"><strong>Plano anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto:</strong> {PRICE_YEARLY} por ano, o que dá {PRICE_YEARLY_PER_MONTH} por mês. Você escolhe na hora de assinar.</p>
                 </div>
               </div>
             </div>
@@ -373,8 +407,9 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
               <details><summary>Como funciona o lançamento pelo WhatsApp?<span className="pl" aria-hidden="true">+</span></summary><p>No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”, “400 no cartão em 4x”. A inteligência artificial entende o valor, a categoria e as parcelas, lança no app e responde confirmando.</p></details>
               <details><summary>Preciso dar a senha do meu banco?<span className="pl" aria-hidden="true">+</span></summary><p>Não. O Contay não se conecta à sua conta bancária. Você informa os gastos pelo WhatsApp ou pelo app, e só você decide o que entra.</p></details>
               <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não precisa baixar nada da loja. O Contay abre no navegador do celular ou do computador. Para ter o ícone na tela inicial e abrir como aplicativo: no Android (Chrome), toque no menu e em “Adicionar à tela inicial”; no iPhone (Safari), toque em Compartilhar e em “Adicionar à Tela de Início”.</p></details>
-              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>{PRICE} por mês, no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
+              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>Os primeiros {TRIAL_DAYS} dias são grátis. Depois, {PRICE} por mês, ou {PRICE_YEARLY} por ano no plano anual ({ANNUAL_DISCOUNT_PERCENT}% de desconto), no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
               <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
+              <details><summary>Como funciona o teste grátis de {TRIAL_DAYS} dias?<span className="pl" aria-hidden="true">+</span></summary><p>Você cria a conta com nome, e-mail, WhatsApp e senha, e o app é liberado na hora por {TRIAL_DAYS} dias, com tudo funcionando, inclusive o lançamento pelo WhatsApp. Não pedimos cartão nem pagamento para começar. Um dia antes do fim e no último dia do teste avisamos pelo WhatsApp, com o link para assinar. Se você não assinar, o acesso fica pausado e nada é cobrado; seus lançamentos continuam guardados.</p></details>
               <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou.</p></details>
               <details><summary>E se eu tiver dúvida para usar?<span className="pl" aria-hidden="true">+</span></summary><p>Pergunte no mesmo WhatsApp em que você lança os gastos, por exemplo “como cadastro um cartão?”. A resposta vem na hora, com base no manual. Quando o caso precisa de uma pessoa, um atendente continua a conversa. O <Link href="/manual">manual completo</Link> também fica disponível no app, em Ajuda.</p></details>
               <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos não são vendidos nem repassados a anunciantes. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
@@ -408,9 +443,9 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
           <div className="wrap">
             <div className="final">
               <h2>Daqui a 30 dias você pode estar no mesmo lugar. Ou pode saber exatamente para onde foi cada real.</h2>
-              <p>Crie sua conta, pague com Pix ou cartão e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.</p>
-              <Link className="btn btn-cta" href="/registrar">Quero ter controle agora <span aria-hidden="true">→</span></Link>
-              <div className="fine">{PRICE}/mês · Pix ou cartão de crédito · sem fidelidade</div>
+              <p>Crie sua conta, teste {TRIAL_DAYS} dias grátis e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.</p>
+              <Link className="btn btn-cta" href={registerHref}>Testar grátis por {TRIAL_DAYS} dias <span aria-hidden="true">→</span></Link>
+              <div className="fine">{TRIAL_DAYS} dias grátis, sem cartão · depois {PRICE}/mês ou {PRICE_YEARLY}/ano · sem fidelidade no mensal</div>
             </div>
           </div>
         </section>
@@ -435,7 +470,7 @@ export function LandingPage({ pixelId = null }: { pixelId?: string | null }) {
         </div>
       </footer>
 
-      <LandingEffects />
+      <LandingEffects registerHref={registerHref} />
     </div>
   );
 }

@@ -21,17 +21,20 @@ import {
   type AsaasPayment,
 } from "./asaas";
 import {
-  PLAN_NAME,
-  PLAN_PRICE,
   cardFirstDueDate,
   checkoutDueDateTime,
+  firstPixDueDate,
   computeSubscriptionDueDate,
   isOpenStatus,
   isPaidStatus,
   normalizeBillingMethod,
+  normalizeBillingPlan,
   pickCardSubscription,
+  planFromSubscription,
+  planInfo,
   todayInSaoPaulo,
   type BillingMethod,
+  type BillingPlan,
 } from "./core";
 
 // Orquestra a cobrança mensal (Pix ou cartão de crédito recorrente): cria
@@ -65,7 +68,13 @@ export type BillingOverview = {
     subscriptionDueDate: string | null;
     billingCanceledAt: Date | null;
     billingMethod: BillingMethod;
+    /** plano escolhido: mensal ou anual */
+    billingPlan: BillingPlan;
+    /** último dia do teste grátis (nulo = conta sem teste) */
+    trialEndsAt: string | null;
   };
+  /** true = falta o CPF para emitir a cobrança (o cadastro com teste grátis não pede CPF) */
+  needsCpf: boolean;
   openPayment: OpenPayment | null;
   history: { dueDate: string; value: string; status: string; paidAt: Date | null }[];
 };
@@ -156,7 +165,12 @@ async function recomputeUserBilling(userId: string): Promise<void> {
     .where(eq(billingPayments.userId, userId));
 
   const [user] = await db
-    .select({ status: users.status, approvedAt: users.approvedAt, asaasSubscriptionId: users.asaasSubscriptionId })
+    .select({
+      status: users.status,
+      approvedAt: users.approvedAt,
+      asaasSubscriptionId: users.asaasSubscriptionId,
+      billingPlan: users.billingPlan,
+    })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -167,7 +181,8 @@ async function recomputeUserBilling(userId: string): Promise<void> {
     .filter((p) => user.asaasSubscriptionId && p.asaasSubscriptionId === user.asaasSubscriptionId)
     .map((p) => p.dueDate)
     .sort();
-  const dueDate = computeSubscriptionDueDate(payments, { anchorDate: current[0] ?? null });
+  // Plano anual: o ciclo seguinte ao último pago é 12 meses depois (não 1).
+  const dueDate = computeSubscriptionDueDate(payments, { anchorDate: current[0] ?? null, cycleMonths: planInfo(user.billingPlan).months });
   const anyPaid = payments.some((p) => isPaidStatus(p.status));
 
   const activate = anyPaid && user.status === "pending";
@@ -230,12 +245,16 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
         whatsappPhone: users.whatsappPhone,
         asaasCustomerId: users.asaasCustomerId,
         asaasSubscriptionId: users.asaasSubscriptionId,
+        status: users.status,
+        trialEndsAt: users.trialEndsAt,
+        billingPlan: users.billingPlan,
       })
       .from(users)
       .where(eq(users.id, userId))
       .limit(1)
   );
   if (!user) return;
+  const plan = planInfo(user.billingPlan);
 
   let customerId = user.asaasCustomerId;
   if (!customerId) {
@@ -255,9 +274,13 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
   if (!subscriptionId) {
     const subscription = await createSubscription({
       customer: customerId,
-      value: PLAN_PRICE,
-      nextDueDate: todayInSaoPaulo(),
-      description: PLAN_NAME,
+      value: plan.price,
+      cycle: plan.cycle,
+      // Em teste grátis, a 1ª cobrança vence no último dia do teste (pagar
+      // antes não tira nenhum dia: o mês pago começa a contar dali). Sem
+      // teste, ou com o teste já encerrado, vence hoje.
+      nextDueDate: firstPixDueDate({ trialEndsAt: user.status === "pending" ? user.trialEndsAt : null, today: todayInSaoPaulo() }),
+      description: plan.name,
       externalReference: user.id,
     });
     subscriptionId = subscription.id;
@@ -376,6 +399,9 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
           asaasSubscriptionId: users.asaasSubscriptionId,
           billingCanceledAt: users.billingCanceledAt,
           billingMethod: users.billingMethod,
+          billingPlan: users.billingPlan,
+          trialEndsAt: users.trialEndsAt,
+          cpf: users.cpf,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -384,6 +410,10 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
 
   let [user] = await readUser();
   if (!user) throw new Error("Usuário não encontrado.");
+  // Cadastro com teste grátis não pede CPF; ele é pedido aqui, na hora de
+  // pagar (o Asaas exige CPF para emitir a cobrança). Sem CPF, nada é criado
+  // no Asaas: a tela mostra só o campo do CPF.
+  const needsCpf = !user.cpf && !user.asaasSubscriptionId;
 
   const configured = isAsaasConfigured();
   let error: string | null = null;
@@ -391,7 +421,7 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
 
   // Assinatura cancelada: não cria nem consulta mais nada no Asaas (a
   // assinatura de lá foi apagada); só mostra o histórico.
-  if (user.billingEnabled && configured && !user.billingCanceledAt) {
+  if (user.billingEnabled && configured && !user.billingCanceledAt && !needsCpf) {
     try {
       if (!user.asaasSubscriptionId) {
         await ensureSubscription(userId);
@@ -435,7 +465,10 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
       subscriptionDueDate: user.subscriptionDueDate,
       billingCanceledAt: user.billingCanceledAt,
       billingMethod: normalizeBillingMethod(user.billingMethod),
+      billingPlan: normalizeBillingPlan(user.billingPlan),
+      trialEndsAt: user.trialEndsAt,
     },
+    needsCpf: needsCpf && configured && user.billingEnabled && !user.billingCanceledAt,
     openPayment: openPayment && isOpenStatus(openPayment.status) ? openPayment : null,
     history: history.reverse(),
   };
@@ -486,6 +519,8 @@ export async function startCardCheckout(
         asaasCustomerId: users.asaasCustomerId,
         billingEnabled: users.billingEnabled,
         billingCanceledAt: users.billingCanceledAt,
+        trialEndsAt: users.trialEndsAt,
+        billingPlan: users.billingPlan,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -510,14 +545,20 @@ export async function startCardCheckout(
     status: user.status,
     subscriptionDueDate: user.subscriptionDueDate,
     today: todayInSaoPaulo(),
+    trialEndsAt: user.trialEndsAt,
   });
   const base = origin.replace(/\/$/, "");
+  const plan = planInfo(user.billingPlan);
   const checkout = await createCardCheckout({
     customer: user.asaasCustomerId,
-    value: PLAN_PRICE,
+    value: plan.price,
+    cycle: plan.cycle,
     nextDueDateTime: checkoutDueDateTime(firstDue),
     itemName: "Contay",
-    itemDescription: "Plano mensal — cobrança automática no cartão de crédito",
+    itemDescription:
+      plan.plan === "YEARLY"
+        ? "Plano anual — cobrança automática no cartão de crédito, uma vez por ano"
+        : "Plano mensal — cobrança automática no cartão de crédito",
     imageBase64: planImageBase64(),
     externalReference: user.id,
     successUrl: `${base}/assinatura?cartao=ok`,
@@ -599,7 +640,10 @@ export async function syncCardSubscription(userId: string): Promise<boolean> {
       }
       await db
         .update(users)
-        .set({ asaasSubscriptionId: card.id, billingMethod: "CREDIT_CARD" })
+        // O plano passa a ser o da assinatura de cartão que o cliente concluiu
+        // (ele pode ter aberto o Checkout de um plano e depois escolhido outro
+        // na tela): o ciclo seguinte tem que bater com o que o Asaas vai cobrar.
+        .set({ asaasSubscriptionId: card.id, billingMethod: "CREDIT_CARD", billingPlan: planFromSubscription(card) })
         .where(eq(users.id, userId));
     });
     switched = true;
@@ -623,4 +667,77 @@ export async function findUserIdByAsaasCustomer(customerId: string): Promise<str
     db.select({ id: users.id }).from(users).where(eq(users.asaasCustomerId, customerId)).limit(1)
   );
   return row?.id ?? null;
+}
+
+export class PlanChangeError extends Error {}
+
+/**
+ * Troca o plano (mensal/anual) de quem AINDA NÃO PAGOU nada: teste grátis ou
+ * cadastro aguardando a 1ª cobrança, ainda no Pix (sem cartão cadastrado).
+ * Se já existe uma assinatura Pix em aberto no Asaas, ela é apagada (as
+ * cobranças não pagas somem junto) e a tela cria outra com o valor e o ciclo
+ * do plano novo. Quem já é assinante troca de plano pelo suporte.
+ * Mesma trava por usuário da criação da assinatura. Devolve true se trocou.
+ */
+export async function changeBillingPlan(userId: string, plan: BillingPlan): Promise<boolean> {
+  let changed = false;
+  await withServiceMode(async () => {
+    await db.execute(sql`select pg_advisory_xact_lock(hashtext(${"billing:" + userId}))`);
+
+    const [user] = await withServiceMode(() =>
+      db
+        .select({
+          status: users.status,
+          billingEnabled: users.billingEnabled,
+          billingCanceledAt: users.billingCanceledAt,
+          billingMethod: users.billingMethod,
+          billingPlan: users.billingPlan,
+          asaasSubscriptionId: users.asaasSubscriptionId,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+    );
+    if (!user || !user.billingEnabled) throw new PlanChangeError("Esta conta não tem cobrança automática.");
+    if (user.billingCanceledAt) throw new PlanChangeError("Sua assinatura foi cancelada. Para voltar a assinar, fale com o suporte.");
+    if (normalizeBillingPlan(user.billingPlan) === plan) return;
+    if (user.status !== "pending" || normalizeBillingMethod(user.billingMethod) === "CREDIT_CARD") {
+      throw new PlanChangeError("Para trocar de plano com a assinatura já em andamento, fale com o suporte pelo WhatsApp.");
+    }
+    const paid = await withServiceMode(() =>
+      db
+        .select({ id: billingPayments.id })
+        .from(billingPayments)
+        .where(and(eq(billingPayments.userId, userId), inArray(billingPayments.status, ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"])))
+        .limit(1)
+    );
+    if (paid.length > 0) {
+      throw new PlanChangeError("Para trocar de plano com a assinatura já em andamento, fale com o suporte pelo WhatsApp.");
+    }
+
+    if (user.asaasSubscriptionId) {
+      if (!isAsaasConfigured()) throw new PlanChangeError("A cobrança automática ainda não foi configurada. Avise o suporte.");
+      try {
+        await deleteSubscription(user.asaasSubscriptionId);
+      } catch (err) {
+        // 404 = já não existe no Asaas; qualquer outro erro: não troca (senão
+        // ficariam duas assinaturas cobrando).
+        if (!(err instanceof AsaasError && err.status === 404)) {
+          console.error("[billing] não consegui apagar a assinatura para trocar de plano", user.asaasSubscriptionId, err);
+          throw new PlanChangeError("Não foi possível trocar de plano agora. Tente de novo em instantes.");
+        }
+      }
+      await withServiceMode(() =>
+        db
+          .update(billingPayments)
+          .set({ status: "DELETED", updatedAt: new Date() })
+          .where(and(eq(billingPayments.userId, userId), inArray(billingPayments.status, ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"])))
+      );
+    }
+    await withServiceMode(() =>
+      db.update(users).set({ billingPlan: plan, asaasSubscriptionId: null, subscriptionDueDate: null }).where(eq(users.id, userId))
+    );
+    changed = true;
+  });
+  return changed;
 }

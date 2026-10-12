@@ -111,6 +111,8 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
         approvedAt: users.approvedAt,
         billingCanceledAt: users.billingCanceledAt,
         marketingOptOutAt: users.marketingOptOutAt,
+        trialEndsAt: users.trialEndsAt,
+        billingMethod: users.billingMethod,
         hasUsage: sql<boolean>`(
           exists (select 1 from transactions t where t.user_id = "users"."id")
           or exists (select 1 from fixed_accounts f where f.user_id = "users"."id")
@@ -164,6 +166,7 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
         hasPhone: Boolean(c.whatsappPhone),
         optedOut: Boolean(c.marketingOptOutAt),
         hasUsage: Boolean(c.hasUsage),
+        trialEndsAt: c.trialEndsAt,
       },
       own,
       now,
@@ -178,7 +181,15 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
     try {
       const phone = zapiPhone(c.whatsappPhone);
       if (!phone) throw new Error("Número de WhatsApp do cadastro inválido.");
-      await sendWhatsappText(phone, buildAutomationMessage({ kind: plan.kind, step: plan.step, name: c.name, appUrl }));
+      await sendWhatsappText(phone, buildAutomationMessage({
+          kind: plan.kind,
+          step: plan.step,
+          name: c.name,
+          appUrl,
+          trialEndsAt: c.trialEndsAt,
+          cardOnFile: c.billingMethod === "CREDIT_CARD",
+          hasUsage: Boolean(c.hasUsage),
+        }));
       await markResult(c.id, plan, null);
       result.sent += 1;
       result.details.push({ userId: c.id, kind: plan.kind, step: plan.step, ok: true });

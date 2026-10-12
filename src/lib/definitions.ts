@@ -17,12 +17,15 @@ export const SignupFormSchema = z.object({
         }
         return normalized;
       }),
-    // CPF: exigido pelo Asaas para emitir a cobrança Pix.
+    // CPF: o Asaas exige para emitir a cobrança. Desde o teste grátis
+    // (11/10/2026) o cadastro não pede mais CPF: ele é pedido na tela de
+    // pagamento (ver saveCpf em src/app/actions/billing.ts). Se vier
+    // preenchido, é validado e gravado; vazio vira nulo.
     cpf: z
       .string()
       .trim()
-      .refine(isValidCpf, { message: "CPF inválido. Confira os números." })
-      .transform(onlyDigits),
+      .refine((v) => v === "" || isValidCpf(v), { message: "CPF inválido. Confira os números." })
+      .transform((v) => (v === "" ? null : onlyDigits(v))),
     password: z
       .string()
       .min(8, { message: "A senha precisa ter pelo menos 8 caracteres." })

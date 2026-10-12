@@ -19,6 +19,88 @@ import { addMonthsClamped } from "@/lib/business/dates";
 
 export const PLAN_PRICE = 29.9;
 export const PLAN_NAME = "Contay — plano mensal";
+
+// Plano anual (pedido do Marcelo em 11/10/2026): 12 mensalidades com 15% de
+// desconto, cobradas de uma vez, uma vez por ano. Os valores saem sempre de
+// planInfo() para a tela, a cobrança e os textos nunca divergirem.
+export const ANNUAL_DISCOUNT_PERCENT = 15;
+export const PLAN_PRICE_YEARLY = Math.round(PLAN_PRICE * 12 * (100 - ANNUAL_DISCOUNT_PERCENT)) / 100; // 304,98
+export const PLAN_NAME_YEARLY = "Contay — plano anual";
+
+export type BillingPlan = "MONTHLY" | "YEARLY";
+
+export function normalizeBillingPlan(value: string | null | undefined): BillingPlan {
+  return value === "YEARLY" ? "YEARLY" : "MONTHLY";
+}
+
+export type PlanInfo = {
+  plan: BillingPlan;
+  /** valor de cada cobrança */
+  price: number;
+  /** ciclo no Asaas */
+  cycle: "MONTHLY" | "YEARLY";
+  /** meses entre uma cobrança e a seguinte */
+  months: 1 | 12;
+  name: string;
+  /** "mensalidade" | "anuidade" */
+  chargeName: string;
+  /** "por mês" | "por ano" */
+  per: string;
+  /** "todo mês" | "todo ano" */
+  every: string;
+  /** quanto sai por mês (no anual, o valor dividido por 12) */
+  monthlyEquivalent: number;
+  /** economia em um ano em relação a 12 mensalidades (0 no mensal) */
+  yearlySavings: number;
+};
+
+export function planInfo(plan: string | null | undefined): PlanInfo {
+  if (normalizeBillingPlan(plan) === "YEARLY") {
+    return {
+      plan: "YEARLY",
+      price: PLAN_PRICE_YEARLY,
+      cycle: "YEARLY",
+      months: 12,
+      name: PLAN_NAME_YEARLY,
+      chargeName: "anuidade",
+      per: "por ano",
+      every: "todo ano",
+      monthlyEquivalent: Math.round((PLAN_PRICE_YEARLY / 12) * 100) / 100,
+      yearlySavings: Math.round((PLAN_PRICE * 12 - PLAN_PRICE_YEARLY) * 100) / 100,
+    };
+  }
+  return {
+    plan: "MONTHLY",
+    price: PLAN_PRICE,
+    cycle: "MONTHLY",
+    months: 1,
+    name: PLAN_NAME,
+    chargeName: "mensalidade",
+    per: "por mês",
+    every: "todo mês",
+    monthlyEquivalent: PLAN_PRICE,
+    yearlySavings: 0,
+  };
+}
+
+/**
+ * Plano de uma assinatura que veio do Asaas (ex.: a de cartão criada pelo
+ * Checkout): vale o ciclo informado; sem ciclo, decide pelo valor.
+ */
+export function planFromSubscription(sub: { cycle?: string | null; value?: number | null }): BillingPlan {
+  if (sub.cycle === "YEARLY") return "YEARLY";
+  if (sub.cycle === "MONTHLY") return "MONTHLY";
+  return typeof sub.value === "number" && sub.value > PLAN_PRICE * 6 ? "YEARLY" : "MONTHLY";
+}
+// Teste grátis (pedido do Marcelo em 11/10/2026): quem se cadastra pela
+// página de vendas usa o app por TRIAL_DAYS dias sem pagar nada e sem
+// informar cartão. O cadastro grava users.trial_ends_at = dia do cadastro +
+// TRIAL_DAYS; a conta continua 'pending' ("nunca pagou") e o acesso vale até
+// o fim desse dia. Pagou em qualquer momento → vira 'active', como sempre.
+// Não pagou → no dia seguinte só a tela de pagamento abre (nenhum dado é
+// apagado). Contas sem trial_ends_at (cadastros anteriores) seguem a regra
+// antiga: só entram depois do 1º pagamento.
+export const TRIAL_DAYS = 7;
 export const GRACE_DAYS = 3; // dias de tolerância depois do vencimento
 export const REMIND_DAYS = 5; // começa a avisar no app X dias antes de vencer
 
@@ -61,10 +143,11 @@ export function addDays(dateStr: string, days: number): string {
 
 /**
  * Próximo vencimento depois de um ciclo pago, respeitando o dia do contrato
- * (anchorDay). Ex.: pago o de 28/02 de um contrato do dia 31 → 31/03.
+ * (anchorDay). Ex.: pago o de 28/02 de um contrato do dia 31 → 31/03. No
+ * plano anual (months = 12): pago o de 18/10/2026 → 18/10/2027.
  */
-export function nextCycleDate(paidDueDate: string, anchorDay: number): string {
-  const next = addMonthsClamped(paidDueDate.slice(0, 8) + "01", 1); // 1º dia do mês seguinte
+export function nextCycleDate(paidDueDate: string, anchorDay: number, months: number = 1): string {
+  const next = addMonthsClamped(paidDueDate.slice(0, 8) + "01", months); // 1º dia do mês do próximo ciclo
   const [y, m] = next.split("-").map(Number);
   const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const day = Math.min(anchorDay, lastDay);
@@ -87,6 +170,8 @@ export function computeSubscriptionDueDate(
      * Sem ele, vale o vencimento mais antigo de todos.
      */
     anchorDate?: string | null;
+    /** Meses entre uma cobrança e a seguinte: 1 no plano mensal (padrão), 12 no anual. */
+    cycleMonths?: number;
   } = {}
 ): string | null {
   if (payments.length === 0) return null;
@@ -96,12 +181,13 @@ export function computeSubscriptionDueDate(
   const anchorDay = Number((opts.anchorDate ?? all[0]).slice(8, 10));
   const paid = payments.filter((p) => isPaidStatus(p.status)).map((p) => p.dueDate).sort();
   if (paid.length === 0) return null; // só cobranças canceladas/estornadas
-  return nextCycleDate(paid[paid.length - 1], anchorDay);
+  return nextCycleDate(paid[paid.length - 1], anchorDay, opts.cycleMonths ?? 1);
 }
 
 export type BillingStateKind =
   | "exempt" // conta sem cobrança automática (clientes antigos, admin)
-  | "awaiting_first_payment" // cadastro feito, primeiro Pix ainda não pago
+  | "trial" // teste grátis em andamento: usa o app sem ter pago
+  | "awaiting_first_payment" // sem teste (ou teste encerrado) e 1ª mensalidade ainda não paga
   | "ok" // em dia, vencimento longe
   | "due_soon" // vence em até REMIND_DAYS dias
   | "overdue" // venceu, dentro da tolerância — ainda usa o app, com aviso
@@ -116,7 +202,30 @@ export type BillingState = {
   daysUntilDue: number | null;
   /** a partir de quando o acesso é bloqueado (só faz sentido se houver vencimento) */
   blockDate: string | null;
+  /** true quando a conta teve teste grátis e ele já terminou sem pagamento */
+  trialEnded?: boolean;
 };
+
+/** Último dia do teste grátis de quem se cadastra em `signupDate` ("YYYY-MM-DD"). */
+export function trialEndDate(signupDate: string): string {
+  return addDays(signupDate, TRIAL_DAYS);
+}
+
+/**
+ * Até que dia (inclusive) a conta em teste entra no app. Normalmente é o
+ * último dia do teste. Quem já deixou o cartão cadastrado durante o teste
+ * (a 1ª cobrança cai no último dia) ganha a mesma tolerância de GRACE_DAYS
+ * de qualquer mensalidade, para não ficar de fora enquanto a operadora
+ * confirma a cobrança.
+ */
+export function trialAccessLimit(trialEndsAt: string, billingMethod?: string | null): string {
+  return normalizeBillingMethod(billingMethod) === "CREDIT_CARD" ? addDays(trialEndsAt, GRACE_DAYS) : trialEndsAt;
+}
+
+/** Vencimento da 1ª cobrança Pix: no fim do teste se ele ainda está valendo; senão, hoje. */
+export function firstPixDueDate(input: { trialEndsAt?: string | null; today: string }): string {
+  return input.trialEndsAt && input.trialEndsAt >= input.today ? input.trialEndsAt : input.today;
+}
 
 export function computeBillingState(input: {
   billingEnabled: boolean;
@@ -125,6 +234,10 @@ export function computeBillingState(input: {
   today: string;
   /** assinatura cancelada pelo admin (users.billing_canceled_at) */
   canceledAt?: Date | string | null;
+  /** último dia do teste grátis (users.trial_ends_at); nulo = conta sem teste */
+  trialEndsAt?: string | null;
+  /** 'PIX' ou 'CREDIT_CARD' (users.billing_method) */
+  billingMethod?: string | null;
 }): BillingState {
   const { billingEnabled, status, subscriptionDueDate, today } = input;
   if (!billingEnabled) {
@@ -141,6 +254,14 @@ export function computeBillingState(input: {
       daysUntilDue,
       blockDate: subscriptionDueDate,
     };
+  }
+  if (status === "pending" && input.trialEndsAt) {
+    const limit = trialAccessLimit(input.trialEndsAt, input.billingMethod);
+    const daysUntilDue = daysBetween(today, input.trialEndsAt);
+    if (today <= limit) {
+      return { kind: "trial", dueDate: input.trialEndsAt, daysUntilDue, blockDate: addDays(limit, 1) };
+    }
+    return { kind: "awaiting_first_payment", dueDate: subscriptionDueDate, daysUntilDue, blockDate: null, trialEnded: true };
   }
   if (status === "pending") {
     return {
@@ -175,16 +296,26 @@ export function normalizeBillingMethod(value: string | null | undefined): Billin
  * Data da 1ª cobrança no cartão quando o cliente troca (ou começa) pelo
  * cartão. Regra: ninguém paga duas vezes pelo mesmo mês e ninguém ganha mês
  * de graça.
- * - Ainda não pagou nada (conta 'pending'): cobra hoje.
+ * - Ainda não pagou nada (conta 'pending'): cobra hoje; se o teste grátis
+ *   ainda está valendo, cobra no último dia do teste.
  * - Já tem um vencimento futuro (em dia, pago até lá, ou com a mensalidade
  *   do mês gerada mas ainda não vencida): a 1ª cobrança do cartão é nesse
  *   mesmo dia — a assinatura Pix antiga é apagada junto com a cobrança
  *   em aberto.
  * - Vencido (ou sem vencimento): cobra hoje.
  */
-export function cardFirstDueDate(input: { status: string; subscriptionDueDate: string | null; today: string }): string {
+export function cardFirstDueDate(input: {
+  status: string;
+  subscriptionDueDate: string | null;
+  today: string;
+  /** último dia do teste grátis, se a conta tem teste */
+  trialEndsAt?: string | null;
+}): string {
   const { status, subscriptionDueDate, today } = input;
-  if (status === "pending" || !subscriptionDueDate) return today;
+  // Em teste grátis: o cartão fica cadastrado e a 1ª cobrança só acontece no
+  // último dia do teste (ninguém perde dia de teste por cadastrar o cartão antes).
+  if (status === "pending") return firstPixDueDate({ trialEndsAt: input.trialEndsAt, today });
+  if (!subscriptionDueDate) return today;
   return subscriptionDueDate > today ? subscriptionDueDate : today;
 }
 
@@ -315,4 +446,25 @@ export function whatsappPhoneVariants(value: string): string[] {
     out.add("55" + l);
   }
   return Array.from(out);
+}
+
+/**
+ * A conta pode usar o app agora? Regra única para as páginas, as Server
+ * Actions (src/lib/dal.ts) e o lançamento pelo WhatsApp: conta ativa e não
+ * bloqueada por atraso/cancelamento, ou conta em teste grátis ainda valendo.
+ */
+export function hasAppAccess(input: {
+  billingEnabled: boolean;
+  status: string;
+  subscriptionDueDate: string | null;
+  today: string;
+  canceledAt?: Date | string | null;
+  trialEndsAt?: string | null;
+  billingMethod?: string | null;
+}): boolean {
+  if (input.status === "suspended") return false;
+  const kind = computeBillingState(input).kind;
+  if (kind === "trial") return true;
+  if (input.status !== "active") return false;
+  return kind !== "blocked" && kind !== "canceled";
 }
