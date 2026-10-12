@@ -148,6 +148,25 @@ try {
     check("as imagens dos depoimentos abrem sem login", imgStatus.every((s) => s.startsWith("200 image/webp")), imgStatus.join(" | "));
     check("depoimentos têm a mensagem transcrita para leitor de tela e não mostram telefone", imgs.every((i) => i.alt.length > 80) && !/\(?\b\d{2}\)?\s?9\d{4}-?\d{4}/.test(await page.locator("#depoimentos").innerText()));
 
+    // "Escreva, fale ou fotografe" (carrossel 3D de áudio e foto)
+    check("página de vendas: topo fala de texto, áudio e foto do cupom", landing.includes("por texto, áudio ou foto do cupom"));
+    const ms = page.locator('[data-testid="media-showcase"]');
+    await ms.scrollIntoViewIfNeeded();
+    check("seção 'Escreva, fale ou fotografe' aparece com 3 abas e 3 cartões", (await page.locator("#audio-foto h2").innerText()).includes("Escreva, fale ou fotografe") && (await ms.locator('[role="tab"]').count()) === 3 && (await ms.locator(".ms-card").count()) === 3);
+    // gira sozinho enquanto está na tela
+    await page.waitForFunction(() => document.querySelector('[data-testid="media-showcase"]')?.getAttribute("data-mode") !== "texto", null, { timeout: 12000 });
+    check("o carrossel 3D gira sozinho", true);
+    await ms.locator('[role="tab"]:has-text("Fotografe")').click();
+    await page.waitForTimeout(1200);
+    const fotoOn = await ms.getAttribute("data-mode");
+    const front = ms.locator(".ms-card.front");
+    check("tocar em 'Fotografe' mostra o cupom lido e lançado", fotoOn === "foto" && (await front.innerText()).includes("Cupom lido e lançado") && (await front.innerText()).includes("R$ 87,40"));
+    await ms.locator('[role="tab"]:has-text("Fale")').click();
+    await page.waitForTimeout(6000);
+    check("depois de tocar numa aba o giro automático para (fica em 'Fale')", (await ms.getAttribute("data-mode")) === "audio" && (await ms.locator('[role="tab"][aria-selected="true"]').innerText()).includes("Fale"));
+    check("cartão do áudio mostra a fala transcrita e a categoria Saúde", (await front.innerText()).includes("gastei trinta reais na farmácia") && (await front.innerText()).includes("Saúde"));
+    check("FAQ responde se pode mandar áudio ou foto", landing.includes("Posso mandar áudio ou foto do cupom?"));
+
     // demonstração animada do WhatsApp
     const demo = page.locator('[data-testid="chat-demo"]');
     await demo.scrollIntoViewIfNeeded();
@@ -191,7 +210,9 @@ try {
   const a = await signup("Tania Teste", { acceptCookies: true });
   {
     const { page } = a;
-    check("cadastro não pede CPF", (await (await browser.newPage()).goto(`${BASE}/registrar`).then(async (r) => (await r.text()))).includes('name="cpf"') === false);
+    const regHtml = await (await browser.newPage()).goto(`${BASE}/registrar`).then(async (r) => (await r.text()));
+    check("cadastro não pede CPF", regHtml.includes('name="cpf"') === false);
+    check("caixa de aceite do cadastro traz a frase do WhatsApp e do SAIR", regHtml.includes("Aceito receber mensagens do Contay no WhatsApp que informei") && regHtml.includes("respondendo SAIR"));
     const welcome = await page.textContent("body");
     check("depois do cadastro abre a tela 'teste grátis liberado' com o prazo", welcome.includes("Seu teste grátis de 7 dias está liberado") && (await page.locator('[data-testid="bem-vindo-prazo"]').innerText()).includes(br(trialEnd)), br(trialEnd));
     const wa = await page.getAttribute('[data-testid="bem-vindo-whatsapp"]', "href");

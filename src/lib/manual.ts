@@ -19,7 +19,7 @@ export type ManualSection = {
 
 export const MANUAL_TITLE = "Manual do Contay";
 export const MANUAL_SUBTITLE = "Tudo o que o app faz, explicado passo a passo.";
-export const MANUAL_UPDATED = "11/10/2026";
+export const MANUAL_UPDATED = "12/10/2026";
 
 export const MANUAL_SECTIONS: ManualSection[] = [
   {
@@ -36,7 +36,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
   {
     id: "whatsapp",
     title: "2. Lançar pelo WhatsApp",
-    intro: "Mande uma mensagem para o número do Contay, escrita do seu jeito. Ele entende, lança no app e responde confirmando.",
+    intro: "Mande para o número do Contay uma mensagem escrita do seu jeito, um áudio ou a foto do cupom. Ele entende, lança no app e responde confirmando.",
     items: [
       "Gasto simples: “gastei 45 no mercado”, “uber 18,50”, “farmácia 42,90”.",
       "Com vencimento: “dentista 250 vence dia 15/10”.",
@@ -45,7 +45,9 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       "Cartão à vista: “89,90 no cartão Nubank”.",
       "Categoria: o Contay escolhe sozinho (mercado vai para Compra de alimentos, posto vai para Gasolina). Para escolher, diga a categoria: “ração 80 categoria pet”. Se ela não existir, é criada na hora.",
       "O valor é sempre o total da compra. Mande uma compra por mensagem.",
-      "Foto, áudio e figurinha não são lidos: mande em texto.",
+      "Áudio: grave falando o gasto, como “gastei trinta reais na farmácia” ou “quatrocentos no cartão Nubank em quatro vezes”. O Contay ouve, lança e responde com o que entendeu.",
+      "Foto: mande a foto do cupom fiscal, da nota ou do comprovante. O Contay lê o total, o estabelecimento e a data e lança o valor total. Para dizer que foi no cartão ou escolher a categoria, escreva na legenda da foto, por exemplo “cartão Nubank” ou “categoria pet”.",
+      "Uma compra por áudio ou foto. Figurinha e vídeo não são lidos. O Contay não guarda o arquivo: ele é usado só para ler o gasto.",
     ],
     tip: "Se o Contay responder que o seu WhatsApp não está vinculado, abra o app, vá em Fechamento, toque em “Vincular pelo WhatsApp” e mande para o número do Contay a mensagem que aparecer (VINCULAR e um código de 6 números). O código vale 30 minutos.",
   },
