@@ -73,6 +73,9 @@ export const users = pgTable("users", {
     role: text("role").notNull().default("user"), // 'user' | 'admin'
     status: text("status").notNull().default("pending"), // 'pending' | 'active' | 'suspended'
     subscriptionDueDate: date("subscription_due_date"), // próximo vencimento da mensalidade
+    // Último dia do teste grátis (cadastro + 7 dias). Nulo = conta sem teste
+    // (cadastros anteriores a 11/10/2026). Ver migração 0015 e billing/core.ts.
+    trialEndsAt: date("trial_ends_at"),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
     // --- Aceite dos Termos de Uso / Política de Privacidade (LGPD) ----------
@@ -98,6 +101,8 @@ export const users = pgTable("users", {
     billingCanceledAt: timestamp("billing_canceled_at", { withTimezone: true }),
     // Forma da assinatura atual no Asaas: 'PIX' ou 'CREDIT_CARD' (migração 0011).
     billingMethod: text("billing_method").notNull().default("PIX"),
+    // Plano: 'MONTHLY' (mensal) ou 'YEARLY' (anual, 15% de desconto). Migração 0016.
+    billingPlan: text("billing_plan").notNull().default("MONTHLY"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

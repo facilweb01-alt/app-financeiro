@@ -79,6 +79,9 @@ export type AsaasSubscription = {
   status?: string;
   dateCreated?: string;
   deleted?: boolean;
+  /** "MONTHLY" | "YEARLY" */
+  cycle?: string;
+  value?: number;
 };
 export type AsaasPayment = {
   id: string;
@@ -119,11 +122,13 @@ export function createSubscription(input: {
   nextDueDate: string;
   description: string;
   externalReference: string;
+  /** "MONTHLY" (padrão) ou "YEARLY" (plano anual) */
+  cycle?: "MONTHLY" | "YEARLY";
 }): Promise<AsaasSubscription> {
   return request("POST", "/subscriptions", {
     ...input,
     billingType: "PIX",
-    cycle: "MONTHLY",
+    cycle: input.cycle ?? "MONTHLY",
   });
 }
 
@@ -178,6 +183,8 @@ export function createCardCheckout(input: {
   successUrl: string;
   cancelUrl: string;
   expiredUrl: string;
+  /** "MONTHLY" (padrão) ou "YEARLY" (plano anual) */
+  cycle?: "MONTHLY" | "YEARLY";
 }): Promise<AsaasCheckout> {
   return request("POST", "/checkouts", {
     billingTypes: ["CREDIT_CARD"],
@@ -200,7 +207,7 @@ export function createCardCheckout(input: {
       },
     ],
     subscription: {
-      cycle: "MONTHLY",
+      cycle: input.cycle ?? "MONTHLY",
       nextDueDate: input.nextDueDateTime,
     },
   });

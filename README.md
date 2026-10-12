@@ -59,10 +59,22 @@ node e2e/welcome.smoke.mjs           # página /manual, PDF, envio único, falha
 #   ZAPI_BASE_URL=http://localhost:3997 ZAPI_INSTANCE_ID=inst-teste ZAPI_INSTANCE_TOKEN=tok-teste ZAPI_CLIENT_TOKEN=client-teste \
 #   AUTOMACOES_IGNORAR_HORARIO=1 AUTOMACOES_INTERVALO_MS=0 AUTOMACOES_DESDE=2026-09-15T00:00:00-03:00 npx next start -p 3100
 WHATSAPP_WEBHOOK_SECRET=... node e2e/cartao-ciclo-automacoes.smoke.mjs
-# Ajustes de conversão (11/10/2026): origem do cadastro (utm_* do anúncio gravados em users.signup_source), garantia de 7 dias,
-# atalho para o Pix e evento "começou a pagar". Suba o app como no pixel.smoke.mjs (META_PIXEL_ID de teste + Asaas falso com
+# Ajustes de conversão (11/10/2026): origem do cadastro (utm_* do anúncio gravados em users.signup_source), atalho para o Pix e
+# evento "começou a pagar". Suba o app como no pixel.smoke.mjs (META_PIXEL_ID de teste + Asaas falso com
 # ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout + Z-API falso):
 node e2e/conversao-origem-garantia.smoke.mjs
+# Teste grátis de 7 dias: cadastro sem CPF libera o app, boas-vindas com o manual, avisos na véspera e no último dia, fim do
+# teste, assinatura com Pix/cartão durante o teste, CPF na tela de pagamento, depoimentos e demonstração animada da página de
+# vendas. Suba o app com tudo falso (pixel, Asaas com Checkout, Z-API) MAIS AUTOMACOES_IGNORAR_HORARIO=1 AUTOMACOES_INTERVALO_MS=0
+# AUTOMACOES_DESDE=2026-09-15T00:00:00-03:00:
+WHATSAPP_WEBHOOK_SECRET=... node e2e/teste-gratis.smoke.mjs
+# Plano anual (15% de desconto): escolha mensal/anual em /assinatura, Pix e cartão anuais, próximo vencimento um ano depois,
+# troca de plano só antes do primeiro pagamento. Mesmo servidor do teste-gratis (tudo falso):
+node e2e/plano-anual.smoke.mjs
+# Áudio e imagem pelo WhatsApp (POST /api/whatsapp/midia), contra uma IA FALSA (e2e/helpers/fakeGemini.mjs, porta 3996, que o
+# próprio teste sobe). Suba o app como acima MAIS GEMINI_API_KEY=chave-gemini-teste GEMINI_BASE_URL=http://localhost:3996/v1beta
+# WHATSAPP_MIDIA_HOSTS=localhost:
+WHATSAPP_WEBHOOK_SECRET=... node e2e/whatsapp-midia.smoke.mjs
 ```
 
 Precisam do Chromium do Playwright instalado (`npx playwright install chromium`, se ainda não tiver). Os testes que criam usuários usam `e2e/helpers/testDb.mjs` (conecta direto no banco com `DATABASE_URL`) para simular ações que só um admin faria em `/admin` — sem isso, todo teste de outra funcionalidade teria que primeiro passar pela UI do painel administrativo.
@@ -116,6 +128,8 @@ O pedido original foi "comando pelo WhatsApp para atualizar o app sem precisar a
 - Cada usuário pode vincular o próprio número de WhatsApp na aba **Fechamento** (dentro do app, já logado — sem verificação por SMS).
 - `POST /api/whatsapp/lancamento`: endpoint autenticado (segredo compartilhado `WHATSAPP_WEBHOOK_SECRET`) que recebe um lançamento já estruturado (`{ phone, description, amount, categoryKey? }`) e grava na conta vinculada àquele número. Testado de ponta a ponta em `e2e/whatsapp-webhook.smoke.mjs`.
 
+- `POST /api/whatsapp/midia` (11/10/2026): mesmo segredo; recebe `{ phone, kind: "audio" | "image", mediaUrl, mimeType?, caption? }`. O app confere se o número tem conta com acesso, baixa o arquivo (só `https`, nunca endereço interno ou IP; se `WHATSAPP_MIDIA_HOSTS` estiver preenchida, só desses domínios; limite de 8 MB para áudio e 6 MB para imagem), pede à IA (Gemini, `GEMINI_API_KEY`; modelo em `GEMINI_MODEL`, padrão `gemini-2.5-flash-lite`) para devolver o gasto em JSON, valida a resposta e grava pelo MESMO caminho do `/lancamento` (mesmas regras de cartão, parcelas e categoria). Devolve sempre um `reply` pronto para o n8n mandar ao cliente. O arquivo não é guardado. Regras puras em `src/lib/business/whatsappMedia.ts`, rede em `src/lib/whatsapp/media.ts`. Sem `GEMINI_API_KEY` o endpoint responde 503 com um `reply` educado. Teste: `e2e/whatsapp-midia.smoke.mjs`.
+
 O que falta, e que exige uma conta/número de verdade (por isso não foi feito nesta sessão — é uma decisão que só você pode tomar, e são credenciais que não devo digitar por você):
 
 1. **Um número de WhatsApp Business** (ou reaproveitar um que você já tenha).
@@ -138,6 +152,12 @@ O que falta, e que exige uma conta/número de verdade (por isso não foi feito n
 - 1ª cobrança no cartão (`core.ts#cardFirstDueDate`): conta sem pagamento ou vencida → hoje; em dia → no vencimento que já existia (ninguém paga duas vezes o mesmo mês).
 - Cartão: sem aviso de "vence em N dias" (é automático). Cartão recusado (cobrança vencida) → aviso vermelho, `/assinatura` oferece "Pagar esta mensalidade" (fatura do Asaas) ou "Cadastrar outro cartão"; mesma regra de bloqueio (3 dias).
 - Teste: `node e2e/billing-card.smoke.mjs` (suba o app também com `ASAAS_CHECKOUT_BASE_URL=http://localhost:3998/__checkout`).
+
+### Teste grátis de 7 dias e plano anual (migrações 0015 e 0016)
+
+- Cadastro novo entra em teste grátis (`users.trial_ends_at`), sem CPF e sem cartão; a conta continua `pending` e o acesso vem de `core.ts#hasAppAccess`. Avisos pelo WhatsApp na véspera e no último dia (`automations.ts`, tipo `teste`).
+- `users.billing_plan` = `MONTHLY` (R$ 29,90/mês) ou `YEARLY` (12 × 29,90 − 15% = **R$ 304,98/ano**, `core.ts#planInfo`). A escolha fica em `/assinatura` (`PlanChooser`) e só pode ser trocada antes do primeiro pagamento (`service.ts#changeBillingPlan`); no cartão, o plano é lido da assinatura criada no Asaas (`planFromSubscription`). O anual é uma cobrança única por ano (sem parcelamento).
+- Teste: `node e2e/plano-anual.smoke.mjs`.
 
 ### Para ligar em produção (passo a passo)
 

@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { payWithCard, refreshBillingStatus } from "@/app/actions/billing";
+import { choosePlan, payWithCard, refreshBillingStatus, saveCpf } from "@/app/actions/billing";
 import { trackMeta } from "@/components/tracking/metaPixel";
 
 // Parte interativa da tela de pagamento: copiar o Pix copia-e-cola, botão
@@ -277,6 +277,91 @@ export function CardCheckoutButton({
       <button type="submit" disabled={pending} className={btnClass}>
         {pending ? "Abrindo pagamento seguro..." : "Continuar para os dados do cartão"}
       </button>
+      {state.error && <p className="text-center text-xs text-red-300">{state.error}</p>}
+    </form>
+  );
+}
+
+/**
+ * CPF pedido na hora de pagar (o cadastro com teste grátis não pede). Depois
+ * de gravado, a página recarrega e mostra o cartão e o Pix.
+ */
+export function CpfForm() {
+  const [state, formAction, pending] = useActionState(saveCpf, { error: null });
+  return (
+    <form action={formAction} className="flex flex-col gap-2.5" data-testid="cpf-form">
+      <label htmlFor="pay-cpf" className="text-xs text-navy-400">
+        CPF
+      </label>
+      <input
+        id="pay-cpf"
+        name="cpf"
+        inputMode="numeric"
+        autoComplete="off"
+        placeholder="000.000.000-00"
+        required
+        className="w-full rounded-xl border border-navy-700 bg-navy-950 px-3 py-2.5 text-sm text-navy-100 placeholder:text-navy-500 focus:border-blue-500 focus:outline-none"
+      />
+      <button
+        type="submit"
+        disabled={pending}
+        className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-emerald-700 disabled:opacity-60"
+      >
+        {pending ? "Salvando..." : "Continuar para o pagamento"}
+      </button>
+      {state.error && <p className="text-center text-xs text-red-300">{state.error}</p>}
+    </form>
+  );
+}
+
+/**
+ * Escolha entre o plano mensal e o anual (15% de desconto), para quem ainda
+ * não pagou. Trocar aqui refaz a cobrança Pix com o valor do plano escolhido.
+ */
+export function PlanChooser({
+  current,
+  monthlyLabel,
+  yearlyLabel,
+  yearlyDetail,
+}: {
+  current: "MONTHLY" | "YEARLY";
+  monthlyLabel: string;
+  yearlyLabel: string;
+  yearlyDetail: string;
+}) {
+  const [state, formAction, pending] = useActionState(choosePlan, { error: null });
+  const option = (plan: "MONTHLY" | "YEARLY", title: string, price: string, detail: string | null, badge: string | null) => {
+    const on = current === plan;
+    return (
+      <button
+        type="submit"
+        name="plan"
+        value={plan}
+        disabled={pending || on}
+        aria-pressed={on}
+        data-testid={`plano-${plan === "YEARLY" ? "anual" : "mensal"}`}
+        className={`flex w-full flex-col gap-0.5 rounded-xl border px-4 py-3 text-left transition-colors disabled:cursor-default ${
+          on ? "border-emerald-400 bg-emerald-500/10" : "border-navy-700 bg-navy-950/60 hover:border-navy-500"
+        }`}
+      >
+        <span className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-navy-50">
+            {on ? "● " : "○ "}
+            {title}
+          </span>
+          {badge && <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">{badge}</span>}
+        </span>
+        <span className="text-sm text-navy-200">{price}</span>
+        {detail && <span className="text-xs text-navy-400">{detail}</span>}
+      </button>
+    );
+  };
+  return (
+    <form action={formAction} className="glass-card flex flex-col gap-2.5 rounded-2xl p-5" data-testid="escolha-plano">
+      <div className="font-semibold text-navy-50">Escolha o plano</div>
+      {option("MONTHLY", "Mensal", monthlyLabel, "Sem fidelidade: cancela quando quiser.", null)}
+      {option("YEARLY", "Anual", yearlyLabel, yearlyDetail, "Mais econômico")}
+      {pending && <p className="text-center text-xs text-navy-400">Atualizando o plano...</p>}
       {state.error && <p className="text-center text-xs text-red-300">{state.error}</p>}
     </form>
   );

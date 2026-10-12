@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
 import { existsSync } from "node:fs";
 import { activateUser, suspendUser, closeTestDb } from "./helpers/testDb.mjs";
-import { randomCpf } from "./helpers/signup.mjs";
+
 
 // Testa o endpoint POST /api/whatsapp/lancamento de ponta a ponta:
 // cria usuário, vincula um número de WhatsApp pela UI, chama o endpoint
@@ -34,7 +34,6 @@ await page.goto(`${BASE}/registrar`);
 await page.fill("#name", "Marcelo WhatsApp");
 await page.fill("#email", email);
 await page.fill("#whatsappPhone", phone); // o WhatsApp agora já vem do cadastro
-await page.fill("#cpf", randomCpf());
 await page.fill("#password", password);
 await page.check("#terms");
 await page.click('button[type="submit"]');

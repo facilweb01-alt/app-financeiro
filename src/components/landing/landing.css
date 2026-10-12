@@ -296,3 +296,49 @@ html:has(.lp){scroll-behavior:smooth}
 .lp .appphone.back{position:absolute;z-index:1;right:0;top:9%;width:62%;opacity:.8}
 .lp .appscene .cap{font-size:13px;color:var(--faint);text-align:center}
 
+
+/* ---- demonstração animada do WhatsApp (ChatDemo.tsx, Diferencial 1) ---- */
+.lp .demo{display:grid;gap:14px;min-width:0}
+.lp .demo-tabs{display:flex;flex-wrap:wrap;gap:8px}
+.lp .demo-tab{appearance:none;cursor:pointer;font:inherit;font-size:14px;font-weight:700;padding:9px 14px;border-radius:999px;border:1px solid var(--line);background:var(--bg-2);color:var(--text-2);transition:background .2s,color .2s,border-color .2s}
+.lp .demo-tab:hover{border-color:var(--blue-2);color:var(--text)}
+.lp .demo-tab.on{background:var(--green);border-color:var(--green);color:var(--green-ink)}
+.lp .demo-tab:focus-visible{outline:3px solid var(--blue-2);outline-offset:3px}
+.lp .demo-phone{border-radius:24px;border:1px solid var(--line);background:var(--bg-2);overflow:hidden;box-shadow:0 24px 50px -22px rgba(0,0,0,.7)}
+.lp .demo-phone .chat-head{border-radius:0}
+.lp .demo-avatar{display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--green));color:#fff;font-weight:800;font-size:15px;flex:none}
+.lp .demo-chat{border-radius:0;min-height:196px;justify-content:flex-end;padding:16px 13px}
+.lp .demo-chat .b{font-size:14.5px;max-width:88%}
+.lp .demo-line{display:block}
+.lp .demo-in{animation:lp-demo-in .32s ease-out both}
+@keyframes lp-demo-in{from{opacity:0;translate:0 10px;scale:.96}to{opacity:1;translate:0 0;scale:1}}
+.lp .demo-typing{display:inline-flex;gap:5px;align-items:center;padding:13px 14px}
+.lp .demo-typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:lp-demo-dot 1s ease-in-out infinite}
+.lp .demo-typing i:nth-child(2){animation-delay:.15s}
+.lp .demo-typing i:nth-child(3){animation-delay:.3s}
+@keyframes lp-demo-dot{0%,60%,100%{opacity:.35;translate:0 0}30%{opacity:1;translate:0 -4px}}
+.lp .demo-app{border-radius:20px;border:1px solid var(--line);background:var(--bg-2);padding:16px 18px;opacity:.28;translate:0 6px;transition:opacity .45s ease,translate .45s ease,border-color .45s ease}
+.lp .demo-app.on{opacity:1;translate:0 0;border-color:rgba(52,211,153,.5)}
+.lp .demo-app-head{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;letter-spacing:.12em;text-transform:uppercase;color:var(--green-2)}
+.lp .demo-dot{width:8px;height:8px;border-radius:50%;background:var(--green-2);box-shadow:0 0 0 4px rgba(52,211,153,.18)}
+.lp .demo-app-title{margin-top:8px;color:var(--text);font-weight:700;font-size:16px}
+.lp .demo-app ul{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.lp .demo-app li{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.lp .demo-app li span{display:grid;min-width:0}
+.lp .demo-app li b{color:var(--text);font-size:14.5px;font-weight:700}
+.lp .demo-app li em{font-style:normal;font-size:12.5px;color:var(--muted)}
+.lp .demo-app li strong{color:var(--text);font-size:14.5px;white-space:nowrap}
+.lp .demo-app-foot{margin-top:10px;display:flex;justify-content:space-between;gap:12px;font-size:13.5px;color:var(--muted)}
+.lp .demo-app-foot b{color:var(--green-2);white-space:nowrap}
+.lp .demo-note{font-size:12.5px;color:var(--faint);text-align:center}
+
+/* ---- depoimentos (prints do WhatsApp com nome, foto e número ocultos) ---- */
+.lp .deps{display:grid;gap:18px;align-items:start}
+@media (min-width:860px){.lp .deps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.lp .dep{margin:0;display:grid;gap:14px;padding:18px;border-radius:26px;background:var(--surface);border:1px solid var(--line)}
+.lp .dep img{display:block;width:100%;height:auto;border-radius:16px}
+.lp .dep figcaption{display:flex;align-items:center;gap:12px;font-size:14.5px;color:var(--muted)}
+.lp .dep figcaption b{display:block;color:var(--text);font-size:15.5px}
+.lp .dep .dep-ico{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:rgba(16,185,129,.14);color:var(--green-2);flex:none}
+.lp .deps-note{max-width:760px;margin:20px auto 0;text-align:center;font-size:13.5px;color:var(--faint)}
+

@@ -3,6 +3,7 @@
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
 import { cookies } from "next/headers";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { db, withRLS, withServiceMode } from "@/db/client";
 import { users } from "@/db/schema";
@@ -11,7 +12,8 @@ import { getRawSession } from "@/lib/dal";
 import { LoginFormSchema, SignupFormSchema, type AuthFormState } from "@/lib/definitions";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { isAsaasConfigured } from "@/lib/billing/asaas";
-import { whatsappPhoneVariants } from "@/lib/billing/core";
+import { todayInSaoPaulo, trialEndDate, whatsappPhoneVariants } from "@/lib/billing/core";
+import { processPendingWelcomesSafely } from "@/lib/whatsapp/welcome";
 import { normalizeSignupSource } from "@/lib/business/signupSource";
 
 export async function signup(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -50,11 +52,12 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
         return { errors: { whatsappPhone: ["Esse WhatsApp já está vinculado a outra conta."] } };
   }
 
-  // Com a cobrança automática (Asaas) configurada, a conta nasce aguardando
-  // o primeiro Pix e é liberada sozinha quando ele é pago (ver
-  // src/lib/billing/). Sem ela, segue o fluxo antigo: aguarda aprovação
-  // manual no painel admin.
+  // Com a cobrança automática (Asaas) configurada, a conta nasce com 7 dias
+  // de teste grátis: usa o app sem pagar até trial_ends_at e, pagando, vira
+  // 'active' (ver src/lib/billing/core.ts, TRIAL_DAYS). Sem ela, segue o
+  // fluxo antigo: aguarda aprovação manual no painel admin.
   const billingEnabled = isAsaasConfigured();
+  const trialEndsAt = billingEnabled ? trialEndDate(todayInSaoPaulo()) : null;
 
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -76,6 +79,10 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
                                                           cpf,
                                                           billingEnabled,
                                                           signupSource,
+                                                          trialEndsAt,
+                                                          // Pede as boas-vindas pelo WhatsApp (manual + aviso de que o
+                                                          // teste está liberado); quem envia é processPendingWelcomes.
+                                                          ...(trialEndsAt ? { welcomeRequestedAt: new Date() } : {}),
                                                           termsAcceptedAt: new Date(),
                                                           termsVersion: CURRENT_TERMS_VERSION,
                                                 })
@@ -91,7 +98,8 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
   // cadastro uma única vez na tela seguinte (ver components/tracking). É só
   // um sinal, sem nenhum dado da pessoa, e dura 15 minutos.
   (await cookies()).set("contay_reg", "1", { maxAge: 900, path: "/", sameSite: "lax", httpOnly: false });
-    redirect(billingEnabled ? "/assinatura" : "/dashboard");
+  if (trialEndsAt) after(processPendingWelcomesSafely);
+  redirect(billingEnabled ? "/bem-vindo" : "/dashboard");
 }
 
 export async function login(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {

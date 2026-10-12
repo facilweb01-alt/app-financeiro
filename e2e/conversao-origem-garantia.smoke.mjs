@@ -4,15 +4,15 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
-import { fillSignup } from "./helpers/signup.mjs";
+import { fillSignup, randomCpf } from "./helpers/signup.mjs";
 
 // Ajustes de conversão de 11/10/2026, de ponta a ponta:
 //  - origem do cadastro: os "utm_*" do anúncio seguem da página de vendas para
 //    o cadastro e ficam gravados em users.signup_source (sem fbclid);
-//  - garantia de 7 dias visível na página de vendas, no cadastro, na tela de
-//    pagamento e nos Termos;
 //  - tela de pagamento: atalho "Prefere pagar com Pix?" e o evento
 //    "começou a pagar" (InitiateCheckout) só para quem aceitou os cookies.
+// (O teste grátis de 7 dias tem suíte própria: e2e/teste-gratis.smoke.mjs. O nome
+// deste arquivo ficou da 1ª versão, que tinha garantia de 7 dias no lugar do teste.)
 // NUNCA fala com a Meta nem com o Asaas de verdade (mesmos falsos do pixel.smoke).
 //
 // Suba o app como no pixel.smoke.mjs, com o Checkout falso:
@@ -66,6 +66,17 @@ async function newVisitor() {
 }
 const tracked = (log, name) => log.filter((e) => e[0] === "track" && e[1] === name);
 
+/** Depois do cadastro (tela de teste liberado): vai assinar, informa o CPF e espera o Pix. */
+async function goPay(page) {
+  await page.waitForURL(`${BASE}/bem-vindo`, { timeout: 15000 });
+  await page.goto(`${BASE}/assinatura`);
+  const cpf = randomCpf();
+  await page.fill("#pay-cpf", cpf);
+  await page.click('[data-testid="cpf-form"] button[type="submit"]');
+  await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
+  return cpf;
+}
+
 const UTM = "utm_source=meta&utm_medium=cpc&utm_campaign=C1%20Vendas%20Cadastro&utm_content=VID%20REAL%201";
 const STORED = "utm_source=meta&utm_medium=cpc&utm_campaign=C1+Vendas+Cadastro&utm_content=VID+REAL+1";
 
@@ -78,7 +89,7 @@ try {
     check("página de vendas: todos os botões de cadastro levam a origem do anúncio", hrefs.length >= 6 && hrefs.every((h) => h === `/registrar?${STORED}`), JSON.stringify([...new Set(hrefs)]));
     check("página de vendas: o identificador de clique (fbclid) não é repassado", hrefs.every((h) => !h.includes("fbclid")));
     const landing = await page.textContent("body");
-    check("página de vendas mostra a garantia de 7 dias (topo, plano, dúvidas e chamada final)", (landing.match(/[Gg]arantia de 7 dias/g) || []).length >= 3 && landing.includes("E se eu assinar e não gostar?") && landing.includes("devolvemos o valor da primeira mensalidade"));
+    check("página de vendas fala do teste grátis de 7 dias (topo, plano, dúvidas e chamada final)", (landing.match(/7 dias grátis|grátis por 7 dias|teste grátis de 7 dias/gi) || []).length >= 4, String((landing.match(/7 dias grátis|grátis por 7 dias|teste grátis de 7 dias/gi) || []).length));
     check("página de vendas sem rolagem lateral no celular (390 de largura)", await (async () => {
       await page.setViewportSize({ width: 390, height: 800 });
       const ok = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
@@ -87,23 +98,22 @@ try {
     })());
 
     await page.click('[data-testid="cookie-banner"] button:has-text("Aceitar")');
-    await page.click('main a:has-text("Quero esse app")');
+    await page.click('main a:has-text("Testar grátis por 7 dias")');
     await page.waitForURL(`${BASE}/registrar?${STORED}`, { timeout: 10000 });
     await page.waitForFunction(() => document.querySelector('input[name="source"]')?.value.includes("utm_source=meta"), null, { timeout: 10000 });
     const reg = await page.textContent("body");
-    check("cadastro: texto fala em cartão ou Pix (não só Pix)", reg.includes("cartão de crédito ou Pix") && !reg.includes("aparece o Pix de"));
-    check("cadastro: mostra garantia, sem fidelidade e sem senha de banco", (await page.locator('[data-testid="registrar-garantias"] li').count()) === 3 && reg.includes("Garantia de 7 dias"));
+    check("cadastro: diz que não paga nada agora e não promete só Pix", reg.includes("não paga nada agora") && !reg.includes("aparece o Pix de"));
+    check("cadastro: mostra 7 dias grátis, sem fidelidade e sem senha de banco", (await page.locator('[data-testid="registrar-garantias"] li').count()) === 3 && reg.includes("7 dias grátis"));
 
     const email = `origem.${Date.now()}@example.com`;
-    const { phone, cpf } = await fillSignup(page, { name: "Cliente Origem", email, password: "SenhaForte123" });
+    const { phone } = await fillSignup(page, { name: "Cliente Origem", email, password: "SenhaForte123" });
     await page.click('button[type="submit"]');
-    await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
-    await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
+    const cpf = await goPay(page);
     const [user] = await sql`select signup_source, status from users where email = ${email}`;
     check("origem gravada no cadastro, sem fbclid", user.signup_source === STORED, user.signup_source);
 
     const pay = await page.textContent("body");
-    check("tela de pagamento mostra a garantia de 7 dias", (await page.locator('[data-testid="assinatura-garantia"]').count()) === 1 && pay.includes("Garantia de 7 dias"));
+    check("tela de pagamento mostra o aviso de teste grátis", (await page.locator('[data-testid="assinatura-teste"]').count()) === 1 && pay.includes("Teste grátis de 7 dias liberado"));
     const pixLink = await page.getAttribute('[data-testid="ir-para-pix"]', "href");
     check("tela de pagamento tem o atalho para o Pix, e ele aponta para o bloco do Pix", pixLink === "#pagar-pix" && (await page.locator("#pagar-pix img[alt='QR Code do Pix']").count()) === 1, pixLink);
     check("cartão continua em 1º (aberto) e o Pix em 2º", pay.indexOf("1ª opção: cartão de crédito") > -1 && pay.indexOf("1ª opção: cartão de crédito") < pay.indexOf("2ª opção: Pix") && (await page.locator("#card-cep").count()) === 1);
@@ -111,7 +121,7 @@ try {
     await page.waitForTimeout(400);
     check("atalho rola a tela até o Pix", await page.evaluate(() => { const r = document.getElementById("pagar-pix").getBoundingClientRect(); return r.top >= -5 && r.top < window.innerHeight; }));
 
-    await page.waitForFunction(() => (window.__px || []).some((e) => e[1] === "CompleteRegistration"), null, { timeout: 10000 });
+    check("cadastro concluído foi contado 1 vez (na tela de boas-vindas)", tracked(pxLog, "CompleteRegistration").length === 1, String(tracked(pxLog, "CompleteRegistration").length));
     check("antes de clicar, 'começou a pagar' ainda não foi contado", tracked(pxLog, "InitiateCheckout").length === 0);
     await page.click('button:has-text("Copiar código Pix")');
     await page.waitForFunction(() => (window.__px || []).some((e) => e[1] === "InitiateCheckout"), null, { timeout: 10000 });
@@ -135,8 +145,7 @@ try {
     const email = `direto.${Date.now()}@example.com`;
     await fillSignup(page, { name: "Cliente Direto", email, password: "SenhaForte123" });
     await page.click('button[type="submit"]');
-    await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
-    await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
+    await goPay(page);
     const [user] = await sql`select signup_source from users where email = ${email}`;
     check("sem anúncio: origem fica vazia (nula)", user.signup_source === null, String(user.signup_source));
     await page.click('button:has-text("Copiar código Pix")');
@@ -155,14 +164,13 @@ try {
     const { ctx, page, pxLog } = await newVisitor();
     await page.goto(`${BASE}/?utm_source=meta&utm_content=IMG01`);
     await page.click('[data-testid="cookie-banner"] button:has-text("Aceitar")');
-    await page.click('main a:has-text("Quero esse app")');
+    await page.click('main a:has-text("Testar grátis por 7 dias")');
     await page.waitForURL(/\/registrar\?utm_source=meta&utm_content=IMG01$/, { timeout: 10000 });
     await page.waitForFunction(() => document.querySelector('input[name="source"]')?.value === "utm_source=meta&utm_content=IMG01", null, { timeout: 10000 });
     const email = `cartao.${Date.now()}@example.com`;
     await fillSignup(page, { name: "Cliente Cartao", email, password: "SenhaForte123" });
     await page.click('button[type="submit"]');
-    await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
-    await page.waitForSelector("#card-cep", { timeout: 15000 });
+    await goPay(page);
     await page.fill("#card-cep", "58000000");
     await page.fill("#card-address", "Rua de Teste");
     await page.fill("#card-number", "10");
@@ -193,7 +201,7 @@ try {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, v);
     }, value);
     await page.click('button[type="submit"]');
-    await page.waitForURL(`${BASE}/assinatura`, { timeout: 15000 });
+    await page.waitForURL(`${BASE}/bem-vindo`, { timeout: 15000 });
     const [user] = await sql`select signup_source from users where email = ${email}`;
     check(`campo de origem adulterado (${label}): cadastro conclui e grava só valor limpo`, Boolean(user) && expected(user.signup_source), String(user?.signup_source).slice(0, 80));
     await ctx.close();
@@ -207,7 +215,7 @@ try {
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
     check("Termos na versão 2026-10-11.1", t.includes("Versão: 2026-10-11.1"));
-    check("Termos explicam a garantia, a origem do cadastro e o evento de início do pagamento", t.includes("Garantia de 7 dias") && t.includes("o nome da origem, da campanha e do anúncio") && t.includes("o início do pagamento"));
+    check("Termos explicam a origem do cadastro e o evento de início do pagamento", t.includes("o nome da origem, da campanha e do anúncio") && t.includes("o início do pagamento"));
     await ctx.close();
   }
 } catch (err) {

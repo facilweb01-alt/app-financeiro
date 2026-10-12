@@ -21,12 +21,27 @@ export function firstName(name: string | null | undefined): string {
   return first ? first.charAt(0).toUpperCase() + first.slice(1).toLowerCase() : "";
 }
 
-export function buildWelcomeMessage(input: { name: string | null; appUrl: string; botNumber: string }): string {
+/** "2026-10-18" → "18/10" (dia e mês, para mensagens curtas). */
+export function shortDateBR(date: string): string {
+  const [, m, d] = date.split("-");
+  return `${d}/${m}`;
+}
+
+export function buildWelcomeMessage(input: {
+  name: string | null;
+  appUrl: string;
+  botNumber: string;
+  /** Último dia do teste grátis ("YYYY-MM-DD") quando a conta acabou de entrar em teste; nulo para quem já pagou. */
+  trialEndsAt?: string | null;
+}): string {
   const who = firstName(input.name);
+  const released = input.trialEndsAt
+    ? `🎁 Seu *teste grátis de 7 dias está liberado*: use tudo à vontade até ${shortDateBR(input.trialEndsAt)}, sem pagar nada e sem cartão. É por este número que você lança seus gastos e tira suas dúvidas.`
+    : "Sua conta está liberada. É por este número que você lança seus gastos e tira suas dúvidas.";
   return [
     `Olá${who ? `, ${who}` : ""}! 👋 Seja bem-vindo(a) ao *Contay*.`,
     "",
-    "Sua conta está liberada. É por este número que você lança seus gastos e tira suas dúvidas.",
+    released,
     "",
     `📌 *Salve este contato* na sua agenda como *Contay*, número ${input.botNumber}. Assim você acha a conversa rápido e as suas mensagens chegam certinho.`,
     "",
@@ -40,5 +55,8 @@ export function buildWelcomeMessage(input: { name: string | null; appUrl: string
     "❓ *Ficou com dúvida?* Pergunte aqui mesmo, a qualquer hora.",
     "",
     `Para abrir o app: ${input.appUrl}`,
+    ...(input.trialEndsAt
+      ? ["", `Um dia antes de o teste terminar eu aviso por aqui e mando o link para continuar (R$ 29,90 por mês, sem fidelidade).`]
+      : []),
   ].join("\n");
 }

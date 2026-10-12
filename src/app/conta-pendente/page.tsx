@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getRawSession } from "@/lib/dal";
+import { getRawSession, sessionInTrial } from "@/lib/dal";
 import { logout } from "@/app/actions/auth";
 
 // Página de "espera": para onde verifySession() manda quem está logado mas
@@ -13,7 +13,7 @@ export default async function ContaPendentePage() {
   if (!session) {
     redirect("/login");
   }
-  if (session.status === "active") {
+  if (session.status === "active" || sessionInTrial(session)) {
     redirect("/dashboard");
   }
   // Cadastro pela página de vendas: a "espera" é o pagamento do 1º Pix.

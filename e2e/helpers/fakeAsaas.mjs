@@ -163,7 +163,7 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       if (!json?.callback?.successUrl || !json?.callback?.cancelUrl || !json?.callback?.expiredUrl) errs.push("callback");
       const item = json?.items?.[0];
       if (!item?.name || !item?.value || !item?.quantity || !item?.imageBase64) errs.push("items");
-      if (json?.subscription?.cycle !== "MONTHLY" || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(json?.subscription?.nextDueDate ?? "")) errs.push("subscription");
+      if (!["MONTHLY", "YEARLY"].includes(json?.subscription?.cycle) || !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(json?.subscription?.nextDueDate ?? "")) errs.push("subscription");
       if (errs.length) return send(400, { errors: errs.map((e) => ({ code: "invalid", description: `campo inválido: ${e}` })) });
       const co = { id: `co_${++state.seq}${Date.now().toString(36)}`, status: "ACTIVE", ...json };
       state.checkouts.set(co.id, co);
@@ -179,7 +179,8 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       return send(200, { object: "list", hasMore: false, totalCount: data.length, data });
     }
     if (req.method === "POST" && path === "/v3/subscriptions") {
-      if (json.billingType !== "PIX" || json.cycle !== "MONTHLY") {
+      // plano mensal ou anual (o anual chegou em 11/10/2026)
+      if (json.billingType !== "PIX" || !["MONTHLY", "YEARLY"].includes(json.cycle)) {
         return send(400, { errors: [{ code: "invalid", description: "tipo/ciclo inválido" }] });
       }
       const sub = { id: nextId("sub"), status: "ACTIVE", dateCreated: todaySP(), deleted: false, ...json };
