@@ -99,8 +99,11 @@ export const users = pgTable("users", {
     asaasSubscriptionId: text("asaas_subscription_id"),
     // Assinatura cancelada pelo painel admin (ver migração 0010).
     billingCanceledAt: timestamp("billing_canceled_at", { withTimezone: true }),
-    // Forma da assinatura atual no Asaas: 'PIX' ou 'CREDIT_CARD' (migração 0011).
+    // Forma da assinatura atual no Asaas: 'PIX' ou 'CREDIT_CARD' (migração 0011);
+    // 'CARD_INSTALLMENT' = ano pago no cartão em até 12x, sem assinatura (0017).
     billingMethod: text("billing_method").notNull().default("PIX"),
+    // Início do ano da compra no cartão em aberto no Checkout (migração 0017).
+    cardPeriodStart: date("card_period_start"),
     // Plano: 'MONTHLY' (mensal) ou 'YEARLY' (anual, 15% de desconto). Migração 0016.
     billingPlan: text("billing_plan").notNull().default("MONTHLY"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -131,6 +134,11 @@ export const billingPayments = pgTable("billing_payments", {
     invoiceUrl: text("invoice_url"),
     billingType: text("billing_type"), // PIX / CREDIT_CARD (migração 0011); nula = PIX
     asaasSubscriptionId: text("asaas_subscription_id"), // assinatura de origem (migração 0011)
+    // Compra do anual no cartão (migração 0017): parcelamento, nº da parcela e
+    // dia em que começa o ano pago por ela.
+    asaasInstallmentId: text("asaas_installment_id"),
+    installmentNumber: integer("installment_number"),
+    periodStart: date("period_start"),
     pixPayload: text("pix_payload"), // Pix copia-e-cola
     pixQrImage: text("pix_qr_image"), // PNG em base64
     pixExpiresAt: timestamp("pix_expires_at", { withTimezone: true }),

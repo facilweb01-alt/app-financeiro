@@ -1,9 +1,11 @@
 import { timingSafeEqual } from "node:crypto";
 import { after, NextRequest, NextResponse } from "next/server";
 import {
+  adoptCardPurchase,
   applyAsaasPayment,
   findUserIdByAsaasCustomer,
   registerWebhookEvent,
+  syncCardPurchases,
   syncCardSubscription,
   unregisterWebhookEvent,
 } from "@/lib/billing/service";
@@ -87,7 +89,10 @@ export async function POST(request: NextRequest) {
     try {
       const userId = await findUserIdByAsaasCustomer(customer);
       const switched = userId ? await syncCardSubscription(userId) : false;
-      return NextResponse.json({ ok: true, matched: Boolean(userId), switched });
+      // Checkout do anual no cartão (compra à vista ou parcelada) pago.
+      const purchased = userId && event === "CHECKOUT_PAID" ? await syncCardPurchases(userId) : false;
+      if (purchased) after(processPendingWelcomesSafely);
+      return NextResponse.json({ ok: true, matched: Boolean(userId), switched, purchased });
     } catch (err) {
       console.error("[asaas-webhook] erro ao adotar assinatura de cartão", eventId, err);
       await unregisterWebhookEvent(eventId);
@@ -115,6 +120,14 @@ export async function POST(request: NextRequest) {
     // o cliente concluiu o Checkout -> troca para a assinatura de cartão.
     if (result.userId && result.needsCardSync) {
       await syncCardSubscription(result.userId);
+    }
+    // Compra do anual no cartão aprovada: apaga a assinatura Pix reserva e
+    // marca o ano como pago no cartão.
+    // Traz junto as outras parcelas da compra (o histórico mostra em quantas
+    // vezes foi) e só então adota.
+    if (result.userId && result.needsPurchaseAdopt) {
+      const adopted = await syncCardPurchases(result.userId);
+      if (!adopted) await adoptCardPurchase(result.userId);
     }
     // Se este pagamento liberou a conta, as boas-vindas pelo WhatsApp saem
     // depois da resposta (não atrasam nem derrubam o webhook do Asaas).

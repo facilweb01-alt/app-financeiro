@@ -98,6 +98,9 @@ export type AsaasPayment = {
   invoiceUrl?: string | null;
   externalReference?: string | null;
   deleted?: boolean;
+  /** id do parcelamento (compra no cartão em várias parcelas) */
+  installment?: string | null;
+  installmentNumber?: number | null;
 };
 export type AsaasPixQrCode = { encodedImage: string; payload: string; expirationDate?: string | null };
 
@@ -211,6 +214,59 @@ export function createCardCheckout(input: {
       nextDueDate: input.nextDueDateTime,
     },
   });
+}
+
+/**
+ * Checkout de COMPRA no cartão (plano anual, 12/10/2026): o cliente paga o
+ * ano à vista ou parcelado em até `maxInstallmentCount` vezes, escolhendo na
+ * página do Asaas. Não é assinatura: o Asaas cobra na hora e cria uma
+ * cobrança por parcela (todas com o mesmo id de parcelamento); não há
+ * renovação automática. Docs: "Checkout para Cartão de Crédito" —
+ * chargeTypes DETACHED + INSTALLMENT com installment.maxInstallmentCount.
+ */
+export function createCardPurchaseCheckout(input: {
+  customer: string;
+  value: number;
+  maxInstallmentCount: number;
+  itemName: string;
+  itemDescription: string;
+  imageBase64: string;
+  externalReference: string;
+  successUrl: string;
+  cancelUrl: string;
+  expiredUrl: string;
+}): Promise<AsaasCheckout> {
+  return request("POST", "/checkouts", {
+    billingTypes: ["CREDIT_CARD"],
+    chargeTypes: ["DETACHED", "INSTALLMENT"],
+    minutesToExpire: 60,
+    externalReference: input.externalReference,
+    customer: input.customer,
+    callback: {
+      successUrl: input.successUrl,
+      cancelUrl: input.cancelUrl,
+      expiredUrl: input.expiredUrl,
+    },
+    items: [
+      {
+        name: input.itemName,
+        description: input.itemDescription,
+        quantity: 1,
+        value: input.value,
+        imageBase64: input.imageBase64,
+      },
+    ],
+    installment: { maxInstallmentCount: input.maxInstallmentCount },
+  });
+}
+
+/** Cobranças no cartão de um cliente (acha a compra do anual feita no Checkout). */
+export async function listCustomerCardPayments(customerId: string): Promise<AsaasPayment[]> {
+  const res = await request<{ data: AsaasPayment[] }>(
+    "GET",
+    `/payments?customer=${encodeURIComponent(customerId)}&billingType=CREDIT_CARD&limit=100`
+  );
+  return res.data ?? [];
 }
 
 /** Endereço da página do Checkout para mandar o cliente. */

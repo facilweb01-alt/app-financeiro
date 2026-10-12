@@ -501,6 +501,11 @@ import {
   pickCardSubscription,
   normalizeBillingMethod,
   validateBillingAddress,
+  collapseCardPurchases,
+  isCardBillingPurchase,
+  isRenewalWindow,
+  newSubscriptionDueDate,
+  MAX_INSTALLMENTS,
 } from "../../billing/core";
 
 test("todayInSaoPaulo: 01:30 UTC ainda é o dia anterior em São Paulo", () => {
@@ -1712,4 +1717,101 @@ test("mídia: respostas ao cliente — lançado, cartão, dúvida, não entendi 
   assert.match(buildMediaReply({ kind: "audio", outcome: "nada" }), /Não consegui entender o gasto nesse áudio/);
   assert.match(buildMediaReply({ kind: "image", outcome: "nada" }), /Não consegui ler um gasto com valor nessa imagem/);
   assert.match(buildMediaReply({ kind: "audio", outcome: "erro", transcript: "x", error: "Você tem 2 cartões: diga qual." }), /Você tem 2 cartões/);
+});
+
+// ---------------------------------------------------------------------------
+// Plano anual no cartão em até 12x (12/10/2026) — src/lib/billing/core.ts
+// ---------------------------------------------------------------------------
+test("anual parcelado: até 12x e só compra no cartão sem assinatura conta como compra", () => {
+  assert.equal(MAX_INSTALLMENTS, 12);
+  assert.equal(isCardBillingPurchase({ billingType: "CREDIT_CARD", asaasSubscriptionId: null }), true);
+  assert.equal(isCardBillingPurchase({ billingType: "CREDIT_CARD", asaasSubscriptionId: "sub_1" }), false);
+  assert.equal(isCardBillingPurchase({ billingType: "PIX", asaasSubscriptionId: null }), false);
+  assert.equal(normalizeBillingMethod("CARD_INSTALLMENT"), "CARD_INSTALLMENT");
+  assert.equal(normalizeBillingMethod("qualquer"), "PIX");
+});
+
+const parcelas = (n: number, opts: { start: string; status?: string; first?: string; inst?: string } ) =>
+  Array.from({ length: n }, (_, i) => ({
+    asaasPaymentId: `pay_${opts.inst ?? "x"}_${i + 1}`,
+    asaasInstallmentId: opts.inst ?? "ins_1",
+    billingType: "CREDIT_CARD",
+    asaasSubscriptionId: null,
+    dueDate: addMonthsClamped(opts.first ?? "2026-10-12", i),
+    status: opts.status ?? "CONFIRMED",
+    periodStart: opts.start,
+  }));
+
+test("anual parcelado: 12 parcelas viram UM pagamento do ano, a partir do fim do teste", () => {
+  const rows = [
+    // reserva Pix apagada na troca
+    { asaasPaymentId: "pix_1", billingType: "PIX", asaasSubscriptionId: "sub_pix", dueDate: "2026-10-19", status: "DELETED" },
+    ...parcelas(12, { start: "2026-10-19" }),
+  ];
+  const { payments, lastPurchaseStart } = collapseCardPurchases(rows);
+  assert.equal(payments.length, 2);
+  assert.deepEqual(payments[1], { dueDate: "2026-10-19", status: "CONFIRMED" });
+  assert.equal(lastPurchaseStart, "2026-10-19");
+  assert.equal(computeSubscriptionDueDate(payments, { anchorDate: lastPurchaseStart, cycleMonths: 12 }), "2027-10-19");
+});
+
+test("anual parcelado: vale com parcelas futuras ainda 'PENDING' (paga se qualquer uma foi paga)", () => {
+  const rows = parcelas(12, { start: "2026-10-12", status: "PENDING" });
+  rows[0].status = "RECEIVED";
+  const { payments } = collapseCardPurchases(rows);
+  assert.deepEqual(payments, [{ dueDate: "2026-10-12", status: "CONFIRMED" }]);
+  assert.equal(computeSubscriptionDueDate(payments, { anchorDate: "2026-10-12", cycleMonths: 12 }), "2027-10-12");
+});
+
+test("anual parcelado: à vista (1x, sem parcelamento) também é um pagamento do ano", () => {
+  const { payments, lastPurchaseStart } = collapseCardPurchases([
+    { asaasPaymentId: "pay_avista", billingType: "CREDIT_CARD", asaasSubscriptionId: null, dueDate: "2026-10-12", status: "CONFIRMED", periodStart: "2026-10-19" },
+  ]);
+  assert.deepEqual(payments, [{ dueDate: "2026-10-19", status: "CONFIRMED" }]);
+  assert.equal(lastPurchaseStart, "2026-10-19");
+});
+
+test("anual parcelado: em análise fica em aberto; estornada não conta como paga", () => {
+  const analise = collapseCardPurchases(parcelas(3, { start: "2026-10-19", status: "AWAITING_RISK_ANALYSIS" }));
+  assert.deepEqual(analise.payments, [{ dueDate: "2026-10-19", status: "AWAITING_RISK_ANALYSIS" }]);
+  assert.equal(analise.lastPurchaseStart, null);
+  const estorno = collapseCardPurchases(parcelas(12, { start: "2026-10-19", status: "REFUNDED" }));
+  assert.equal(estorno.payments[0].status, "REFUNDED");
+  assert.equal(computeSubscriptionDueDate(estorno.payments, { cycleMonths: 12 }), null);
+});
+
+test("anual parcelado: renovação no cartão no ano seguinte soma mais um ano", () => {
+  const rows = [...parcelas(12, { start: "2026-10-19", inst: "ins_a" }), ...parcelas(6, { start: "2027-10-19", first: "2027-10-10", inst: "ins_b" })];
+  const { payments, lastPurchaseStart } = collapseCardPurchases(rows);
+  assert.equal(payments.length, 2);
+  assert.equal(lastPurchaseStart, "2027-10-19");
+  assert.equal(computeSubscriptionDueDate(payments, { anchorDate: lastPurchaseStart, cycleMonths: 12 }), "2028-10-19");
+});
+
+test("anual parcelado: renovação pelo Pix depois de um ano pago no cartão", () => {
+  const rows = [
+    ...parcelas(12, { start: "2026-10-19" }),
+    { asaasPaymentId: "pix_ren", billingType: "PIX", asaasSubscriptionId: "sub_ren", dueDate: "2027-10-19", status: "PENDING" },
+  ];
+  const { payments } = collapseCardPurchases(rows);
+  assert.equal(computeSubscriptionDueDate(payments, { anchorDate: "2027-10-19", cycleMonths: 12 }), "2027-10-19");
+  rows[12].status = "RECEIVED";
+  assert.equal(computeSubscriptionDueDate(collapseCardPurchases(rows).payments, { anchorDate: "2027-10-19", cycleMonths: 12 }), "2028-10-19");
+});
+
+test("anual parcelado: renovação só abre perto do vencimento, vencido ou pausado", () => {
+  assert.equal(isRenewalWindow("ok"), false);
+  assert.equal(isRenewalWindow("trial"), false);
+  assert.equal(isRenewalWindow("due_soon"), true);
+  assert.equal(isRenewalWindow("overdue"), true);
+  assert.equal(isRenewalWindow("blocked"), true);
+  assert.equal(isRenewalWindow("canceled_active"), false);
+});
+
+test("anual parcelado: assinatura Pix nova vence no fim do teste, no vencimento futuro ou hoje", () => {
+  assert.equal(newSubscriptionDueDate({ status: "pending", trialEndsAt: "2026-10-19", today: "2026-10-12" }), "2026-10-19");
+  assert.equal(newSubscriptionDueDate({ status: "pending", trialEndsAt: "2026-10-01", today: "2026-10-12" }), "2026-10-12");
+  assert.equal(newSubscriptionDueDate({ status: "active", subscriptionDueDate: "2027-10-19", today: "2027-10-15" }), "2027-10-19");
+  assert.equal(newSubscriptionDueDate({ status: "active", subscriptionDueDate: "2027-10-19", today: "2027-10-21" }), "2027-10-21");
+  assert.equal(newSubscriptionDueDate({ status: "active", subscriptionDueDate: null, today: "2027-10-21" }), "2027-10-21");
 });

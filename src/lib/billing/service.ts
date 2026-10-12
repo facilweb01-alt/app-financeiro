@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, withServiceMode } from "@/db/client";
 import { billingPayments, billingWebhookEvents, users } from "@/db/schema";
 import { readFileSync } from "node:fs";
@@ -8,12 +8,14 @@ import {
   AsaasError,
   checkoutPageUrl,
   createCardCheckout,
+  createCardPurchaseCheckout,
   createCustomer,
   createSubscription,
   deleteSubscription,
   getPayment,
   getPixQrCode,
   isAsaasConfigured,
+  listCustomerCardPayments,
   listCustomerSubscriptions,
   listSubscriptionPayments,
   updateCustomerAddress,
@@ -23,8 +25,13 @@ import {
 import {
   cardFirstDueDate,
   checkoutDueDateTime,
-  firstPixDueDate,
+  collapseCardPurchases,
+  computeBillingState,
   computeSubscriptionDueDate,
+  isCardBillingPurchase,
+  isRenewalWindow,
+  MAX_INSTALLMENTS,
+  newSubscriptionDueDate,
   isOpenStatus,
   isPaidStatus,
   normalizeBillingMethod,
@@ -76,13 +83,17 @@ export type BillingOverview = {
   /** true = falta o CPF para emitir a cobrança (o cadastro com teste grátis não pede CPF) */
   needsCpf: boolean;
   openPayment: OpenPayment | null;
-  history: { dueDate: string; value: string; status: string; paidAt: Date | null }[];
+  /**
+   * Histórico. A compra do anual no cartão aparece numa linha só (o valor
+   * total, o dia em que o ano começa e em quantas vezes foi parcelada).
+   */
+  history: { dueDate: string; value: string; status: string; paidAt: Date | null; installments?: number }[];
 };
 
 /** Grava/atualiza uma cobrança do Asaas no espelho local e recalcula a conta do dono. */
 export async function applyAsaasPayment(
   payment: AsaasPayment
-): Promise<{ userId: string | null; needsCardSync: boolean }> {
+): Promise<{ userId: string | null; needsCardSync: boolean; needsPurchaseAdopt: boolean }> {
   return withServiceMode(async () => {
     // Descobre o dono: pela assinatura, depois pelo cliente, depois pela referência externa.
     const conditions = [
@@ -91,20 +102,43 @@ export async function applyAsaasPayment(
       payment.externalReference ? eq(users.id, payment.externalReference) : undefined,
     ].filter(Boolean);
 
-    let owner: { id: string; asaasSubscriptionId: string | null } | undefined;
+    let owner:
+      | { id: string; asaasSubscriptionId: string | null; billingMethod: string; cardPeriodStart: string | null }
+      | undefined;
     for (const cond of conditions) {
       [owner] = await db
-        .select({ id: users.id, asaasSubscriptionId: users.asaasSubscriptionId })
+        .select({
+          id: users.id,
+          asaasSubscriptionId: users.asaasSubscriptionId,
+          billingMethod: users.billingMethod,
+          cardPeriodStart: users.cardPeriodStart,
+        })
         .from(users)
         .where(cond!)
         .limit(1);
       if (owner) break;
     }
-    if (!owner) return { userId: null, needsCardSync: false };
+    if (!owner) return { userId: null, needsCardSync: false, needsPurchaseAdopt: false };
 
     const paid = isPaidStatus(payment.status);
     const paidAtStr = payment.clientPaymentDate || payment.paymentDate || payment.confirmedDate;
     const status = payment.deleted ? "DELETED" : payment.status;
+    // Compra do anual no cartão (Checkout à vista ou parcelado, sem
+    // assinatura): todas as parcelas guardam o MESMO início do ano — o que já
+    // está gravado numa parcela irmã; senão o gravado ao abrir o Checkout.
+    const purchase = isCardBillingPurchase({ billingType: payment.billingType, asaasSubscriptionId: payment.subscription });
+    let periodStart: string | null = null;
+    if (purchase) {
+      const groupCond = payment.installment
+        ? eq(billingPayments.asaasInstallmentId, payment.installment)
+        : eq(billingPayments.asaasPaymentId, payment.id);
+      const [sibling] = await db
+        .select({ periodStart: billingPayments.periodStart })
+        .from(billingPayments)
+        .where(and(eq(billingPayments.userId, owner.id), groupCond, isNotNull(billingPayments.periodStart)))
+        .limit(1);
+      periodStart = sibling?.periodStart ?? owner.cardPeriodStart ?? payment.dueDate;
+    }
     const values = {
       userId: owner.id,
       asaasPaymentId: payment.id,
@@ -115,6 +149,9 @@ export async function applyAsaasPayment(
       invoiceUrl: payment.invoiceUrl ?? null,
       billingType: payment.billingType ?? null,
       asaasSubscriptionId: payment.subscription ?? null,
+      asaasInstallmentId: payment.installment ?? null,
+      installmentNumber: payment.installmentNumber ?? null,
+      periodStart,
       updatedAt: new Date(),
     };
 
@@ -131,6 +168,10 @@ export async function applyAsaasPayment(
           invoiceUrl: values.invoiceUrl,
           ...(values.billingType ? { billingType: values.billingType } : {}),
           ...(values.asaasSubscriptionId ? { asaasSubscriptionId: values.asaasSubscriptionId } : {}),
+          ...(values.asaasInstallmentId ? { asaasInstallmentId: values.asaasInstallmentId } : {}),
+          ...(values.installmentNumber ? { installmentNumber: values.installmentNumber } : {}),
+          // o início do ano não muda depois de gravado
+          ...(values.periodStart ? { periodStart: sql`coalesce(${billingPayments.periodStart}, ${values.periodStart})` } : {}),
           updatedAt: values.updatedAt,
         },
       });
@@ -144,7 +185,11 @@ export async function applyAsaasPayment(
       Boolean(payment.subscription) &&
       payment.subscription !== owner.asaasSubscriptionId &&
       !payment.deleted;
-    return { userId: owner.id, needsCardSync };
+    // Compra do anual no cartão aprovada: quem chamou roda adoptCardPurchase()
+    // (apaga a assinatura Pix reserva e marca o ano como pago no cartão).
+    const needsPurchaseAdopt =
+      purchase && paid && !payment.deleted && (owner.billingMethod !== "CARD_INSTALLMENT" || Boolean(owner.asaasSubscriptionId));
+    return { userId: owner.id, needsCardSync, needsPurchaseAdopt };
   });
 }
 
@@ -155,14 +200,21 @@ export async function applyAsaasPayment(
  * de withServiceMode().
  */
 async function recomputeUserBilling(userId: string): Promise<void> {
-  const payments = await db
+  const rows = await db
     .select({
+      asaasPaymentId: billingPayments.asaasPaymentId,
       dueDate: billingPayments.dueDate,
       status: billingPayments.status,
+      billingType: billingPayments.billingType,
       asaasSubscriptionId: billingPayments.asaasSubscriptionId,
+      asaasInstallmentId: billingPayments.asaasInstallmentId,
+      periodStart: billingPayments.periodStart,
     })
     .from(billingPayments)
     .where(eq(billingPayments.userId, userId));
+  // As parcelas de cada compra do anual no cartão contam como UM pagamento,
+  // com vencimento no dia em que o ano começa.
+  const { payments, lastPurchaseStart } = collapseCardPurchases(rows);
 
   const [user] = await db
     .select({
@@ -177,12 +229,14 @@ async function recomputeUserBilling(userId: string): Promise<void> {
   if (!user) return;
 
   // "Dia do contrato" = o da assinatura atual (muda quando troca Pix -> cartão).
-  const current = payments
+  // Sem assinatura (ano pago no cartão), o dia do contrato é o início do ano comprado.
+  const current = rows
     .filter((p) => user.asaasSubscriptionId && p.asaasSubscriptionId === user.asaasSubscriptionId)
     .map((p) => p.dueDate)
     .sort();
+  const anchorDate = user.asaasSubscriptionId ? (current[0] ?? null) : lastPurchaseStart;
   // Plano anual: o ciclo seguinte ao último pago é 12 meses depois (não 1).
-  const dueDate = computeSubscriptionDueDate(payments, { anchorDate: current[0] ?? null, cycleMonths: planInfo(user.billingPlan).months });
+  const dueDate = computeSubscriptionDueDate(payments, { anchorDate, cycleMonths: planInfo(user.billingPlan).months });
   const anyPaid = payments.some((p) => isPaidStatus(p.status));
 
   const activate = anyPaid && user.status === "pending";
@@ -248,6 +302,8 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
         status: users.status,
         trialEndsAt: users.trialEndsAt,
         billingPlan: users.billingPlan,
+        billingMethod: users.billingMethod,
+        subscriptionDueDate: users.subscriptionDueDate,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -278,14 +334,24 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
       cycle: plan.cycle,
       // Em teste grátis, a 1ª cobrança vence no último dia do teste (pagar
       // antes não tira nenhum dia: o mês pago começa a contar dali). Sem
-      // teste, ou com o teste já encerrado, vence hoje.
-      nextDueDate: firstPixDueDate({ trialEndsAt: user.status === "pending" ? user.trialEndsAt : null, today: todayInSaoPaulo() }),
+      // teste, ou com o teste já encerrado, vence hoje. Renovação de quem
+      // pagou o ano no cartão: vence no fim do ano pago (ou hoje, se já passou).
+      nextDueDate: newSubscriptionDueDate({
+        status: user.status,
+        trialEndsAt: user.trialEndsAt,
+        subscriptionDueDate: user.subscriptionDueDate,
+        today: todayInSaoPaulo(),
+      }),
       description: plan.name,
       externalReference: user.id,
     });
     subscriptionId = subscription.id;
     await withServiceMode(() =>
-      db.update(users).set({ asaasSubscriptionId: subscriptionId }).where(eq(users.id, userId))
+      db
+        .update(users)
+        // a renovação nasce no Pix (quem pagou o ano no cartão pode pagar de novo no cartão pela tela)
+        .set({ asaasSubscriptionId: subscriptionId, ...(user.billingMethod === "CARD_INSTALLMENT" ? { billingMethod: "PIX" } : {}) })
+        .where(eq(users.id, userId))
     );
   }
 
@@ -401,6 +467,7 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
           billingMethod: users.billingMethod,
           billingPlan: users.billingPlan,
           trialEndsAt: users.trialEndsAt,
+          cardPeriodStart: users.cardPeriodStart,
           cpf: users.cpf,
         })
         .from(users)
@@ -423,8 +490,24 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
   // assinatura de lá foi apagada); só mostra o histórico.
   if (user.billingEnabled && configured && !user.billingCanceledAt && !needsCpf) {
     try {
+      // Voltou do Checkout do anual no cartão (ou o webhook atrasou): adota a compra.
+      if (opts.refresh && user.cardPeriodStart) {
+        await syncCardPurchases(userId);
+        [user] = await readUser();
+      }
+      const installmentPaid = normalizeBillingMethod(user.billingMethod) === "CARD_INSTALLMENT";
+      const kind = computeBillingState({
+        billingEnabled: true,
+        status: user.status,
+        subscriptionDueDate: user.subscriptionDueDate,
+        today: todayInSaoPaulo(),
+        canceledAt: user.billingCanceledAt,
+        trialEndsAt: user.trialEndsAt,
+        billingMethod: user.billingMethod,
+      }).kind;
       if (!user.asaasSubscriptionId) {
-        await ensureSubscription(userId);
+        // Ano pago no cartão: a cobrança da renovação só nasce perto do fim do ano.
+        if (!installmentPaid || isRenewalWindow(kind)) await ensureSubscription(userId);
       } else if (opts.refresh) {
         // voltou do Checkout do cartão (ou o webhook atrasou): adota a
         // assinatura de cartão, se houver uma nova
@@ -441,18 +524,24 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
     [user] = await readUser();
   }
 
-  const history = await withServiceMode(() =>
+  const rows = await withServiceMode(() =>
     db
       .select({
+        asaasPaymentId: billingPayments.asaasPaymentId,
         dueDate: billingPayments.dueDate,
         value: billingPayments.value,
         status: billingPayments.status,
         paidAt: billingPayments.paidAt,
+        billingType: billingPayments.billingType,
+        asaasSubscriptionId: billingPayments.asaasSubscriptionId,
+        asaasInstallmentId: billingPayments.asaasInstallmentId,
+        periodStart: billingPayments.periodStart,
       })
       .from(billingPayments)
       .where(eq(billingPayments.userId, userId))
       .orderBy(asc(billingPayments.dueDate))
   );
+  const history = groupHistory(rows);
 
   return {
     configured,
@@ -472,6 +561,45 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
     openPayment: openPayment && isOpenStatus(openPayment.status) ? openPayment : null,
     history: history.reverse(),
   };
+}
+
+type HistoryRow = {
+  asaasPaymentId: string;
+  dueDate: string;
+  value: string;
+  status: string;
+  paidAt: Date | null;
+  billingType: string | null;
+  asaasSubscriptionId: string | null;
+  asaasInstallmentId: string | null;
+  periodStart: string | null;
+};
+
+/** Junta as parcelas de cada compra do anual no cartão numa linha do histórico. */
+function groupHistory(rows: HistoryRow[]): BillingOverview["history"] {
+  const out: BillingOverview["history"] = [];
+  const groups = new Map<string, HistoryRow[]>();
+  for (const r of rows) {
+    if (!isCardBillingPurchase(r)) {
+      out.push({ dueDate: r.dueDate, value: r.value, status: r.status, paidAt: r.paidAt });
+      continue;
+    }
+    const key = r.asaasInstallmentId || r.asaasPaymentId;
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  for (const g of groups.values()) {
+    const { payments } = collapseCardPurchases(g);
+    const total = g.reduce((sum, r) => sum + Math.round(Number(r.value) * 100), 0) / 100;
+    const paidAts = g.map((r) => r.paidAt).filter((d): d is Date => Boolean(d)).sort((a, b) => a.getTime() - b.getTime());
+    out.push({
+      dueDate: payments[0].dueDate,
+      value: total.toFixed(2),
+      status: payments[0].status,
+      paidAt: isPaidStatus(payments[0].status) ? (paidAts[0] ?? null) : null,
+      installments: g.length,
+    });
+  }
+  return out.sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 }
 
 // ---------------------------------------------------------------------------
@@ -507,25 +635,48 @@ export async function startCardCheckout(
   billingAddress: AsaasBillingAddress
 ): Promise<string> {
   if (!isAsaasConfigured()) throw new CardCheckoutError("A cobrança automática ainda não foi configurada. Avise o suporte.");
+  const readUser = () =>
+    withServiceMode(() =>
+      db
+        .select({
+          id: users.id,
+          status: users.status,
+          subscriptionDueDate: users.subscriptionDueDate,
+          asaasCustomerId: users.asaasCustomerId,
+          billingEnabled: users.billingEnabled,
+          billingCanceledAt: users.billingCanceledAt,
+          trialEndsAt: users.trialEndsAt,
+          billingPlan: users.billingPlan,
+          billingMethod: users.billingMethod,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+    );
+  const [before] = await readUser();
+  if (before && normalizeBillingMethod(before.billingMethod) === "CARD_INSTALLMENT") {
+    // Ano já pago no cartão: só abre um Checkout novo quando chega a renovação.
+    const kind = computeBillingState({
+      billingEnabled: true,
+      status: before.status,
+      subscriptionDueDate: before.subscriptionDueDate,
+      today: todayInSaoPaulo(),
+      canceledAt: before.billingCanceledAt,
+      trialEndsAt: before.trialEndsAt,
+      billingMethod: before.billingMethod,
+    }).kind;
+    if (!isRenewalWindow(kind)) {
+      throw new CardCheckoutError(
+        before.subscriptionDueDate
+          ? `Seu plano anual já está pago até ${before.subscriptionDueDate.split("-").reverse().join("/")}. A renovação aparece aqui perto dessa data.`
+          : "Seu plano anual já está pago."
+      );
+    }
+  }
   // garante o cliente no Asaas (e a assinatura Pix, que vira reserva até o cartão ser aprovado)
   await ensureSubscription(userId);
 
-  const [user] = await withServiceMode(() =>
-    db
-      .select({
-        id: users.id,
-        status: users.status,
-        subscriptionDueDate: users.subscriptionDueDate,
-        asaasCustomerId: users.asaasCustomerId,
-        billingEnabled: users.billingEnabled,
-        billingCanceledAt: users.billingCanceledAt,
-        trialEndsAt: users.trialEndsAt,
-        billingPlan: users.billingPlan,
-      })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1)
-  );
+  const [user] = await readUser();
   if (!user || !user.billingEnabled) throw new CardCheckoutError("Esta conta não tem cobrança automática.");
   if (user.billingCanceledAt) throw new CardCheckoutError("Sua assinatura foi cancelada. Para voltar a assinar, fale com o suporte.");
   if (!user.asaasCustomerId) throw new CardCheckoutError("Não foi possível preparar o pagamento agora. Tente de novo em instantes.");
@@ -549,6 +700,31 @@ export async function startCardCheckout(
   });
   const base = origin.replace(/\/$/, "");
   const plan = planInfo(user.billingPlan);
+  const callbacks = {
+    successUrl: `${base}/assinatura?cartao=ok`,
+    cancelUrl: `${base}/assinatura?cartao=cancelado`,
+    expiredUrl: `${base}/assinatura?cartao=expirado`,
+  };
+
+  // Plano anual (12/10/2026): compra do ano no cartão, à vista ou em até 12x.
+  // O Asaas cobra na hora; o ano começa no fim do teste grátis (ou no
+  // vencimento que já existe), então ninguém perde dia pago nem de teste.
+  // Quem já tem o cartão recorrente anual (antes desta mudança) continua nele.
+  if (plan.plan === "YEARLY" && normalizeBillingMethod(user.billingMethod) !== "CREDIT_CARD") {
+    await withServiceMode(() => db.update(users).set({ cardPeriodStart: firstDue }).where(eq(users.id, userId)));
+    const purchase = await createCardPurchaseCheckout({
+      customer: user.asaasCustomerId,
+      value: plan.price,
+      maxInstallmentCount: MAX_INSTALLMENTS,
+      itemName: "Contay — plano anual",
+      itemDescription: `1 ano de acesso ao Contay, à vista ou em até ${MAX_INSTALLMENTS}x no cartão de crédito`,
+      imageBase64: planImageBase64(),
+      externalReference: user.id,
+      ...callbacks,
+    });
+    return checkoutPageUrl(purchase);
+  }
+
   const checkout = await createCardCheckout({
     customer: user.asaasCustomerId,
     value: plan.price,
@@ -561,11 +737,101 @@ export async function startCardCheckout(
         : "Plano mensal — cobrança automática no cartão de crédito",
     imageBase64: planImageBase64(),
     externalReference: user.id,
-    successUrl: `${base}/assinatura?cartao=ok`,
-    cancelUrl: `${base}/assinatura?cartao=cancelado`,
-    expiredUrl: `${base}/assinatura?cartao=expirado`,
+    ...callbacks,
   });
   return checkoutPageUrl(checkout);
+}
+
+/**
+ * Compra do anual no cartão aprovada: passa a conta para "ano pago no
+ * cartão". Apaga as assinaturas ativas do cliente no Asaas (a Pix reserva —
+ * apagar remove as cobranças ainda não pagas, então ninguém paga duas vezes),
+ * marca essas cobranças como canceladas no espelho local e grava
+ * billing_method = 'CARD_INSTALLMENT', plano anual e sem assinatura. Mesma
+ * trava por usuário da criação da assinatura. Devolve true se mudou algo.
+ */
+export async function adoptCardPurchase(userId: string): Promise<boolean> {
+  if (!isAsaasConfigured()) return false;
+  let adopted = false;
+  await withServiceMode(async () => {
+    await db.execute(sql`select pg_advisory_xact_lock(hashtext(${"billing:" + userId}))`);
+    const [user] = await withServiceMode(() =>
+      db
+        .select({
+          asaasCustomerId: users.asaasCustomerId,
+          asaasSubscriptionId: users.asaasSubscriptionId,
+          billingMethod: users.billingMethod,
+          billingCanceledAt: users.billingCanceledAt,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+    );
+    if (!user?.asaasCustomerId || user.billingCanceledAt) return;
+    if (user.billingMethod === "CARD_INSTALLMENT" && !user.asaasSubscriptionId) return;
+
+    const subscriptions = await listCustomerSubscriptions(user.asaasCustomerId);
+    const toRemove = new Set(subscriptions.filter((sub) => !sub.deleted).map((sub) => sub.id));
+    if (user.asaasSubscriptionId) toRemove.add(user.asaasSubscriptionId);
+    const canceledPaymentIds: string[] = [];
+    for (const oldId of toRemove) {
+      try {
+        const oldPayments = await listSubscriptionPayments(oldId);
+        canceledPaymentIds.push(...oldPayments.filter((p) => isOpenStatus(p.status)).map((p) => p.id));
+      } catch (err) {
+        console.error("[billing] não consegui listar as cobranças da assinatura antiga", oldId, err);
+      }
+      try {
+        await deleteSubscription(oldId);
+      } catch (err) {
+        if (!(err instanceof AsaasError && err.status === 404)) {
+          console.error("[billing] não consegui apagar a assinatura antiga", oldId, err);
+        }
+      }
+    }
+    await withServiceMode(async () => {
+      if (canceledPaymentIds.length > 0) {
+        await db
+          .update(billingPayments)
+          .set({ status: "DELETED", updatedAt: new Date() })
+          .where(
+            and(
+              eq(billingPayments.userId, userId),
+              inArray(billingPayments.asaasPaymentId, canceledPaymentIds),
+              inArray(billingPayments.status, ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"])
+            )
+          );
+      }
+      await db
+        .update(users)
+        .set({ asaasSubscriptionId: null, billingMethod: "CARD_INSTALLMENT", billingPlan: "YEARLY", cardPeriodStart: null })
+        .where(eq(users.id, userId));
+    });
+    adopted = true;
+  });
+  if (adopted) await withServiceMode(() => recomputeUserBilling(userId));
+  return adopted;
+}
+
+/**
+ * Procura no Asaas a compra do anual no cartão (cobranças de cartão sem
+ * assinatura) e espelha cada parcela; se a compra foi aprovada, adota. Usada
+ * quando o cliente volta do Checkout (o webhook pode atrasar).
+ */
+export async function syncCardPurchases(userId: string): Promise<boolean> {
+  if (!isAsaasConfigured()) return false;
+  const [user] = await withServiceMode(() =>
+    db.select({ asaasCustomerId: users.asaasCustomerId }).from(users).where(eq(users.id, userId)).limit(1)
+  );
+  if (!user?.asaasCustomerId) return false;
+  const payments = await listCustomerCardPayments(user.asaasCustomerId);
+  let adopt = false;
+  for (const p of payments) {
+    if (p.subscription) continue; // cobrança de assinatura: cuidada por syncCardSubscription
+    const r = await applyAsaasPayment({ ...p, billingType: p.billingType ?? "CREDIT_CARD" });
+    if (r.needsPurchaseAdopt) adopt = true;
+  }
+  return adopt ? adoptCardPurchase(userId) : false;
 }
 
 /**

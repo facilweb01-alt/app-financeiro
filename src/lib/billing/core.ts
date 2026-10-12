@@ -286,10 +286,93 @@ export function computeBillingState(input: {
 
 // --- Cartão de crédito recorrente (Checkout do Asaas) ----------------------
 
-export type BillingMethod = "PIX" | "CREDIT_CARD";
+/**
+ * - PIX: assinatura Pix no Asaas;
+ * - CREDIT_CARD: assinatura de cartão recorrente (cobrada sozinha);
+ * - CARD_INSTALLMENT: ano do plano anual pago no cartão (à vista ou em até
+ *   12x) numa compra avulsa do Checkout, SEM assinatura ativa — perto do fim
+ *   do ano o app pede a renovação (12/10/2026).
+ */
+export type BillingMethod = "PIX" | "CREDIT_CARD" | "CARD_INSTALLMENT";
 
 export function normalizeBillingMethod(value: string | null | undefined): BillingMethod {
-  return value === "CREDIT_CARD" ? "CREDIT_CARD" : "PIX";
+  return value === "CREDIT_CARD" || value === "CARD_INSTALLMENT" ? value : "PIX";
+}
+
+// --- Plano anual no cartão em até 12x (12/10/2026) --------------------------
+
+/** Máximo de parcelas oferecido no Checkout do anual no cartão. */
+export const MAX_INSTALLMENTS = 12;
+
+/**
+ * Cobrança que veio de uma COMPRA no cartão (Checkout à vista ou parcelado),
+ * e não de uma assinatura: cartão e sem assinatura de origem.
+ */
+export function isCardBillingPurchase(row: { billingType?: string | null; asaasSubscriptionId?: string | null }): boolean {
+  return row.billingType === "CREDIT_CARD" && !row.asaasSubscriptionId;
+}
+
+export type BillingRow = PaymentLike & {
+  asaasPaymentId: string;
+  billingType?: string | null;
+  asaasSubscriptionId?: string | null;
+  asaasInstallmentId?: string | null;
+  periodStart?: string | null;
+};
+
+/**
+ * Junta as parcelas de cada compra no cartão num pagamento só do ano: o
+ * vencimento passa a ser o dia em que o ano começa (period_start) e a compra
+ * conta como paga se QUALQUER parcela estiver paga (no cartão o Asaas aprova
+ * a compra inteira de uma vez; as parcelas só caem mês a mês no extrato do
+ * cliente). As cobranças de assinatura passam sem mudança.
+ * Devolve também o início do ano da compra paga mais recente (vira o "dia do
+ * contrato" de quem não tem assinatura).
+ */
+export function collapseCardPurchases(rows: BillingRow[]): { payments: PaymentLike[]; lastPurchaseStart: string | null } {
+  const payments: PaymentLike[] = [];
+  const groups = new Map<string, BillingRow[]>();
+  for (const r of rows) {
+    if (!isCardBillingPurchase(r)) {
+      payments.push({ dueDate: r.dueDate, status: r.status });
+      continue;
+    }
+    const key = r.asaasInstallmentId || r.asaasPaymentId;
+    groups.set(key, [...(groups.get(key) ?? []), r]);
+  }
+  let lastPurchaseStart: string | null = null;
+  for (const g of groups.values()) {
+    const start = g.map((r) => r.periodStart).find(Boolean) ?? g.map((r) => r.dueDate).sort()[0];
+    const paid = g.some((r) => isPaidStatus(r.status));
+    const open = g.find((r) => isOpenStatus(r.status));
+    const status = paid ? "CONFIRMED" : open ? open.status : g[0].status;
+    payments.push({ dueDate: start, status });
+    if (paid && (!lastPurchaseStart || start > lastPurchaseStart)) lastPurchaseStart = start;
+  }
+  return { payments, lastPurchaseStart };
+}
+
+/**
+ * Quem pagou o ano no cartão (sem assinatura) só volta a ter cobrança quando
+ * a renovação chega: perto do vencimento, vencido ou pausado.
+ */
+export function isRenewalWindow(kind: BillingStateKind): boolean {
+  return kind === "due_soon" || kind === "overdue" || kind === "blocked";
+}
+
+/**
+ * Vencimento da 1ª cobrança de uma assinatura Pix nova: no teste grátis, o
+ * fim do teste; em quem já pagou (ex.: renovação do anual pago no cartão),
+ * o vencimento que já existe se ainda não passou; senão, hoje.
+ */
+export function newSubscriptionDueDate(input: {
+  status: string;
+  trialEndsAt?: string | null;
+  subscriptionDueDate?: string | null;
+  today: string;
+}): string {
+  if (input.status === "pending") return firstPixDueDate({ trialEndsAt: input.trialEndsAt, today: input.today });
+  return input.subscriptionDueDate && input.subscriptionDueDate > input.today ? input.subscriptionDueDate : input.today;
 }
 
 /**

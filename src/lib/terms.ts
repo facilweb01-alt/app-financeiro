@@ -6,7 +6,7 @@
 // a data de hoje) — quem já aceitou uma versão anterior será mandado de
 // novo para /aceitar-termos automaticamente, porque termsVersion salvo no
 // banco vai deixar de bater com esta constante.
-export const CURRENT_TERMS_VERSION = "2026-10-11.1";
+export const CURRENT_TERMS_VERSION = "2026-10-12.1";
 
 export const TERMS_CHECKBOX_LABEL =
   "Li e aceito os Termos de Uso e a Política de Privacidade do Contay. Entendo que meus dados de cadastro e os lançamentos financeiros que eu inserir são de acesso restrito — protegidos por controle de acesso no banco de dados, não são vendidos nem repassados a anunciantes, passam apenas pelos serviços contratados para o Contay funcionar (cobrança pelo Asaas, WhatsApp, inteligência artificial que lê as mensagens e hospedagem), descritos nos Termos, e são acessados pela equipe do Contay apenas quando estritamente necessário para operar, corrigir ou dar suporte ao serviço. Aceito receber mensagens do Contay no WhatsApp que informei, e posso parar as ofertas respondendo SAIR.";
@@ -30,7 +30,7 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Plano mensal e plano anual",
-    body: "Na hora de assinar você escolhe o plano mensal (R$ 29,90 por mês) ou o plano anual (R$ 304,98 por ano, que é o valor de 12 mensalidades com 15% de desconto, cobrado de uma vez). O plano mensal não tem fidelidade. No plano anual, a cobrança se repete uma vez por ano, na mesma data; você pode cancelar a renovação quando quiser e continua com acesso até o fim do ano já pago. Nos primeiros 7 dias depois do pagamento do plano anual você pode desistir e receber o valor de volta (direito de arrependimento das compras pela internet); depois desse prazo o valor do ano em curso não é devolvido. Tudo o que estes Termos dizem sobre a mensalidade (vencimento, atraso, pausa do acesso e cobrança no cartão) vale também para a anuidade. Quem já é assinante troca de plano falando com o suporte.",
+    body: "Na hora de assinar você escolhe o plano mensal (R$ 29,90 por mês) ou o plano anual (R$ 304,98 por ano, que é o valor de 12 mensalidades com 15% de desconto, cobrado de uma vez). O plano mensal não tem fidelidade. No plano anual pago no Pix, a cobrança se repete uma vez por ano, na mesma data; você pode cancelar a renovação quando quiser e continua com acesso até o fim do ano já pago. No cartão de crédito, o plano anual é pago à vista ou parcelado em até 12 vezes, conforme a opção que você escolher na página de pagamento do Asaas: o valor é cobrado no cartão na hora da compra (as parcelas aparecem nas faturas seguintes do seu cartão) e o ano de acesso começa no fim do teste grátis, ou no vencimento que você já tiver. Não há renovação automática no cartão: perto do fim do ano o Contay avisa e você escolhe se renova. Nos primeiros 7 dias depois do pagamento do plano anual você pode desistir e receber o valor de volta (direito de arrependimento das compras pela internet; no cartão parcelado, a compra é estornada inteira); depois desse prazo o valor do ano em curso não é devolvido e as parcelas restantes continuam nas faturas do cartão. Tudo o que estes Termos dizem sobre a mensalidade (vencimento, atraso, pausa do acesso e cobrança no cartão) vale também para a anuidade. Quem já é assinante troca de plano falando com o suporte.",
   },
   {
     title: "Pagamento da assinatura",

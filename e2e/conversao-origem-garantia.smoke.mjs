@@ -214,7 +214,7 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
-    check("Termos na versão 2026-10-11.1", t.includes("Versão: 2026-10-11.1"));
+    check("Termos na versão 2026-10-12.1", t.includes("Versão: 2026-10-12.1"));
     check("Termos explicam a origem do cadastro e o evento de início do pagamento", t.includes("o nome da origem, da campanha e do anúncio") && t.includes("o início do pagamento"));
     await ctx.close();
   }

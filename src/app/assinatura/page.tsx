@@ -5,7 +5,17 @@ import { redirect } from "next/navigation";
 import { getRawSession } from "@/lib/dal";
 import { logout } from "@/app/actions/auth";
 import { getBillingOverview } from "@/lib/billing/service";
-import { ANNUAL_DISCOUNT_PERCENT, cardFirstDueDate, computeBillingState, planInfo, TRIAL_DAYS, todayInSaoPaulo, isPaidStatus } from "@/lib/billing/core";
+import {
+  ANNUAL_DISCOUNT_PERCENT,
+  cardFirstDueDate,
+  computeBillingState,
+  isRenewalWindow,
+  MAX_INSTALLMENTS,
+  planInfo,
+  TRIAL_DAYS,
+  todayInSaoPaulo,
+  isPaidStatus,
+} from "@/lib/billing/core";
 import { formatBRL, formatDateBR, formatDateTimeBR } from "@/lib/format";
 import { Logo } from "@/components/Logo";
 import { CardCheckoutButton, CopyPixButton, CpfForm, PaymentWatcher, PlanChooser } from "./PixPayment";
@@ -93,6 +103,10 @@ export default async function AssinaturaPage({
   const trialEnd = user.trialEndsAt;
   const canceled = state.kind === "canceled" || state.kind === "canceled_active";
   const card = user.billingMethod === "CREDIT_CARD";
+  // Plano anual pago no cartão (à vista ou em até 12x), sem cobrança automática.
+  const installmentPaid = user.billingMethod === "CARD_INSTALLMENT";
+  // No anual, o cartão é uma compra do ano (à vista ou parcelada), não cobrança recorrente.
+  const yearlyPurchase = plan.plan === "YEARLY" && !card;
   const cardDeclined = card && openPayment?.billingType === "CREDIT_CARD" && openPayment.status === "OVERDUE";
   const today = todayInSaoPaulo();
   const cardFirstDue = cardFirstDueDate({ status: user.status, subscriptionDueDate: user.subscriptionDueDate, today, trialEndsAt: user.trialEndsAt });
@@ -112,7 +126,8 @@ export default async function AssinaturaPage({
   const checkoutPixel = pixelId && user.status === "pending" ? { pixelId, ...purchase } : null;
   const firstPaymentPending = user.status === "pending" && !canceled;
   const showPixBlock = Boolean(openPayment && openPayment.billingType !== "CREDIT_CARD");
-  const showCardBlock = configured && !card && !canceled && !error && !needsCpf;
+  const showCardBlock =
+    configured && !card && !canceled && !error && !needsCpf && !(installmentPaid && !isRenewalWindow(state.kind));
   // Voltou do Checkout do cartão já com a conta liberada (no Pix, quem avisa
   // é o PaymentWatcher, na hora em que o pagamento cai).
   if (cartaoParam === "ok" && user.status === "active" && firstPayment) {
@@ -133,7 +148,7 @@ export default async function AssinaturaPage({
     title = `Seu teste grátis vai até ${formatDateBR(trialEnd)}`;
     subtitle = card
       ? `Cartão cadastrado: a 1ª ${plan.chargeName} de ${formatBRL(plan.price)} será cobrada em ${formatDateBR(trialEnd)} e o app continua liberado, sem interrupção.`
-      : `Para continuar depois do teste, assine por ${formatBRL(plan.price)} ${plan.per}. Assinando agora você não perde nenhum dia: a ${plan.chargeName} só começa a contar em ${formatDateBR(trialEnd)}.`;
+      : `Para continuar depois do teste, assine por ${formatBRL(plan.price)} ${plan.per}${yearlyPurchase ? ` (em até ${MAX_INSTALLMENTS}x no cartão)` : ""}. Assinando agora você não perde nenhum dia: a ${plan.chargeName} só começa a contar em ${formatDateBR(trialEnd)}.`;
   } else if (trialEnded) {
     title = "Seu teste grátis terminou";
     subtitle = card
@@ -155,7 +170,9 @@ export default async function AssinaturaPage({
   } else {
     title = "Minha assinatura";
     subtitle = state.dueDate
-      ? card
+      ? installmentPaid
+        ? `Plano anual pago no cartão até ${formatDateBR(state.dueDate)}. Perto dessa data a renovação aparece aqui, no cartão em até ${MAX_INSTALLMENTS}x ou no Pix.`
+        : card
         ? `Próxima cobrança no cartão: ${formatDateBR(state.dueDate)}. É automática — você não precisa fazer nada.`
         : `Próximo vencimento: ${formatDateBR(state.dueDate)}. O Pix de cada mês aparece aqui e no aviso dentro do app.`
       : "Sua assinatura está em dia.";
@@ -196,7 +213,9 @@ export default async function AssinaturaPage({
             </div>
             <div className="text-right">
               <div className="text-2xl font-extrabold text-navy-50">{formatBRL(plan.price)}</div>
-              <div className="text-xs text-navy-400">{plan.per} · cartão ou Pix</div>
+              <div className="text-xs text-navy-400">
+                {plan.per} · {yearlyPurchase ? `até ${MAX_INSTALLMENTS}x no cartão ou Pix` : "cartão ou Pix"}
+              </div>
             </div>
           </div>
           <div className="mt-3 border-t border-navy-700/60 pt-3 text-sm text-navy-300">
@@ -204,7 +223,9 @@ export default async function AssinaturaPage({
             <span className="font-semibold text-navy-100">
               {card
                 ? "cartão de crédito (cobrança automática)"
-                : user.status === "pending"
+                : installmentPaid
+                  ? "cartão de crédito (ano pago)"
+                  : user.status === "pending"
                   ? "cartão de crédito ou Pix (escolha abaixo)"
                   : "Pix"}
             </span>
@@ -247,7 +268,7 @@ export default async function AssinaturaPage({
             current={plan.plan}
             monthlyLabel={`${formatBRL(monthly.price)} por mês`}
             yearlyLabel={`${formatBRL(yearly.price)} por ano`}
-            yearlyDetail={`${ANNUAL_DISCOUNT_PERCENT}% de desconto: sai por ${formatBRL(yearly.monthlyEquivalent)} por mês e você economiza ${formatBRL(yearly.yearlySavings)} no ano.`}
+            yearlyDetail={`${ANNUAL_DISCOUNT_PERCENT}% de desconto: sai por ${formatBRL(yearly.monthlyEquivalent)} por mês e você economiza ${formatBRL(yearly.yearlySavings)} no ano. No cartão, em até ${MAX_INSTALLMENTS}x.`}
           />
         )}
 
@@ -290,7 +311,14 @@ export default async function AssinaturaPage({
           </div>
         )}
 
-        {cardReturn && !canceled && !(cartaoParam === "ok" && card) && (
+        {cartaoParam === "ok" && installmentPaid && !canceled && (
+          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200" role="status" data-testid="anual-pago-ok">
+            ✅ Pronto! Plano anual pago no cartão.
+            {user.subscriptionDueDate ? ` Seu acesso está garantido até ${formatDateBR(user.subscriptionDueDate)}.` : ""}
+          </div>
+        )}
+
+        {cardReturn && !canceled && !(cartaoParam === "ok" && (card || installmentPaid)) && (
           <div
             className={`rounded-2xl border p-4 text-sm ${
               cardReturn.tone === "ok"
@@ -346,6 +374,18 @@ export default async function AssinaturaPage({
           </div>
         )}
 
+        {/* Plano anual pago no cartão (à vista ou parcelado): sem cobrança automática */}
+        {installmentPaid && !canceled && user.status === "active" && !isRenewalWindow(state.kind) && (
+          <div className="glass-card flex flex-col gap-2 rounded-2xl p-5" data-testid="anual-pago-cartao">
+            <div className="font-semibold text-navy-50">💳 Plano anual pago no cartão</div>
+            <p className="text-sm text-navy-300">
+              {user.subscriptionDueDate
+                ? `Seu acesso está garantido até ${formatDateBR(user.subscriptionDueDate)}. Não há cobrança automática: perto dessa data a renovação aparece aqui e no aviso do app, no cartão em até ${MAX_INSTALLMENTS}x ou no Pix.`
+                : "Seu ano está pago. Perto do fim dele a renovação aparece aqui e no aviso do app."}
+            </p>
+          </div>
+        )}
+
         {/* Cartão de crédito em 1º lugar (pedido do Marcelo, 09/10), já aberto;
             o Pix vem logo abaixo como segunda opção. */}
         {showCardBlock && (
@@ -357,7 +397,13 @@ export default async function AssinaturaPage({
               )}
             </div>
             <p className="text-sm text-navy-300">
-              {inTrial && trialEnd
+              {yearlyPurchase
+                ? inTrial && trialEnd
+                  ? `Pague o ano no cartão, à vista ou em até ${MAX_INSTALLMENTS}x. A cobrança é feita na hora, mas o ano só começa a contar em ${formatDateBR(trialEnd)}: você não perde nenhum dia do teste.`
+                  : user.status === "pending"
+                    ? `Pague o ano no cartão, à vista ou em até ${MAX_INSTALLMENTS}x, e o acesso é liberado na hora.`
+                    : `Renove por mais um ano no cartão, à vista ou em até ${MAX_INSTALLMENTS}x. O novo ano começa em ${formatDateBR(cardFirstDue)}${openPayment ? " e o Pix em aberto é cancelado" : ""}.`
+                : inTrial && trialEnd
                 ? `Cadastre o cartão agora e esqueça: nada é cobrado hoje. A 1ª ${plan.chargeName} de ${formatBRL(plan.price)} só é cobrada em ${formatDateBR(trialEnd)}, no fim do teste, e depois ${plan.every}, sozinha.`
                 : user.status === "pending"
                 ? `Pague com cartão e esqueça: os ${formatBRL(plan.price)} são cobrados sozinhos ${plan.every}, sem precisar pagar Pix.`
@@ -366,9 +412,20 @@ export default async function AssinaturaPage({
                   : `Passe a pagar no cartão: a primeira cobrança será em ${formatDateBR(cardFirstDue)} (no lugar do Pix) e depois ${plan.every}, sozinha.`}
             </p>
             <CardCheckoutButton
-              label={inTrial ? "Assinar com cartão de crédito" : user.status === "pending" ? "Pagar com cartão de crédito" : "Usar cartão de crédito"}
+              label={
+                yearlyPurchase
+                  ? user.status === "pending"
+                    ? `Pagar o ano em até ${MAX_INSTALLMENTS}x no cartão`
+                    : `Renovar em até ${MAX_INSTALLMENTS}x no cartão`
+                  : inTrial
+                    ? "Assinar com cartão de crédito"
+                    : user.status === "pending"
+                      ? "Pagar com cartão de crédito"
+                      : "Usar cartão de crédito"
+              }
               defaultOpen
               pixel={checkoutPixel}
+              installments={yearlyPurchase ? MAX_INSTALLMENTS : null}
             />
             <p className="text-center text-xs text-navy-500">
               🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.
@@ -435,7 +492,7 @@ export default async function AssinaturaPage({
             pixel={pixelId && user.status === "pending" ? { pixelId, ...purchase } : null}
           />}
 
-        {!openPayment && !waiting && !canceled && !card && user.status === "active" && !error && (
+        {!openPayment && !waiting && !canceled && !card && !installmentPaid && user.status === "active" && !error && (
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
             ✅ Nenhuma {plan.chargeName} em aberto. O Pix {plan.plan === "YEARLY" ? "do próximo ano" : "do próximo mês"} aparece aqui alguns dias antes do vencimento.
           </div>
@@ -446,9 +503,16 @@ export default async function AssinaturaPage({
             <div className="mb-3 font-semibold text-navy-50">Histórico de pagamentos</div>
             <ul className="divide-y divide-navy-800/70 text-sm">
               {history.map((h) => (
-                <li key={`${h.dueDate}-${h.status}`} className="flex items-center justify-between py-2">
+                <li key={`${h.dueDate}-${h.status}-${h.installments ?? 0}`} className="flex items-center justify-between py-2">
                   <div>
-                    <div className="text-navy-100">Vencimento {formatDateBR(h.dueDate)}</div>
+                    <div className="text-navy-100">
+                      {h.installments ? `Plano anual a partir de ${formatDateBR(h.dueDate)}` : `Vencimento ${formatDateBR(h.dueDate)}`}
+                    </div>
+                    {h.installments ? (
+                      <div className="text-xs text-navy-400">
+                        Cartão {h.installments > 1 ? `em ${h.installments}x` : "à vista"}
+                      </div>
+                    ) : null}
                     {h.paidAt && isPaidStatus(h.status) && (
                       <div className="text-xs text-navy-400">Pago em {formatDateTimeBR(h.paidAt)}</div>
                     )}
