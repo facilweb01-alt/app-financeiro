@@ -82,7 +82,9 @@ export default function RegistrarPage() {
                 placeholder="(83) 99999-8888"
                 className={inputClass}
               />
-              <p className="mt-1 text-xs text-navy-500">É por esse número que você vai lançar gastos pelo WhatsApp.</p>
+              <p className="mt-1 text-xs text-navy-500">
+                É por esse número que você vai lançar gastos pelo WhatsApp, por texto, áudio ou foto do cupom.
+              </p>
               <FieldError errors={state?.errors?.whatsappPhone} />
             </div>
 
@@ -123,7 +125,8 @@ export default function RegistrarPage() {
                     Termos de Uso e a Política de Privacidade
                   </Link>
                   . Meus dados são de acesso restrito. Se eu assinar depois do teste, os dados de cobrança vão para o
-                  processador de pagamentos (Asaas).
+                  processador de pagamentos (Asaas). Aceito receber mensagens do Contay no WhatsApp que informei, e
+                  posso parar as ofertas respondendo SAIR.
                 </span>
               </label>
               <FieldError errors={state?.errors?.terms} />

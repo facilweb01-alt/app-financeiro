@@ -6,6 +6,7 @@ import { LogoSymbol } from "@/components/Logo";
 import { ANNUAL_DISCOUNT_PERCENT, PLAN_PRICE, TRIAL_DAYS, planInfo } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
+import { MediaShowcase } from "./MediaShowcase";
 import { ChatDemo } from "./ChatDemo";
 import { TESTIMONIALS } from "./testimonials";
 import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
@@ -73,7 +74,7 @@ export function LandingPage({
             <div>
               <span className="pain-tag ok"><i></i>Controle de gastos pelo WhatsApp e no app</span>
               <h1>Seu dinheiro acaba antes do mês <span className="grad">e você não sabe para onde foi?</span></h1>
-              <p className="lead"><strong>O Contay mostra para onde vai cada real.</strong> Você manda o gasto pelo WhatsApp e acompanha tudo no app, no celular ou no computador: cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
+              <p className="lead"><strong>O Contay mostra para onde vai cada real.</strong> Você manda o gasto pelo WhatsApp, <strong>por texto, áudio ou foto do cupom</strong>, e acompanha tudo no app, no celular ou no computador: cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
               <div className="ctas">
                 <Link className="btn btn-cta" href={registerHref}>Testar grátis por {TRIAL_DAYS} dias <span aria-hidden="true">→</span></Link>
                 <a className="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
@@ -122,6 +123,20 @@ export function LandingPage({
         </section>
 
   
+        <section className="sec media3d" id="audio-foto" style={{ paddingTop: "56px" }}>
+          <div className="glow" style={{ width: "460px", height: "460px", right: "-160px", top: "40px", background: "#10b981" }}></div>
+          <div className="glow" style={{ width: "380px", height: "380px", left: "-140px", top: "220px", background: "#2563eb" }}></div>
+          <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
+            <div className="sec-head center">
+              <span className="new-tag">Novo · áudio e foto</span>
+              <h2>Escreva, fale ou fotografe. <span className="grad">O Contay lança.</span></h2>
+              <p>Sem tempo para digitar? Grave um áudio. Pegou o cupom no caixa? Mande a foto. O Contay ouve ou lê, entende o valor, o lugar e a categoria, e responde confirmando, tudo no mesmo WhatsApp.</p>
+            </div>
+            <MediaShowcase />
+          </div>
+        </section>
+
+  
         <section className="sec" id="dores">
           <div className="wrap">
             <div className="sec-head">
@@ -160,12 +175,13 @@ export function LandingPage({
                 <div className="copy">
                   <span className="tag">Diferencial 1 · WhatsApp</span>
                   <h3>Lançou em 5 segundos, no app que você já abre o dia todo</h3>
-                  <p>Escreva do seu jeito, como mandaria para um amigo. A inteligência artificial entende o valor, a categoria e a data, lança no app e responde confirmando.</p>
+                  <p>Escreva do seu jeito, mande um áudio ou a foto do cupom. A inteligência artificial entende o valor, a categoria e a data, lança no app e responde confirmando.</p>
                   <p className="dor">Sem isso: você deixa para anotar depois e esquece. Gasto não anotado é dinheiro que some.</p>
                   <ul className="checks">
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Entende “gastei 32 na padaria” e “uber 18,50”</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Entende compra no cartão com parcelas: “400 em 4x”</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cria a categoria que você pedir: “ração 80 categoria pet”</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Ouve áudio (“gastei trinta na farmácia”) e lê foto de cupom e nota fiscal</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Responde na hora confirmando o que foi lançado</li>
                   </ul>
                 </div>
@@ -277,7 +293,7 @@ export function LandingPage({
               <div className="cmp-row"><div className="f">Para lançar um gasto</div><div className="cmp-cells">
                 <div className="cell"><span className="who">Planilha</span>Abrir o computador e digitar</div>
                 <div className="cell"><span className="who">App comum</span>Abrir o app e preencher um formulário</div>
-                <div className="cell us"><span className="who">Contay</span>Mandar uma mensagem no WhatsApp</div></div></div>
+                <div className="cell us"><span className="who">Contay</span>Mandar texto, áudio ou foto do cupom no WhatsApp</div></div></div>
               <div className="cmp-row"><div className="f">Parcelas do cartão nos próximos meses</div><div className="cmp-cells">
                 <div className="cell"><span className="who">Planilha</span>Fórmula feita à mão</div>
                 <div className="cell"><span className="who">App comum</span>Muitas vezes só no plano mais caro</div>
@@ -293,7 +309,7 @@ export function LandingPage({
               <div className="cmp-row"><div className="f">Forma de pagar</div><div className="cmp-cells">
                 <div className="cell"><span className="who">Planilha</span>Grátis, mas dá trabalho manter</div>
                 <div className="cell"><span className="who">App comum</span>Em geral cartão de crédito ou plano anual</div>
-                <div className="cell us"><span className="who">Contay</span>Pix ou cartão de crédito, mensal e sem fidelidade</div></div></div>
+                <div className="cell us"><span className="who">Contay</span>Pix ou cartão, mensal sem fidelidade ou anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto</div></div></div>
             </div>
           </div>
         </section>
@@ -306,13 +322,13 @@ export function LandingPage({
               <h2>Do cafezinho às parcelas do cartão, tudo num só lugar</h2>
             </div>
             <div className="feats">
+              <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></div><h3>Áudio e foto do cupom</h3><p>Grave “gastei 30 na farmácia” ou mande a foto da nota. O Contay ouve, lê o total e lança na categoria certa.</p></div>
               <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></div><h3>Gastos do dia a dia</h3><p>Data da compra, vencimento, produto ou serviço e categoria: alimentação, saúde, lazer, compras pessoais, viagem, gasolina.</p></div>
               <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/></svg></div><h3>Contas fixas</h3><p>Aluguel, internet, escola. Cadastre uma vez, com descrição e valor, e acrescente quantas quiser.</p></div>
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></div><h3>Investimentos e metas</h3><p>Registre seus aportes e acompanhe cada meta com barra de progresso até o objetivo.</p></div>
               <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v3M12 18v3M4.2 7.5l2.6 1.5M17.2 15l2.6 1.5M4.2 16.5l2.6-1.5M17.2 9l2.6-1.5"/><circle cx="12" cy="12" r="3.5"/></svg></div><h3>Limites com alerta</h3><p>Defina quanto quer gastar em cada categoria e receba aviso antes de estourar.</p></div>
               <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div><h3>Fechamento do mês + PDF</h3><p>Quando o mês termina, o app pergunta se você quer encerrar. Resumo por categoria, parcelas que ainda faltam e relatório em PDF.</p></div>
               <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18h2"/></svg></div><h3>Manual e suporte no WhatsApp</h3><p>Ao entrar você recebe o manual em PDF. Ficou com dúvida? Pergunte no mesmo WhatsApp e a resposta vem na hora.</p></div>
-              <div className="feat"><div className="ico"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c5 0 9 5 9 7a9 9 0 0 1-2.2 3.3M6.3 6.3C4.2 7.8 3 10.2 3 12c0 2 4 7 9 7 1.6 0 3-.4 4.3-1.1"/></svg></div><h3>Modo discreto</h3><p>Um toque esconde todos os valores da tela. Ideal para abrir o app em público.</p></div>
               <div className="feat"><div className="ico g"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg></div><h3>Dados protegidos</h3><p>Cada conta isolada, senha criptografada e tratamento de dados de acordo com a LGPD.</p></div>
             </div>
           </div>
@@ -404,7 +420,8 @@ export function LandingPage({
           <div className="wrap">
             <div className="sec-head center"><span className="eyebrow">Dúvidas</span><h2>Perguntas frequentes</h2></div>
             <div className="faq">
-              <details><summary>Como funciona o lançamento pelo WhatsApp?<span className="pl" aria-hidden="true">+</span></summary><p>No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”, “400 no cartão em 4x”. A inteligência artificial entende o valor, a categoria e as parcelas, lança no app e responde confirmando.</p></details>
+              <details><summary>Como funciona o lançamento pelo WhatsApp?<span className="pl" aria-hidden="true">+</span></summary><p>No cadastro você informa seu WhatsApp. Depois é só mandar uma mensagem para o número do Contay, do jeito que você fala: “gastei 30 na padaria”, “paguei 200 de luz”, “400 no cartão em 4x”. Também vale mandar um áudio ou a foto do cupom. A inteligência artificial entende o valor, a categoria e as parcelas, lança no app e responde confirmando.</p></details>
+              <details><summary>Posso mandar áudio ou foto do cupom?<span className="pl" aria-hidden="true">+</span></summary><p>Pode. Grave um áudio falando o gasto, por exemplo “gastei trinta reais na farmácia”, ou mande a foto do cupom fiscal, da nota ou do comprovante. O Contay ouve ou lê, lança o total na categoria certa e responde com o que entendeu. Para dizer que foi no cartão ou escolher a categoria, escreva na legenda da foto. O Contay não guarda o arquivo: ele é usado só para ler o gasto.</p></details>
               <details><summary>Preciso dar a senha do meu banco?<span className="pl" aria-hidden="true">+</span></summary><p>Não. O Contay não se conecta à sua conta bancária. Você informa os gastos pelo WhatsApp ou pelo app, e só você decide o que entra.</p></details>
               <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não precisa baixar nada da loja. O Contay abre no navegador do celular ou do computador. Para ter o ícone na tela inicial e abrir como aplicativo: no Android (Chrome), toque no menu e em “Adicionar à tela inicial”; no iPhone (Safari), toque em Compartilhar e em “Adicionar à Tela de Início”.</p></details>
               <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>Os primeiros {TRIAL_DAYS} dias são grátis. Depois, {PRICE} por mês, ou {PRICE_YEARLY} por ano no plano anual ({ANNUAL_DISCOUNT_PERCENT}% de desconto), no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
