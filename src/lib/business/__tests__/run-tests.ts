@@ -1154,15 +1154,18 @@ test("automações: não pagou — para com SAIR, cancelamento, sem telefone, ca
   assert.equal(nextAutomation(cand({ status: "suspended" }), [], late, START), null);
 });
 
-test("automações: sem uso — 7 dias e reforço aos 14 (pelo menos 5 dias depois do 1º); para ao lançar", () => {
+test("automações: sem uso — 5 dias e reforço aos 10 (pelo menos 5 dias depois do 1º); para ao lançar", () => {
+  assert.deepEqual([...AUTOMATION_RULES.semUsoDays], [5, 10]);
   const c = cand({ status: "active", approvedAt: at(0) });
-  assert.equal(nextAutomation(c, [], at(7 * D - 1), START), null);
-  assert.deepEqual(nextAutomation(c, [], at(7 * D), START), { kind: "sem_uso", step: 1, retry: false });
-  // 1º enviado só no dia 12 (ex.: app fora do ar): o 2º espera até o dia 17.
-  const h1 = [sent("sem_uso", 1, at(12 * D))];
-  assert.equal(nextAutomation(c, h1, at(14 * D), START), null);
-  assert.deepEqual(nextAutomation(c, h1, at(17 * D), START), { kind: "sem_uso", step: 2, retry: false });
-  const h2 = [sent("sem_uso", 1, at(7 * D)), sent("sem_uso", 2, at(14 * D))];
+  assert.equal(nextAutomation(c, [], at(5 * D - 1), START), null);
+  assert.deepEqual(nextAutomation(c, [], at(5 * D), START), { kind: "sem_uso", step: 1, retry: false });
+  // 1º enviado só no dia 8 (ex.: app fora do ar): o 2º espera até o dia 13.
+  const h1 = [sent("sem_uso", 1, at(8 * D))];
+  assert.equal(nextAutomation(c, h1, at(10 * D), START), null);
+  assert.deepEqual(nextAutomation(c, h1, at(13 * D), START), { kind: "sem_uso", step: 2, retry: false });
+  const hOk = [sent("sem_uso", 1, at(5 * D))];
+  assert.deepEqual(nextAutomation(c, hOk, at(10 * D), START), { kind: "sem_uso", step: 2, retry: false });
+  const h2 = [sent("sem_uso", 1, at(5 * D)), sent("sem_uso", 2, at(10 * D))];
   assert.equal(nextAutomation(c, h2, at(60 * D), START), null);
   assert.equal(nextAutomation({ ...c, hasUsage: true }, [], at(8 * D), START), null);
   // Liberado antes do início das automações: nada.
@@ -1401,13 +1404,17 @@ const sentRec = (kind: "teste" | "nao_pagou" | "sem_uso", step: number, when: st
   sentAt: day(when),
 });
 
-test("avisos do teste: nada nos primeiros dias, aviso na véspera e no último dia, cada um uma vez", () => {
-  const u = trialUser();
+test("avisos do teste: dicas no 2º, 4º e 6º dia (um dia sim, outro não), aviso na véspera e no último dia, cada um uma vez", () => {
+  const u = trialUser(); // cadastro 11/10, teste até 18/10
   // 1 hora depois do cadastro: quem está em teste NÃO recebe o "pagamento não concluído"
   assert.equal(nextAutomation(u, [], day("2026-10-11T16:30:00-03:00"), AUTOMATION_START), null);
-  for (const d of ["12", "13", "14", "15", "16"]) {
-    assert.equal(nextAutomation(u, [], day(`2026-10-${d}T10:00:00-03:00`), AUTOMATION_START), null, d);
-  }
+  // dicas: 12/10 (2º dia), 14/10 (4º dia), 16/10 (6º dia); nada em 13 e 15
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-12T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 3, retry: false });
+  assert.equal(nextAutomation(u, [sentRec("teste", 3, "2026-10-12T10:00:00-03:00")], day("2026-10-12T18:00:00-03:00"), AUTOMATION_START), null);
+  assert.equal(nextAutomation(u, [], day("2026-10-13T10:00:00-03:00"), AUTOMATION_START), null);
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-14T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 4, retry: false });
+  assert.equal(nextAutomation(u, [], day("2026-10-15T10:00:00-03:00"), AUTOMATION_START), null);
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-16T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 5, retry: false });
   assert.deepEqual(nextAutomation(u, [], day("2026-10-17T08:05:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: false });
   const afterEve = [sentRec("teste", 1, "2026-10-17T08:05:00-03:00")];
   assert.equal(nextAutomation(u, afterEve, day("2026-10-17T15:00:00-03:00"), AUTOMATION_START), null);
@@ -1420,7 +1427,44 @@ test("avisos do teste: o dia é o de Brasília (23h de lá ainda é véspera, me
   const u = trialUser();
   assert.equal(saoPauloDate(day("2026-10-17T23:30:00-03:00")), "2026-10-17");
   assert.deepEqual(nextAutomation(u, [], day("2026-10-17T23:30:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: false });
-  assert.equal(nextAutomation(u, [], day("2026-10-16T23:59:00-03:00"), AUTOMATION_START), null);
+  assert.equal(nextAutomation(u, [], day("2026-10-15T23:59:00-03:00"), AUTOMATION_START), null);
+  // 16/10 23:59 em Brasília ainda é o 6º dia (dica), mesmo já sendo 17/10 em UTC
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-16T23:59:00-03:00"), AUTOMATION_START), { kind: "teste", step: 5, retry: false });
+});
+
+test("dicas do teste: quem já cadastrou o cartão (contratou) não recebe dicas, mas recebe os avisos de fim", () => {
+  const u = trialUser({ cardOnFile: true });
+  for (const d of ["12", "14", "16"]) assert.equal(nextAutomation(u, [], day(`2026-10-${d}T10:00:00-03:00`), AUTOMATION_START), null, d);
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-17T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: false });
+  // dica perdida (ex.: fora do ar) não sai atrasada no dia seguinte
+  assert.equal(nextAutomation(trialUser(), [], day("2026-10-13T09:00:00-03:00"), AUTOMATION_START), null);
+  // quem assinou durante o teste não recebe mais nada do teste
+  assert.equal(nextAutomation(trialUser({ status: "active", approvedAt: day("2026-10-13T10:00:00-03:00"), hasUsage: true }), [], day("2026-10-14T10:00:00-03:00"), AUTOMATION_START), null);
+});
+
+test("dicas do teste: 3 mensagens diferentes, com benefícios, data do fim e SAIR", () => {
+  const base = { name: "carlos silva", appUrl: "https://contay.com.br", trialEndsAt: "2026-10-18", kind: "teste" as const };
+  const t1 = buildAutomationMessage({ ...base, step: 3 });
+  const t2 = buildAutomationMessage({ ...base, step: 4 });
+  const t3 = buildAutomationMessage({ ...base, step: 5 });
+  assert.equal(new Set([t1, t2, t3]).size, 3);
+  for (const m of [t1, t2, t3]) {
+    assert.match(m, /^Oi, Carlos!/);
+    assert.match(m, /SAIR/);
+    assert.match(m, /18\/10/);
+    assert.ok(m.length < 900, `mensagem curta (${m.length})`);
+    assert.doesNotMatch(m, /garant(e|ia)|economiz(e|ar) R\$/i, "não promete resultado financeiro");
+  }
+  assert.match(t1, /áudio/);
+  assert.match(t1, /foto do cupom/);
+  assert.match(t1, /último gasto/); // ainda não lançou nada
+  assert.match(buildAutomationMessage({ ...base, step: 3, hasUsage: true }), /Você já começou/);
+  assert.match(t2, /parcelas/);
+  assert.match(t2, /contas fixas/);
+  assert.match(t3, /Faltam 2 dias/);
+  assert.match(t3, /Limites por categoria/);
+  assert.match(t3, /contay\.com\.br\/assinatura/);
+  assert.match(t3, /12x/);
 });
 
 test("avisos do teste: véspera perdida não é mandada atrasada; no último dia sai só o aviso do último dia", () => {
