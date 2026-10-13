@@ -150,7 +150,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
       "Cartão de crédito: a mensalidade é cobrada sozinha todo mês. O cartão é digitado na página segura do Asaas, e o Contay não vê nem guarda os dados dele.",
       "Se a mensalidade ficar 3 dias vencida, o acesso é pausado. Os seus dados continuam guardados, e o acesso volta assim que o pagamento é confirmado.",
       "Para cancelar a assinatura, fale com o suporte. Você continua usando até o fim do período já pago.",
-      "Mensagens do Contay: quem ainda não fez nenhum lançamento recebe um lembrete com dicas para começar (7 e 14 dias depois de a conta ser liberada).",
+      "Mensagens do Contay: no teste grátis chegam dicas de uso no 2º, 4º e 6º dia e os avisos de fim do teste; depois de assinar, quem ainda não fez nenhum lançamento recebe um lembrete com dicas para começar (5 e 10 dias depois de a conta ser liberada). Para não receber as ofertas, responda SAIR.",
     ],
   },
   {

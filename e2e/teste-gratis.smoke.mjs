@@ -291,10 +291,22 @@ try {
   // C. Avisos na véspera e no último dia, com o link de pagamento
   // =========================================================================
   {
+    // dicas de uso um dia sim, outro não (2º, 4º e 6º dia = faltando 6, 4 e 2 dias)
+    const start = zapi.sentTo(a.zphone).length;
+    const tips = [];
+    for (const left of [6, 5, 4, 3, 2]) {
+      await setTrialEnd(a.email, todaySP(left));
+      await processar();
+      await processar(); // rodar de novo não repete
+      const now = zapi.sentTo(a.zphone).length;
+      tips.push(`${left}:${now - start}`);
+    }
+    const tipMsgs = texts(a.zphone).slice(-3);
+    check("dicas do teste: 1 mensagem faltando 6, 4 e 2 dias; nada faltando 5 e 3", tips.join(",") === "6:1,5:1,4:2,3:2,2:3", tips.join(","));
+    check("dicas do teste: 3 textos diferentes (WhatsApp/áudio/foto, cartões e parcelas, recursos + assinatura), com SAIR", new Set(tipMsgs).size === 3 && /foto do cupom/.test(tipMsgs[0]) && /parcelas/.test(tipMsgs[1]) && /Faltam 2 dias/.test(tipMsgs[2]) && tipMsgs[2].includes("/assinatura") && tipMsgs.every((m) => /SAIR/.test(m) && /^Oi, Tania!/.test(m)), tipMsgs.map((m) => m.slice(0, 60)).join(" | "));
+    check("dicas do teste: quem já lançou algo ouve 'Você já começou'", /Você já começou/.test(tipMsgs[0]));
+
     const before = zapi.sentTo(a.zphone).length;
-    await setTrialEnd(a.email, todaySP(3));
-    await processar();
-    check("faltando 3 dias: nenhuma mensagem", zapi.sentTo(a.zphone).length === before);
 
     await setTrialEnd(a.email, todaySP(1));
     let r = await processar();
@@ -315,7 +327,7 @@ try {
     await processar();
     check("rodar de novo não repete a mensagem do último dia", zapi.sentTo(a.zphone).length === before + 2);
     const rows = await sql`select kind, step, sent_at is not null as sent from automation_messages where user_id = ${(await userOf(a.email)).id} order by step`;
-    check("envios registrados: teste passo 1 e passo 2, nenhum 'não pagou'", JSON.stringify(rows.map((x) => `${x.kind}:${x.step}:${x.sent}`)) === JSON.stringify(["teste:1:true", "teste:2:true"]), JSON.stringify(rows));
+    check("envios registrados: dicas (passos 3, 4, 5) e avisos (passos 1 e 2), nenhum 'não pagou'", JSON.stringify(rows.map((x) => `${x.kind}:${x.step}:${x.sent}`)) === JSON.stringify(["teste:1:true", "teste:2:true", "teste:3:true", "teste:4:true", "teste:5:true"]), JSON.stringify(rows));
     await a.page.goto(`${BASE}/dashboard`);
     const banner = await a.page.locator('[data-testid="trial-banner"]').innerText();
     check("no último dia o app ainda abre e o aviso diz 'termina hoje'", banner.includes("termina hoje"), banner);

@@ -2,8 +2,8 @@
 // Regras puras (sem banco nem Z-API), testadas em __tests__/run-tests.ts.
 //
 //  • "sem_uso": cliente que pagou (conta ativa) e ainda não lançou nada.
-//      passo 1 — 7 dias depois de a conta ser liberada;
-//      passo 2 — 14 dias depois (reforço), pelo menos 5 dias após o passo 1.
+//      passo 1 — 5 dias depois de a conta ser liberada (era 7 até 13/10/2026);
+//      passo 2 — 10 dias depois (reforço), pelo menos 5 dias após o passo 1.
 //    Para assim que houver qualquer lançamento (gasto, compra no cartão ou
 //    conta fixa).
 //  • "nao_pagou": fez o cadastro na página de vendas e não pagou.
@@ -11,6 +11,9 @@
 //      passos 1 a 6 — uma oferta curta a cada 15 dias (a contar do envio
 //      anterior). Para quando pagar, quando responder SAIR ou depois da 6ª.
 //  • "teste" (11/10/2026): cadastro em teste grátis de 7 dias que ainda não pagou.
+//      passos 3, 4 e 5 (13/10/2026) — dicas de uso, um dia sim, outro não:
+//        no 2º, 4º e 6º dia do teste (faltando 6, 4 e 2 dias para o fim).
+//        Não vão para quem já deixou o cartão cadastrado (já contratou);
 //      passo 1 — na véspera do último dia do teste;
 //      passo 2 — no último dia do teste.
 //    As duas levam o link de pagamento para continuar. Quem já deixou o
@@ -27,7 +30,9 @@
 export type AutomationKind = "sem_uso" | "nao_pagou" | "teste";
 
 export const AUTOMATION_RULES = {
-  semUsoDays: [7, 14] as const,
+  semUsoDays: [5, 10] as const,
+  /** Dicas no teste grátis: quantos dias faltam para o fim em cada uma (passos 3, 4 e 5). */
+  trialTipsDaysLeft: [6, 4, 2] as const,
   semUsoMinGapDays: 5,
   naoPagouFirstAfterMinutes: 60,
   naoPagouEveryDays: 15,
@@ -55,6 +60,8 @@ export type AutomationCandidate = {
   hasUsage: boolean; // já lançou algo (gasto, compra no cartão ou conta fixa)
   /** Último dia do teste grátis ("YYYY-MM-DD"); nulo/ausente = conta sem teste. */
   trialEndsAt?: string | null;
+  /** Já deixou o cartão recorrente cadastrado (contratou durante o teste). */
+  cardOnFile?: boolean;
 };
 
 export type AutomationRecord = {
@@ -141,12 +148,15 @@ export function nextAutomation(
   if (c.status === "pending") {
     if (c.billingCanceledAt || c.createdAt.getTime() < startAt.getTime()) return null;
 
-    // Teste grátis ainda valendo: só os dois avisos de fim de teste, cada um
-    // no seu dia (véspera e último dia). Passou o dia sem enviar (servidor
-    // fora do ar, fora do horário)? Não manda atrasado.
+    // Teste grátis ainda valendo: dicas de uso no 2º, 4º e 6º dia e os dois
+    // avisos de fim de teste (véspera e último dia), cada um no seu dia.
+    // Passou o dia sem enviar (servidor fora do ar, fora do horário)? Não
+    // manda atrasado.
     const trialDaysLeft = c.trialEndsAt ? daysBetweenDates(saoPauloDate(now), c.trialEndsAt) : null;
     if (trialDaysLeft !== null && trialDaysLeft >= 0) {
-      const step = trialDaysLeft === 1 ? 1 : trialDaysLeft === 0 ? 2 : null;
+      const tipIndex = (AUTOMATION_RULES.trialTipsDaysLeft as readonly number[]).indexOf(trialDaysLeft);
+      // dica = passos 3, 4, 5; quem já cadastrou o cartão (já contratou) não recebe dicas
+      const step = trialDaysLeft === 1 ? 1 : trialDaysLeft === 0 ? 2 : tipIndex >= 0 && !c.cardOnFile ? 3 + tipIndex : null;
       if (step === null) return null;
       const state = stepState(record(history, "teste", step), now);
       if (state === "sent" || state === "wait") return null;
@@ -204,6 +214,8 @@ export function buildAutomationMessage(input: {
   hasUsage?: boolean;
 }): string {
   const { kind, step, name, appUrl } = input;
+
+  if (kind === "teste" && step >= 3) return buildTrialTip(step - 2, input);
 
   if (kind === "teste") {
     const lastDay = step >= 2;
@@ -305,6 +317,70 @@ export function buildAutomationMessage(input: {
     "",
     `R$ 29,90 por mês, sem fidelidade. Para concluir: ${appUrl}/assinatura`,
     "Dúvidas? Responda aqui.",
+    OPT_OUT_LINE,
+  ].join("\n");
+}
+
+/**
+ * Dicas do teste grátis (13/10/2026, pedido do Marcelo): uma mensagem
+ * diferente no 2º, 4º e 6º dia, lembrando os benefícios de usar o app.
+ * Sem prometer resultado financeiro; sempre com a saída SAIR.
+ */
+function buildTrialTip(
+  n: number,
+  input: { name: string | null; appUrl: string; trialEndsAt?: string | null; hasUsage?: boolean }
+): string {
+  const { name, appUrl } = input;
+  const host = appUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const end = input.trialEndsAt ? `${input.trialEndsAt.slice(8, 10)}/${input.trialEndsAt.slice(5, 7)}` : null;
+  const until = end ? `Seu teste grátis vai até ${end}.` : "Seu teste grátis continua liberado.";
+
+  if (n === 1) {
+    return [
+      `${hello(name)} Dica do *Contay* para o seu 2º dia:`,
+      "",
+      "Você não precisa nem abrir o app para lançar um gasto. Aqui no WhatsApp vale de 3 jeitos:",
+      "✍️ escrever: \"gastei 45 no mercado\"",
+      "🎙️ mandar um áudio: \"trinta reais na farmácia\"",
+      "📸 mandar a foto do cupom",
+      "",
+      "O Contay lança na categoria certa e o painel já mostra para onde está indo o seu dinheiro no mês.",
+      "",
+      input.hasUsage
+        ? "Você já começou 👏 Quanto mais lançamentos, mais completo fica o retrato do seu mês."
+        : "Que tal testar agora com o último gasto que você fez? Leva 5 segundos. 😉",
+      "",
+      until,
+      OPT_OUT_LINE,
+    ].join("\n");
+  }
+
+  if (n === 2) {
+    return [
+      `${hello(name)} Pergunta rápida: você sabe quanto das próximas faturas do cartão já está comprometido? 💳`,
+      "",
+      "No *Contay* é só mandar \"400 no cartão Nubank em 4x\": ele cria as parcelas, coloca cada uma na fatura certa e já soma tudo nos próximos meses. Você vê antes quanto cada mês já tem de compromisso, sem ser pego de surpresa na fatura.",
+      "",
+      "💡 Cadastre também as contas fixas (aluguel, luz, internet). Assim o painel mostra quanto da sua renda já está reservado e quanto ainda fica livre.",
+      "",
+      `Abrir o app: ${host}`,
+      until,
+      OPT_OUT_LINE,
+    ].join("\n");
+  }
+
+  return [
+    `${hello(name)} Faltam 2 dias para o fim do seu teste grátis do *Contay*${end ? ` (${end})` : ""}. 📊`,
+    "",
+    "Já experimentou estes recursos?",
+    "🎯 Limites por categoria: o Contay avisa quando você chega perto do limite de mercado, lazer ou compras;",
+    "📄 Fechamento do mês em PDF, com quanto da renda cada categoria consumiu;",
+    "📈 Metas de investimento com a barra de progresso;",
+    "🙈 Modo discreto: um toque no olho e os valores somem da tela.",
+    "",
+    `Gostou? Para continuar sem interrupção: 👉 ${appUrl}/assinatura`,
+    "R$ 29,90 por mês, ou o anual com 15% de desconto em até 12x no cartão. Sem fidelidade.",
+    "",
     OPT_OUT_LINE,
   ].join("\n");
 }

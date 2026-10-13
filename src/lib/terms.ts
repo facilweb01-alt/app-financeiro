@@ -42,7 +42,7 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Mensagens do Contay no seu WhatsApp",
-    body: "Usamos o número de WhatsApp do cadastro para falar com você sobre o Contay: boas-vindas com o manual e o aviso de que o teste grátis está liberado, respostas às suas dúvidas, dois avisos de fim do teste grátis (na véspera e no último dia, com o endereço para assinar), um lembrete com dicas para começar se a conta de quem assinou ficar 7 e 14 dias sem nenhum lançamento e, se o teste terminar sem assinatura, algumas ofertas curtas (no máximo 6, uma a cada 15 dias). As mensagens saem só das 8h às 22h. Para não receber mais as ofertas, responda SAIR a qualquer momento.",
+    body: "Usamos o número de WhatsApp do cadastro para falar com você sobre o Contay: boas-vindas com o manual e o aviso de que o teste grátis está liberado, respostas às suas dúvidas, durante o teste grátis três mensagens com dicas de uso (no 2º, 4º e 6º dia, só para quem ainda não assinou), dois avisos de fim do teste grátis (na véspera e no último dia, com o endereço para assinar), um lembrete com dicas para começar se a conta de quem assinou ficar 5 e 10 dias sem nenhum lançamento e, se o teste terminar sem assinatura, algumas ofertas curtas (no máximo 6, uma a cada 15 dias). As mensagens saem só das 8h às 22h. Para não receber mais as ofertas, responda SAIR a qualquer momento.",
   },
   {
     title: "Onde os dados ficam guardados",

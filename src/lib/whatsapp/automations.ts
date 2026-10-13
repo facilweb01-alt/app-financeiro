@@ -167,6 +167,7 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
         optedOut: Boolean(c.marketingOptOutAt),
         hasUsage: Boolean(c.hasUsage),
         trialEndsAt: c.trialEndsAt,
+        cardOnFile: c.billingMethod === "CREDIT_CARD",
       },
       own,
       now,
