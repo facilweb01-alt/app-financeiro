@@ -179,7 +179,7 @@ export const MANUAL_SECTIONS: ManualSection[] = [
     intro: "O Contay é um app de controle de gastos: você lança pelo WhatsApp ou pelo app e vê o mês inteiro num painel.",
     items: [
       "O que ele faz: gastos por categoria com a porcentagem da renda, cartões com parcelas e faturas, contas fixas, investimentos e metas, e o resumo do mês em PDF.",
-      "Teste grátis: os primeiros 7 dias são de graça, com tudo liberado. Não precisa de cartão nem de pagamento para começar.",
+      "Teste grátis: os primeiros 7 dias são de graça, com tudo liberado. Durante o teste nada é cobrado.",
       "Quanto custa depois do teste: R$ 29,90 por mês, sem fidelidade (pode cancelar quando quiser), ou R$ 304,98 por ano no plano anual, que tem 15% de desconto e sai por R$ 25,42 por mês. O plano anual pode ser pago no cartão à vista ou em até 12x, ou no Pix. O plano é escolhido na tela de assinatura.",
       "Como começar: na página contay.com.br, toque em testar grátis e preencha nome, e-mail, WhatsApp e senha. O acesso é liberado na hora e as boas-vindas chegam por este WhatsApp, com este manual em PDF.",
       "Um dia antes de o teste terminar e no último dia, o Contay avisa por este WhatsApp e manda o endereço para assinar.",

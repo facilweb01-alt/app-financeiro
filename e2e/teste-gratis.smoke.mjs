@@ -231,6 +231,7 @@ try {
     check("boas-vindas pelo WhatsApp: 1 texto + o manual em PDF", u.welcome_sent_at !== null && msgs.length === 2 && msgs[0].kind === "send-text" && msgs[1].kind === "send-document/pdf", JSON.stringify(msgs.map((m) => m.kind)) + " " + u.welcome_error);
     const wtxt = msgs[0]?.body.message ?? "";
     check("boas-vindas avisam que o teste de 7 dias está liberado e até quando", /^Olá, Tania!/.test(wtxt) && /teste grátis de 7 dias está liberado/.test(wtxt) && wtxt.includes(`${trialEnd.slice(8, 10)}/${trialEnd.slice(5, 7)}`) && /Manual do Contay/.test(wtxt), wtxt.slice(0, 300));
+    check("boas-vindas não falam mais em \"sem cartão\"", !/sem cart[aã]o/i.test(wtxt), wtxt.slice(0, 300));
 
     // usa o app sem ter pago
     await page.click('[data-testid="bem-vindo-app"]');
@@ -543,6 +544,11 @@ try {
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
     check("Termos explicam o teste grátis, os avisos e o CPF só no pagamento", t.includes("Teste grátis de 7 dias") && t.includes("nada é cobrado se você não assinar") && t.includes("dois avisos de fim do teste grátis") && t.includes("o CPF é pedido só quando você vai assinar"));
+    {
+      const man = await (await (await browser.newPage()).goto(`${BASE}/manual`)).text();
+      check("Manual não fala mais em teste \"sem cartão\"", man.includes("Teste grátis") && !/sem cart[aã]o|precisa de cart[aã]o/i.test(man));
+    }
+    check("Termos não falam mais em teste \"sem cartão\" (estratégia de 20/10)", !/sem cart[aã]o|pedimos pagamento, cart[aã]o|precisa de cart[aã]o/i.test(t));
     check("Termos não prometem mais garantia de devolução", !t.includes("Garantia de 7 dias"));
     await ctx.close();
   }

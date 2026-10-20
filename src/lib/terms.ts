@@ -26,7 +26,7 @@ export const TERMS_SECTIONS: { title: string; body: string }[] = [
   },
   {
     title: "Teste grátis de 7 dias",
-    body: "Quem cria a conta pelo site usa o Contay gratuitamente por 7 dias, contados do dia do cadastro, com todas as funções. Para testar não pedimos pagamento, cartão nem CPF, e nada é cobrado se você não assinar. Um dia antes do fim e no último dia do teste avisamos pelo WhatsApp do cadastro, com o endereço para assinar. Se você assinar durante o teste, a primeira mensalidade vence no último dia do teste (no cartão de crédito, é nesse dia que acontece a primeira cobrança). Terminado o teste sem assinatura, o acesso fica pausado, sem perda de dados, até você assinar. O teste vale uma vez por pessoa e por número de WhatsApp.",
+    body: "Quem cria a conta pelo site usa o Contay gratuitamente por 7 dias, contados do dia do cadastro, com todas as funções. O teste é gratuito: nada é cobrado se você não assinar. Um dia antes do fim e no último dia do teste avisamos pelo WhatsApp do cadastro, com o endereço para assinar. Se você assinar durante o teste, a primeira mensalidade vence no último dia do teste (no cartão de crédito, é nesse dia que acontece a primeira cobrança). Terminado o teste sem assinatura, o acesso fica pausado, sem perda de dados, até você assinar. O teste vale uma vez por pessoa e por número de WhatsApp.",
   },
   {
     title: "Plano mensal e plano anual",

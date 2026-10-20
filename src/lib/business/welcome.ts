@@ -36,7 +36,7 @@ export function buildWelcomeMessage(input: {
 }): string {
   const who = firstName(input.name);
   const released = input.trialEndsAt
-    ? `🎁 Seu *teste grátis de 7 dias está liberado*: use tudo à vontade até ${shortDateBR(input.trialEndsAt)}, sem pagar nada e sem cartão. É por este número que você lança seus gastos e tira suas dúvidas.`
+    ? `🎁 Seu *teste grátis de 7 dias está liberado*: use tudo à vontade até ${shortDateBR(input.trialEndsAt)}, sem pagar nada. É por este número que você lança seus gastos e tira suas dúvidas.`
     : "Sua conta está liberada. É por este número que você lança seus gastos e tira suas dúvidas.";
   return [
     `Olá${who ? `, ${who}` : ""}! 👋 Seja bem-vindo(a) ao *Contay*.`,
