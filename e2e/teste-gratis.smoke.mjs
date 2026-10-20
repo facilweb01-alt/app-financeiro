@@ -138,7 +138,8 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/`);
     const landing = await page.textContent("body");
-    check("página de vendas: chamada de teste grátis de 7 dias, sem cartão", landing.includes("Testar grátis por 7 dias") && landing.includes("Sem cartão para testar") && landing.includes("Como funciona o teste grátis de 7 dias?"));
+    check("página de vendas: chamada de teste grátis de 7 dias", landing.includes("Testar grátis por 7 dias") && landing.includes("Acesso liberado na hora") && landing.includes("Como funciona o teste grátis de 7 dias?"));
+    check("página de vendas não fala mais em \"sem cartão\" (estratégia de 20/10)", !/sem cart[aã]o|informa cart[aã]o|pedimos cart[aã]o/i.test(landing));
     check("página de vendas não promete mais garantia de devolução", !/[Gg]arantia de 7 dias/.test(landing));
     check("página de vendas: passo a passo sem CPF e sem pagamento para começar", landing.includes("Nome, e-mail, WhatsApp e senha") && landing.includes("Use 7 dias grátis"));
     const deps = page.locator('[data-testid="depoimento"]');

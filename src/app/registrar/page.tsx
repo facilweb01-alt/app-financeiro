@@ -41,8 +41,7 @@ export default function RegistrarPage() {
         <div className="rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
           <h1 className="mb-1 text-xl font-semibold text-navy-100">Teste o Contay grátis por {TRIAL_DAYS} dias</h1>
           <p className="mb-3 text-sm text-navy-400">
-            Preencha seus dados e o acesso é liberado na hora. Você <strong className="text-navy-200">não paga nada agora</strong>{" "}
-            e não informa cartão.
+            Preencha seus dados e o acesso é liberado na hora. Você <strong className="text-navy-200">não paga nada agora</strong>.
           </p>
           <ul className="mb-5 flex flex-col gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-xs text-emerald-100" data-testid="registrar-garantias">
             <li>✅ <b>{TRIAL_DAYS} dias grátis</b>, com tudo liberado, inclusive o WhatsApp.</li>
