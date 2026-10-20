@@ -33,6 +33,8 @@ export function buildWelcomeMessage(input: {
   botNumber: string;
   /** Último dia do teste grátis ("YYYY-MM-DD") quando a conta acabou de entrar em teste; nulo para quem já pagou. */
   trialEndsAt?: string | null;
+  /** O cartão já está cadastrado no teste (fluxo "cartão obrigatório", 20/10/2026). */
+  cardOnFile?: boolean;
 }): string {
   const who = firstName(input.name);
   const released = input.trialEndsAt
@@ -55,8 +57,13 @@ export function buildWelcomeMessage(input: {
     "❓ *Ficou com dúvida?* Pergunte aqui mesmo, a qualquer hora.",
     "",
     `Para abrir o app: ${input.appUrl}`,
-    ...(input.trialEndsAt
-      ? ["", `Um dia antes de o teste terminar eu aviso por aqui e mando o link para continuar (R$ 29,90 por mês, sem fidelidade).`]
-      : []),
+    ...(input.trialEndsAt && input.cardOnFile
+      ? [
+          "",
+          `💳 Seu cartão já está cadastrado: no dia ${shortDateBR(input.trialEndsAt)} começa a assinatura mensal de R$ 29,90, cobrada automaticamente no cartão (sem fidelidade). Para cancelar antes, é só falar aqui.`,
+        ]
+      : input.trialEndsAt
+        ? ["", `Um dia antes de o teste terminar eu aviso por aqui e mando o link para continuar (R$ 29,90 por mês, sem fidelidade).`]
+        : []),
   ].join("\n");
 }

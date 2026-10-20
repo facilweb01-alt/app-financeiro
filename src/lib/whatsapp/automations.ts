@@ -113,6 +113,7 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
         marketingOptOutAt: users.marketingOptOutAt,
         trialEndsAt: users.trialEndsAt,
         billingMethod: users.billingMethod,
+        cardRequired: users.cardRequired,
         hasUsage: sql<boolean>`(
           exists (select 1 from transactions t where t.user_id = "users"."id")
           or exists (select 1 from fixed_accounts f where f.user_id = "users"."id")
@@ -168,6 +169,7 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
         hasUsage: Boolean(c.hasUsage),
         trialEndsAt: c.trialEndsAt,
         cardOnFile: c.billingMethod === "CREDIT_CARD",
+        cardRequired: c.cardRequired,
       },
       own,
       now,
@@ -189,6 +191,7 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
           appUrl,
           trialEndsAt: c.trialEndsAt,
           cardOnFile: c.billingMethod === "CREDIT_CARD",
+          cardRequired: c.cardRequired,
           hasUsage: Boolean(c.hasUsage),
         }));
       await markResult(c.id, plan, null);

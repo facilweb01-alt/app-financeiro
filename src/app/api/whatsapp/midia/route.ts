@@ -82,8 +82,11 @@ export async function POST(request: NextRequest) {
     const error =
       access === "teste_encerrado"
         ? "Seu teste grátis do Contay terminou. Para continuar lançando, assine em contay.com.br/assinatura (seus lançamentos estão guardados)."
-        : "Acesso a esta conta não está ativo no momento.";
-    return NextResponse.json({ error, ...(access === "teste_encerrado" ? { reason: "trial_ended" } : {}), reply: error }, { status: 403 });
+        : access === "sem_cartao"
+          ? "Falta só cadastrar o cartão de crédito para liberar seus 7 dias grátis do Contay: contay.com.br/assinatura (nada é cobrado agora)."
+          : "Acesso a esta conta não está ativo no momento.";
+    const reason = access === "teste_encerrado" ? "trial_ended" : access === "sem_cartao" ? "card_required" : null;
+    return NextResponse.json({ error, ...(reason ? { reason } : {}), reply: error }, { status: 403 });
   }
 
   let answer;

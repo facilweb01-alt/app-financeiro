@@ -23,8 +23,8 @@ export const PLAN_NAME = "Contay — plano mensal";
 // Plano anual (pedido do Marcelo em 11/10/2026): 12 mensalidades com 15% de
 // desconto, cobradas de uma vez, uma vez por ano. Os valores saem sempre de
 // planInfo() para a tela, a cobrança e os textos nunca divergirem.
-export const ANNUAL_DISCOUNT_PERCENT = 15;
-export const PLAN_PRICE_YEARLY = Math.round(PLAN_PRICE * 12 * (100 - ANNUAL_DISCOUNT_PERCENT)) / 100; // 304,98
+export const ANNUAL_DISCOUNT_PERCENT = 10; // era 15% até 20/10/2026 (decisão do Marcelo)
+export const PLAN_PRICE_YEARLY = Math.round(PLAN_PRICE * 12 * (100 - ANNUAL_DISCOUNT_PERCENT)) / 100; // 322,92 (com 15% era 304,98)
 export const PLAN_NAME_YEARLY = "Contay — plano anual";
 
 export type BillingPlan = "MONTHLY" | "YEARLY";
@@ -187,6 +187,7 @@ export function computeSubscriptionDueDate(
 export type BillingStateKind =
   | "exempt" // conta sem cobrança automática (clientes antigos, admin)
   | "trial" // teste grátis em andamento: usa o app sem ter pago
+  | "awaiting_card" // cadastro do fluxo "cartão obrigatório" (20/10/2026) ainda sem cartão: sem acesso
   | "awaiting_first_payment" // sem teste (ou teste encerrado) e 1ª mensalidade ainda não paga
   | "ok" // em dia, vencimento longe
   | "due_soon" // vence em até REMIND_DAYS dias
@@ -205,6 +206,16 @@ export type BillingState = {
   /** true quando a conta teve teste grátis e ele já terminou sem pagamento */
   trialEnded?: boolean;
 };
+
+/**
+ * Cadastro novo exige cartão de crédito para liberar o teste grátis?
+ * (decisão do Marcelo, 20/10/2026). Ligado por padrão; CADASTRO_EXIGE_CARTAO=0
+ * volta ao fluxo anterior (teste sem cartão, Pix ou cartão no fim).
+ */
+export function cardRequiredForNewSignups(env: Record<string, string | undefined> = process.env): boolean {
+  const v = (env.CADASTRO_EXIGE_CARTAO ?? "").trim().toLowerCase();
+  return !(v === "0" || v === "false" || v === "nao" || v === "não");
+}
 
 /** Último dia do teste grátis de quem se cadastra em `signupDate` ("YYYY-MM-DD"). */
 export function trialEndDate(signupDate: string): string {
@@ -238,6 +249,8 @@ export function computeBillingState(input: {
   trialEndsAt?: string | null;
   /** 'PIX' ou 'CREDIT_CARD' (users.billing_method) */
   billingMethod?: string | null;
+  /** conta do fluxo "teste grátis só com cartão" (users.card_required, 20/10/2026) */
+  cardRequired?: boolean | null;
 }): BillingState {
   const { billingEnabled, status, subscriptionDueDate, today } = input;
   if (!billingEnabled) {
@@ -254,6 +267,11 @@ export function computeBillingState(input: {
       daysUntilDue,
       blockDate: subscriptionDueDate,
     };
+  }
+  // Teste grátis só com cartão (20/10/2026): enquanto o cartão não está
+  // cadastrado no Asaas, a conta não entra no app (só a tela /assinatura).
+  if (status === "pending" && input.cardRequired && normalizeBillingMethod(input.billingMethod) === "PIX") {
+    return { kind: "awaiting_card", dueDate: null, daysUntilDue: null, blockDate: null };
   }
   if (status === "pending" && input.trialEndsAt) {
     const limit = trialAccessLimit(input.trialEndsAt, input.billingMethod);
@@ -544,6 +562,7 @@ export function hasAppAccess(input: {
   canceledAt?: Date | string | null;
   trialEndsAt?: string | null;
   billingMethod?: string | null;
+  cardRequired?: boolean | null;
 }): boolean {
   if (input.status === "suspended") return false;
   const kind = computeBillingState(input).kind;

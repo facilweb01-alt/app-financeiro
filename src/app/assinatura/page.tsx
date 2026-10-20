@@ -14,6 +14,7 @@ import {
   planInfo,
   TRIAL_DAYS,
   todayInSaoPaulo,
+  trialEndDate,
   isPaidStatus,
 } from "@/lib/billing/core";
 import { formatBRL, formatDateBR, formatDateTimeBR } from "@/lib/format";
@@ -96,7 +97,12 @@ export default async function AssinaturaPage({
     canceledAt: user.billingCanceledAt,
     trialEndsAt: user.trialEndsAt,
     billingMethod: user.billingMethod,
+    cardRequired: user.cardRequired,
   });
+  // Cadastro do fluxo "teste grátis só com cartão" (20/10/2026): sem Pix, só
+  // plano mensal no cadastro e sem acesso até o cartão ser cadastrado.
+  const cardOnly = user.cardRequired;
+  const awaitingCard = state.kind === "awaiting_card";
   // Teste grátis: em andamento (usa o app sem ter pago) ou já encerrado.
   const inTrial = state.kind === "trial";
   const trialEnded = state.kind === "awaiting_first_payment" && Boolean(state.trialEnded);
@@ -110,8 +116,19 @@ export default async function AssinaturaPage({
   const cardDeclined = card && openPayment?.billingType === "CREDIT_CARD" && openPayment.status === "OVERDUE";
   const today = todayInSaoPaulo();
   const cardFirstDue = cardFirstDueDate({ status: user.status, subscriptionDueDate: user.subscriptionDueDate, today, trialEndsAt: user.trialEndsAt });
+  // Fim do teste de quem cadastrar o cartão hoje (o teste começa no cadastro do cartão).
+  const trialEndIfCardToday = trialEndDate(today);
 
-  const waiting = !canceled && (user.status === "pending" || state.kind === "blocked");
+  // Cartão obrigatório: voltou do Checkout e o cartão já foi adotado -> tela
+  // de boas-vindas do teste (onde a medição conta o cadastro concluído).
+  if (cardOnly && cartaoParam === "ok" && inTrial && card) {
+    redirect("/bem-vindo?cartao=1");
+  }
+
+  const waiting = cardOnly
+    ? // sem Pix: só espera quando acabou de voltar do Checkout (adoção do cartão) ou com cobrança em aberto
+      !canceled && ((awaitingCard && cartaoParam === "ok") || state.kind === "blocked" || (state.kind === "awaiting_first_payment" && !card))
+    : !canceled && (user.status === "pending" || state.kind === "blocked");
   const canUseApp = inTrial || (user.status === "active" && state.kind !== "blocked" && state.kind !== "canceled");
 
   // Medição de anúncios (só para quem aceitou os cookies na página de
@@ -120,10 +137,12 @@ export default async function AssinaturaPage({
   const receiver = pixReceiver();
   const purchase = { value: plan.price, currency: "BRL" };
   const firstPayment = history.filter((h) => isPaidStatus(h.status)).length <= 1;
-  const pixelEvents: MetaEventSpec[] = [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
+  // Cartão obrigatório: o cadastro só "conclui" com o cartão (conta na tela de
+  // boas-vindas); aqui o formulário preenchido conta como "Lead".
+  const pixelEvents: MetaEventSpec[] = [{ name: cardOnly ? "Lead" : "CompleteRegistration", cookieFlag: "contay_reg" }];
   // "Começou a pagar" (copiou o Pix ou seguiu para o cartão): só enquanto a
   // pessoa ainda espera a 1ª mensalidade.
-  const checkoutPixel = pixelId && user.status === "pending" ? { pixelId, ...purchase } : null;
+  const checkoutPixel = pixelId && user.status === "pending" && !cardOnly ? { pixelId, ...purchase } : null;
   const firstPaymentPending = user.status === "pending" && !canceled;
   const showPixBlock = Boolean(openPayment && openPayment.billingType !== "CREDIT_CARD");
   const showCardBlock =
@@ -136,7 +155,10 @@ export default async function AssinaturaPage({
 
   let title: string;
   let subtitle: string;
-  if (state.kind === "canceled") {
+  if (awaitingCard) {
+    title = `Cadastre seu cartão para liberar os ${TRIAL_DAYS} dias grátis`;
+    subtitle = `Nada é cobrado agora. Depois dos ${TRIAL_DAYS} dias, a assinatura mensal de ${formatBRL(monthly.price)} é cobrada automaticamente no cartão, sem fidelidade.`;
+  } else if (state.kind === "canceled") {
     title = "Assinatura cancelada";
     subtitle = state.dueDate
       ? `Seu acesso ao Contay terminou em ${formatDateBR(state.dueDate)}. Seus dados continuam guardados — para voltar a usar, fale com o suporte.`
@@ -153,12 +175,14 @@ export default async function AssinaturaPage({
     title = "Seu teste grátis terminou";
     subtitle = card
       ? "Estamos aguardando a confirmação da cobrança no cartão. A liberação é automática."
-      : "Seus lançamentos, cartões e contas estão guardados. Assine com cartão de crédito ou Pix e tudo volta a funcionar na hora.";
+      : `Seus lançamentos, cartões e contas estão guardados. Assine com cartão de crédito${cardOnly ? "" : " ou Pix"} e tudo volta a funcionar na hora.`;
   } else if (state.kind === "awaiting_first_payment") {
     title = "Falta só o pagamento para liberar seu acesso";
     subtitle = card
       ? "Estamos aguardando a confirmação do cartão. A liberação é automática, em poucos segundos."
-      : "Pague com cartão de crédito ou com Pix. A liberação é automática, em poucos segundos.";
+      : cardOnly
+        ? "Cadastre o cartão de crédito. A liberação é automática, em poucos segundos."
+        : "Pague com cartão de crédito ou com Pix. A liberação é automática, em poucos segundos.";
   } else if (state.kind === "blocked") {
     title = "Seu acesso está pausado";
     subtitle = cardDeclined
@@ -171,7 +195,7 @@ export default async function AssinaturaPage({
     title = "Minha assinatura";
     subtitle = state.dueDate
       ? installmentPaid
-        ? `Plano anual pago no cartão até ${formatDateBR(state.dueDate)}. Perto dessa data a renovação aparece aqui, no cartão em até ${MAX_INSTALLMENTS}x ou no Pix.`
+        ? `Plano anual pago no cartão até ${formatDateBR(state.dueDate)}. Perto dessa data a renovação aparece aqui, no cartão em até ${MAX_INSTALLMENTS}x${cardOnly ? "" : " ou no Pix"}.`
         : card
         ? `Próxima cobrança no cartão: ${formatDateBR(state.dueDate)}. É automática — você não precisa fazer nada.`
         : `Próximo vencimento: ${formatDateBR(state.dueDate)}. O Pix de cada mês aparece aqui e no aviso dentro do app.`
@@ -214,7 +238,14 @@ export default async function AssinaturaPage({
             <div className="text-right">
               <div className="text-2xl font-extrabold text-navy-50">{formatBRL(plan.price)}</div>
               <div className="text-xs text-navy-400">
-                {plan.per} · {yearlyPurchase ? `até ${MAX_INSTALLMENTS}x no cartão ou Pix` : "cartão ou Pix"}
+                {plan.per} ·{" "}
+                {cardOnly
+                  ? yearlyPurchase
+                    ? `até ${MAX_INSTALLMENTS}x no cartão`
+                    : "cartão de crédito"
+                  : yearlyPurchase
+                    ? `até ${MAX_INSTALLMENTS}x no cartão ou Pix`
+                    : "cartão ou Pix"}
               </div>
             </div>
           </div>
@@ -225,6 +256,8 @@ export default async function AssinaturaPage({
                 ? "cartão de crédito (cobrança automática)"
                 : installmentPaid
                   ? "cartão de crédito (ano pago)"
+                  : cardOnly
+                  ? "cartão de crédito (cobrança automática)"
                   : user.status === "pending"
                   ? "cartão de crédito ou Pix (escolha abaixo)"
                   : "Pix"}
@@ -263,7 +296,7 @@ export default async function AssinaturaPage({
         )}
 
         {/* Escolha do plano: só para quem ainda não pagou e ainda não cadastrou cartão. */}
-        {configured && user.status === "pending" && !canceled && !card && (
+        {configured && user.status === "pending" && !canceled && !card && !cardOnly && (
           <PlanChooser
             current={plan.plan}
             monthlyLabel={`${formatBRL(monthly.price)} por mês`}
@@ -281,10 +314,11 @@ export default async function AssinaturaPage({
 
         {needsCpf && !canceled && (
           <div className="glass-card flex flex-col gap-3 rounded-2xl p-5" data-testid="assinatura-cpf">
-            <div className="font-semibold text-navy-50">Para assinar, informe seu CPF</div>
+            <div className="font-semibold text-navy-50">{cardOnly ? "Passo 1: informe seu CPF" : "Para assinar, informe seu CPF"}</div>
             <p className="text-sm text-navy-300">
-              O banco exige o CPF de quem paga para emitir a cobrança, no cartão ou no Pix. Não fazemos consulta de crédito. Depois
-              disso aparecem as formas de pagamento.
+              {cardOnly
+                ? "O banco exige o CPF do titular para cadastrar o cartão. Não fazemos consulta de crédito e nada é cobrado agora. Depois disso aparece o cadastro do cartão."
+                : "O banco exige o CPF de quem paga para emitir a cobrança, no cartão ou no Pix. Não fazemos consulta de crédito. Depois disso aparecem as formas de pagamento."}
             </p>
             <CpfForm />
           </div>
@@ -380,7 +414,7 @@ export default async function AssinaturaPage({
             <div className="font-semibold text-navy-50">💳 Plano anual pago no cartão</div>
             <p className="text-sm text-navy-300">
               {user.subscriptionDueDate
-                ? `Seu acesso está garantido até ${formatDateBR(user.subscriptionDueDate)}. Não há cobrança automática: perto dessa data a renovação aparece aqui e no aviso do app, no cartão em até ${MAX_INSTALLMENTS}x ou no Pix.`
+                ? `Seu acesso está garantido até ${formatDateBR(user.subscriptionDueDate)}. Não há cobrança automática: perto dessa data a renovação aparece aqui e no aviso do app, no cartão em até ${MAX_INSTALLMENTS}x${cardOnly ? "" : " ou no Pix"}.`
                 : "Seu ano está pago. Perto do fim dele a renovação aparece aqui e no aviso do app."}
             </p>
           </div>
@@ -391,13 +425,24 @@ export default async function AssinaturaPage({
         {showCardBlock && (
           <div className="glass-card flex flex-col gap-3 rounded-2xl p-5">
             <div className="flex items-center justify-between gap-2">
-              <div className="font-semibold text-navy-50">💳 {user.status === "pending" ? "1ª opção: cartão de crédito" : "Pagar com cartão de crédito"}</div>
-              {user.status === "pending" && (
+              <div className="font-semibold text-navy-50">
+                💳{" "}
+                {awaitingCard
+                  ? "Cadastre seu cartão de crédito"
+                  : cardOnly
+                    ? "Cartão de crédito"
+                    : user.status === "pending"
+                      ? "1ª opção: cartão de crédito"
+                      : "Pagar com cartão de crédito"}
+              </div>
+              {user.status === "pending" && !cardOnly && (
                 <span className="rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-300">Recomendado</span>
               )}
             </div>
-            <p className="text-sm text-navy-300">
-              {yearlyPurchase
+            <p className="text-sm text-navy-300" data-testid={awaitingCard ? "cartao-obrigatorio-texto" : undefined}>
+              {awaitingCard
+                ? `Nada é cobrado hoje. Seus ${TRIAL_DAYS} dias grátis começam quando o cartão for cadastrado e vão até ${formatDateBR(trialEndIfCardToday)}. Depois, a assinatura mensal de ${formatBRL(monthly.price)} é cobrada automaticamente no cartão, todo mês, sem fidelidade. Para cancelar antes da 1ª cobrança, fale com o suporte pelo WhatsApp.`
+                : yearlyPurchase
                 ? inTrial && trialEnd
                   ? `Pague o ano no cartão, à vista ou em até ${MAX_INSTALLMENTS}x. A cobrança é feita na hora, mas o ano só começa a contar em ${formatDateBR(trialEnd)}: você não perde nenhum dia do teste.`
                   : user.status === "pending"
@@ -406,14 +451,16 @@ export default async function AssinaturaPage({
                 : inTrial && trialEnd
                 ? `Cadastre o cartão agora e esqueça: nada é cobrado hoje. A 1ª ${plan.chargeName} de ${formatBRL(plan.price)} só é cobrada em ${formatDateBR(trialEnd)}, no fim do teste, e depois ${plan.every}, sozinha.`
                 : user.status === "pending"
-                ? `Pague com cartão e esqueça: os ${formatBRL(plan.price)} são cobrados sozinhos ${plan.every}, sem precisar pagar Pix.`
+                ? `Pague com cartão e esqueça: os ${formatBRL(plan.price)} são cobrados sozinhos ${plan.every}${cardOnly ? "" : ", sem precisar pagar Pix"}.`
                 : cardFirstDue === today
                   ? `Passe a pagar no cartão: a cobrança de ${formatBRL(plan.price)} é feita hoje e depois ${plan.every}, sozinha. O Pix em aberto é cancelado.`
                   : `Passe a pagar no cartão: a primeira cobrança será em ${formatDateBR(cardFirstDue)} (no lugar do Pix) e depois ${plan.every}, sozinha.`}
             </p>
             <CardCheckoutButton
               label={
-                yearlyPurchase
+                awaitingCard
+                  ? "Cadastrar cartão e liberar o teste"
+                  : yearlyPurchase
                   ? user.status === "pending"
                     ? `Pagar o ano em até ${MAX_INSTALLMENTS}x no cartão`
                     : `Renovar em até ${MAX_INSTALLMENTS}x no cartão`
@@ -489,7 +536,7 @@ export default async function AssinaturaPage({
         {configured && !canceled && !needsCpf && <PaymentWatcher
             waiting={waiting}
             justPaidRedirect="/dashboard"
-            pixel={pixelId && user.status === "pending" ? { pixelId, ...purchase } : null}
+            pixel={pixelId && user.status === "pending" && !cardOnly ? { pixelId, ...purchase } : null}
           />}
 
         {!openPayment && !waiting && !canceled && !card && !installmentPaid && user.status === "active" && !error && (

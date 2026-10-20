@@ -104,8 +104,12 @@ export const users = pgTable("users", {
     billingMethod: text("billing_method").notNull().default("PIX"),
     // Início do ano da compra no cartão em aberto no Checkout (migração 0017).
     cardPeriodStart: date("card_period_start"),
-    // Plano: 'MONTHLY' (mensal) ou 'YEARLY' (anual, 15% de desconto). Migração 0016.
+    // Plano: 'MONTHLY' (mensal) ou 'YEARLY' (anual com desconto). Migração 0016.
     billingPlan: text("billing_plan").notNull().default("MONTHLY"),
+    // Conta do fluxo "teste grátis só com cartão" (20/10/2026, migração 0018):
+    // sem Pix e sem acesso até o cartão ser cadastrado no Checkout do Asaas.
+    // Contas antigas ficam false (regra antiga, Pix aceito).
+    cardRequired: boolean("card_required").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

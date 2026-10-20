@@ -81,7 +81,7 @@ export function LandingPage({
               </div>
               <div className="trust">
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>{TRIAL_DAYS} dias grátis</span>
-                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Acesso liberado na hora</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Cancele quando quiser</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Não pede senha do banco</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem fidelidade</span>
               </div>
@@ -309,7 +309,7 @@ export function LandingPage({
               <div className="cmp-row"><div className="f">Forma de pagar</div><div className="cmp-cells">
                 <div className="cell"><span className="who">Planilha</span>Grátis, mas dá trabalho manter</div>
                 <div className="cell"><span className="who">App comum</span>Em geral cartão de crédito ou plano anual</div>
-                <div className="cell us"><span className="who">Contay</span>Pix ou cartão, mensal sem fidelidade ou anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto</div></div></div>
+                <div className="cell us"><span className="who">Contay</span>Cartão de crédito, mensal sem fidelidade ou anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto</div></div></div>
             </div>
           </div>
         </section>
@@ -343,8 +343,8 @@ export function LandingPage({
             </div>
             <div className="steps">
               <div className="step"><div className="n">1</div><h3>Crie sua conta</h3><p>Nome, e-mail, WhatsApp e senha. Leva menos de um minuto.</p></div>
-              <div className="step"><div className="n">2</div><h3>Use {TRIAL_DAYS} dias grátis</h3><p>O acesso é liberado na hora e o manual chega no seu WhatsApp. Mande seu primeiro gasto e veja o app se organizando sozinho.</p></div>
-              <div className="step"><div className="n">3</div><h3>Gostou? Continue por {PRICE}/mês</h3><p>Um dia antes de o teste terminar avisamos pelo WhatsApp, com o link para assinar no Pix ou no cartão. Não gostou? É só não assinar.</p></div>
+              <div className="step"><div className="n">2</div><h3>Cadastre o cartão e use {TRIAL_DAYS} dias grátis</h3><p>Nada é cobrado agora. O acesso é liberado na hora e o manual chega no seu WhatsApp. Mande seu primeiro gasto e veja o app se organizando sozinho.</p></div>
+              <div className="step"><div className="n">3</div><h3>Gostou? Continue por {PRICE}/mês</h3><p>No fim do teste a assinatura mensal começa sozinha, no cartão. Não gostou? Peça o cancelamento pelo WhatsApp antes do último dia do teste e nada é cobrado.</p></div>
             </div>
           </div>
         </section>
@@ -403,12 +403,12 @@ export function LandingPage({
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Fechamento do mês e relatório em PDF</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Celular e computador, lançamentos ilimitados</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Manual em PDF e suporte pelo WhatsApp</li>
-                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Pague com Pix ou cartão de crédito recorrente</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cobrança automática no cartão de crédito</li>
                   </ul>
                   <Link className="btn btn-cta" href={registerHref}>Começar meu teste grátis <span aria-hidden="true">→</span></Link>
-                  <p className="fine" data-testid="landing-trial"><strong>{TRIAL_DAYS} dias grátis para testar:</strong> acesso completo a todas as funções, inclusive o WhatsApp. Só assina se gostar.</p>
-                  <p className="fine">Depois do teste: Pix ou cartão de crédito (cobrança automática), todo mês. Sem fidelidade.</p>
-                  <p className="fine" data-testid="landing-anual"><strong>Plano anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto:</strong> {PRICE_YEARLY} por ano, o que dá {PRICE_YEARLY_PER_MONTH} por mês, em até 12x no cartão. Você escolhe na hora de assinar.</p>
+                  <p className="fine" data-testid="landing-trial"><strong>{TRIAL_DAYS} dias grátis para testar:</strong> cadastre o cartão e use todas as funções, inclusive o WhatsApp. Nada é cobrado no teste; se cancelar antes do fim, não paga nada.</p>
+                  <p className="fine">Depois do teste: cobrança automática no cartão de crédito, todo mês. Sem fidelidade.</p>
+                  <p className="fine" data-testid="landing-anual"><strong>Plano anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto:</strong> {PRICE_YEARLY} por ano, o que dá {PRICE_YEARLY_PER_MONTH} por mês, em até 12x no cartão. É só pedir ao suporte.</p>
                 </div>
               </div>
             </div>
@@ -424,10 +424,10 @@ export function LandingPage({
               <details><summary>Posso mandar áudio ou foto do cupom?<span className="pl" aria-hidden="true">+</span></summary><p>Pode. Grave um áudio falando o gasto, por exemplo “gastei trinta reais na farmácia”, ou mande a foto do cupom fiscal, da nota ou do comprovante. O Contay ouve ou lê, lança o total na categoria certa e responde com o que entendeu. Para dizer que foi no cartão ou escolher a categoria, escreva na legenda da foto. O Contay não guarda o arquivo: ele é usado só para ler o gasto.</p></details>
               <details><summary>Preciso dar a senha do meu banco?<span className="pl" aria-hidden="true">+</span></summary><p>Não. O Contay não se conecta à sua conta bancária. Você informa os gastos pelo WhatsApp ou pelo app, e só você decide o que entra.</p></details>
               <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não precisa baixar nada da loja. O Contay abre no navegador do celular ou do computador. Para ter o ícone na tela inicial e abrir como aplicativo: no Android (Chrome), toque no menu e em “Adicionar à tela inicial”; no iPhone (Safari), toque em Compartilhar e em “Adicionar à Tela de Início”.</p></details>
-              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>Os primeiros {TRIAL_DAYS} dias são grátis. Depois, {PRICE} por mês, ou {PRICE_YEARLY} por ano no plano anual ({ANNUAL_DISCOUNT_PERCENT}% de desconto), no Pix ou no cartão de crédito, você escolhe. No cartão, a mensalidade é cobrada automaticamente todo mês, no mesmo dia em que você contratou. O plano anual pode ser pago no cartão à vista ou em até 12x, e o ano só começa a contar no fim do teste grátis. No Pix, alguns dias antes do vencimento aparece um aviso dentro do app com o Pix pronto para pagar. Dá para trocar do Pix para o cartão quando quiser.</p></details>
+              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>Os primeiros {TRIAL_DAYS} dias são grátis. Para liberar o teste você cadastra um cartão de crédito, e nada é cobrado nesse momento. No último dia do teste a 1ª mensalidade de {PRICE} é cobrada automaticamente no cartão e depois todo mês, no mesmo dia. O plano anual ({PRICE_YEARLY} por ano, {ANNUAL_DISCOUNT_PERCENT}% de desconto) pode ser pago no cartão à vista ou em até 12x: é só pedir ao suporte.</p></details>
               <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
-              <details><summary>Como funciona o teste grátis de {TRIAL_DAYS} dias?<span className="pl" aria-hidden="true">+</span></summary><p>Você cria a conta com nome, e-mail, WhatsApp e senha, e o app é liberado na hora por {TRIAL_DAYS} dias, com tudo funcionando, inclusive o lançamento pelo WhatsApp. Um dia antes do fim e no último dia do teste avisamos pelo WhatsApp, com o link para assinar. Se você não assinar, o acesso fica pausado e nada é cobrado; seus lançamentos continuam guardados.</p></details>
-              <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou.</p></details>
+              <details><summary>Como funciona o teste grátis de {TRIAL_DAYS} dias?<span className="pl" aria-hidden="true">+</span></summary><p>Você cria a conta com nome, e-mail, WhatsApp e senha e cadastra um cartão de crédito na página segura do Asaas. O app é liberado na hora por {TRIAL_DAYS} dias, com tudo funcionando, inclusive o lançamento pelo WhatsApp, e nada é cobrado durante o teste. Se não quiser continuar, peça o cancelamento pelo WhatsApp antes do último dia do teste e nada é cobrado. Se não cancelar, a assinatura mensal começa no fim do teste, no cartão.</p></details>
+              <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou. No teste grátis, cancelando antes do último dia, nada é cobrado.</p></details>
               <details><summary>E se eu tiver dúvida para usar?<span className="pl" aria-hidden="true">+</span></summary><p>Pergunte no mesmo WhatsApp em que você lança os gastos, por exemplo “como cadastro um cartão?”. A resposta vem na hora, com base no manual. Quando o caso precisa de uma pessoa, um atendente continua a conversa. O <Link href="/manual">manual completo</Link> também fica disponível no app, em Ajuda.</p></details>
               <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos não são vendidos nem repassados a anunciantes. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
             </div>
@@ -462,7 +462,7 @@ export function LandingPage({
               <h2>Daqui a 30 dias você pode estar no mesmo lugar. Ou pode saber exatamente para onde foi cada real.</h2>
               <p>Crie sua conta, teste {TRIAL_DAYS} dias grátis e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.</p>
               <Link className="btn btn-cta" href={registerHref}>Testar grátis por {TRIAL_DAYS} dias <span aria-hidden="true">→</span></Link>
-              <div className="fine">{TRIAL_DAYS} dias grátis · depois {PRICE}/mês ou {PRICE_YEARLY}/ano · sem fidelidade no mensal</div>
+              <div className="fine">{TRIAL_DAYS} dias grátis · depois {PRICE}/mês no cartão · sem fidelidade</div>
             </div>
           </div>
         </section>

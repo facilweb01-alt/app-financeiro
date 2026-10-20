@@ -21,6 +21,13 @@
 //    Quem pagou não recebe. Depois que o teste termina sem pagamento, seguem
 //    as ofertas de "nao_pagou" (passos 1 a 6, a 1ª 15 dias depois do fim do
 //    teste); o passo 0 de "nao_pagou" não se aplica a quem teve teste.
+//  • Teste grátis só com cartão (20/10/2026, contas com card_required):
+//      sem cartão ainda → 1 lembrete só ("nao_pagou" passo 0), 2 horas depois
+//      do cadastro, com o link para cadastrar o cartão; nada de ofertas depois;
+//      com cartão → recebem as dicas do teste (passos 3, 4 e 5), sem falar
+//      em fim de teste nem em cobrança; os avisos de véspera e último dia
+//      (passos 1 e 2) NÃO saem: a cobrança no fim do teste é automática, sem
+//      aviso prévio (decisão do Marcelo).
 //  • Só sai mensagem das 8h às 22h (horário de Brasília); fora disso espera.
 //  • Envio que falhou é tentado de novo depois de 6 horas, até 3 tentativas.
 //  • Só entra quem se cadastrou/foi liberado a partir da data de início
@@ -35,6 +42,8 @@ export const AUTOMATION_RULES = {
   trialTipsDaysLeft: [6, 4, 2] as const,
   semUsoMinGapDays: 5,
   naoPagouFirstAfterMinutes: 60,
+  /** Cartão obrigatório: lembrete único para concluir o cadastro do cartão. */
+  cardReminderAfterMinutes: 120,
   naoPagouEveryDays: 15,
   naoPagouMaxOffers: 6,
   retryAfterHours: 6,
@@ -62,6 +71,8 @@ export type AutomationCandidate = {
   trialEndsAt?: string | null;
   /** Já deixou o cartão recorrente cadastrado (contratou durante o teste). */
   cardOnFile?: boolean;
+  /** Conta do fluxo "teste grátis só com cartão" (users.card_required, 20/10/2026). */
+  cardRequired?: boolean;
 };
 
 export type AutomationRecord = {
@@ -148,6 +159,14 @@ export function nextAutomation(
   if (c.status === "pending") {
     if (c.billingCanceledAt || c.createdAt.getTime() < startAt.getTime()) return null;
 
+    // Cartão obrigatório e o cartão ainda não foi cadastrado: um lembrete só.
+    if (c.cardRequired && !c.cardOnFile) {
+      const state = stepState(record(history, "nao_pagou", 0), now);
+      if (state === "sent" || state === "wait") return null;
+      const dueAt = c.createdAt.getTime() + AUTOMATION_RULES.cardReminderAfterMinutes * 60 * 1000;
+      return t >= dueAt ? { kind: "nao_pagou", step: 0, retry: state === "retry" } : null;
+    }
+
     // Teste grátis ainda valendo: dicas de uso no 2º, 4º e 6º dia e os dois
     // avisos de fim de teste (véspera e último dia), cada um no seu dia.
     // Passou o dia sem enviar (servidor fora do ar, fora do horário)? Não
@@ -155,8 +174,18 @@ export function nextAutomation(
     const trialDaysLeft = c.trialEndsAt ? daysBetweenDates(saoPauloDate(now), c.trialEndsAt) : null;
     if (trialDaysLeft !== null && trialDaysLeft >= 0) {
       const tipIndex = (AUTOMATION_RULES.trialTipsDaysLeft as readonly number[]).indexOf(trialDaysLeft);
-      // dica = passos 3, 4, 5; quem já cadastrou o cartão (já contratou) não recebe dicas
-      const step = trialDaysLeft === 1 ? 1 : trialDaysLeft === 0 ? 2 : tipIndex >= 0 && !c.cardOnFile ? 3 + tipIndex : null;
+      // dica = passos 3, 4, 5; quem já cadastrou o cartão (já contratou) não recebe dicas,
+      // menos no "cartão obrigatório", em que todo teste tem cartão. Nesse fluxo
+      // não há aviso de fim de teste (a cobrança é automática, sem aviso prévio).
+      const tipsAllowed = !c.cardOnFile || Boolean(c.cardRequired);
+      const step =
+        trialDaysLeft === 1
+          ? c.cardRequired ? null : 1
+          : trialDaysLeft === 0
+            ? c.cardRequired ? null : 2
+            : tipIndex >= 0 && tipsAllowed
+              ? 3 + tipIndex
+              : null;
       if (step === null) return null;
       const state = stepState(record(history, "teste", step), now);
       if (state === "sent" || state === "wait") return null;
@@ -212,6 +241,8 @@ export function buildAutomationMessage(input: {
   cardOnFile?: boolean;
   /** Só para kind "teste": já fez algum lançamento durante o teste. */
   hasUsage?: boolean;
+  /** Conta do fluxo "teste grátis só com cartão" (20/10/2026). */
+  cardRequired?: boolean;
 }): string {
   const { kind, step, name, appUrl } = input;
 
@@ -240,7 +271,7 @@ export function buildAutomationMessage(input: {
         : "Para continuar com o app e lançar seus gastos pelo WhatsApp, é só assinar:",
       `👉 ${appUrl}/assinatura`,
       "",
-      "São R$ 29,90 por mês, no Pix ou no cartão de crédito, sem fidelidade: cancela quando quiser. No plano anual tem 15% de desconto (R$ 304,98 por ano).",
+      "São R$ 29,90 por mês, no Pix ou no cartão de crédito, sem fidelidade: cancela quando quiser. No plano anual tem 10% de desconto (R$ 322,92 por ano).",
       lastDay
         ? "A partir de amanhã o acesso fica pausado até a assinatura (nada é apagado)."
         : "Assinando hoje você não perde nenhum dia: a mensalidade só começa a contar no fim do teste.",
@@ -277,6 +308,20 @@ export function buildAutomationMessage(input: {
       "",
       "Se travou em alguma parte, me conte aqui que eu te ajudo.",
       `Para abrir o app: ${appUrl}`,
+    ].join("\n");
+  }
+
+  if (step === 0 && input.cardRequired) {
+    return [
+      `${hello(name)} Aqui é o *Contay*.`,
+      "",
+      "Vi que você criou sua conta, mas ainda falta cadastrar o cartão de crédito para liberar seus *7 dias grátis*. Leva 1 minuto:",
+      `👉 ${appUrl}/assinatura (entre com o e-mail e a senha do cadastro)`,
+      "",
+      "Nada é cobrado na hora: o teste começa quando o cartão é cadastrado e a assinatura de R$ 29,90 por mês só começa depois dos 7 dias. Para cancelar antes, é só falar aqui.",
+      "",
+      "Ficou alguma dúvida? Pergunte aqui que eu respondo.",
+      OPT_OUT_LINE,
     ].join("\n");
   }
 
@@ -328,12 +373,13 @@ export function buildAutomationMessage(input: {
  */
 function buildTrialTip(
   n: number,
-  input: { name: string | null; appUrl: string; trialEndsAt?: string | null; hasUsage?: boolean }
+  input: { name: string | null; appUrl: string; trialEndsAt?: string | null; hasUsage?: boolean; cardRequired?: boolean }
 ): string {
   const { name, appUrl } = input;
   const host = appUrl.replace(/^https?:\/\//, "").replace(/\/$/, "");
   const end = input.trialEndsAt ? `${input.trialEndsAt.slice(8, 10)}/${input.trialEndsAt.slice(5, 7)}` : null;
-  const until = end ? `Seu teste grátis vai até ${end}.` : "Seu teste grátis continua liberado.";
+  // Cartão obrigatório: as dicas não falam do fim do teste nem da cobrança.
+  const until = input.cardRequired ? null : end ? `Seu teste grátis vai até ${end}.` : "Seu teste grátis continua liberado.";
 
   if (n === 1) {
     return [
@@ -350,7 +396,7 @@ function buildTrialTip(
         ? "Você já começou 👏 Quanto mais lançamentos, mais completo fica o retrato do seu mês."
         : "Que tal testar agora com o último gasto que você fez? Leva 5 segundos. 😉",
       "",
-      until,
+      ...(until ? [until] : []),
       OPT_OUT_LINE,
     ].join("\n");
   }
@@ -364,7 +410,22 @@ function buildTrialTip(
       "💡 Cadastre também as contas fixas (aluguel, luz, internet). Assim o painel mostra quanto da sua renda já está reservado e quanto ainda fica livre.",
       "",
       `Abrir o app: ${host}`,
-      until,
+      ...(until ? [until] : []),
+      OPT_OUT_LINE,
+    ].join("\n");
+  }
+
+  if (input.cardRequired) {
+    return [
+      `${hello(name)} Mais uma dica do *Contay*: já experimentou estes recursos? 📊`,
+      "",
+      "🎯 Limites por categoria: o Contay avisa quando você chega perto do limite de mercado, lazer ou compras;",
+      "📄 Fechamento do mês em PDF, com quanto da renda cada categoria consumiu;",
+      "📈 Metas de investimento com a barra de progresso;",
+      "🙈 Modo discreto: um toque no olho e os valores somem da tela.",
+      "",
+      `Abrir o app: ${host}`,
+      "Dúvidas? Responda aqui.",
       OPT_OUT_LINE,
     ].join("\n");
   }
@@ -379,7 +440,7 @@ function buildTrialTip(
     "🙈 Modo discreto: um toque no olho e os valores somem da tela.",
     "",
     `Gostou? Para continuar sem interrupção: 👉 ${appUrl}/assinatura`,
-    "R$ 29,90 por mês, ou o anual com 15% de desconto em até 12x no cartão. Sem fidelidade.",
+    "R$ 29,90 por mês, ou o anual com 10% de desconto em até 12x no cartão. Sem fidelidade.",
     "",
     OPT_OUT_LINE,
   ].join("\n");

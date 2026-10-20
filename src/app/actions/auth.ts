@@ -12,7 +12,7 @@ import { getRawSession } from "@/lib/dal";
 import { LoginFormSchema, SignupFormSchema, type AuthFormState } from "@/lib/definitions";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 import { isAsaasConfigured } from "@/lib/billing/asaas";
-import { todayInSaoPaulo, trialEndDate, whatsappPhoneVariants } from "@/lib/billing/core";
+import { cardRequiredForNewSignups, todayInSaoPaulo, trialEndDate, whatsappPhoneVariants } from "@/lib/billing/core";
 import { processPendingWelcomesSafely } from "@/lib/whatsapp/welcome";
 import { normalizeSignupSource } from "@/lib/business/signupSource";
 
@@ -57,7 +57,13 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
   // 'active' (ver src/lib/billing/core.ts, TRIAL_DAYS). Sem ela, segue o
   // fluxo antigo: aguarda aprovação manual no painel admin.
   const billingEnabled = isAsaasConfigured();
-  const trialEndsAt = billingEnabled ? trialEndDate(todayInSaoPaulo()) : null;
+  // Teste grátis só com cartão (decisão do Marcelo, 20/10/2026): a conta nasce
+  // sem acesso e sem teste contando; o teste de 7 dias começa quando o cartão
+  // é cadastrado no Checkout do Asaas (ver billing/service.ts#startCardCheckout)
+  // e a 1ª mensalidade é cobrada sozinha no fim dele. Sem Pix. A variável
+  // CADASTRO_EXIGE_CARTAO=0 volta ao fluxo anterior (teste sem cartão).
+  const cardRequired = billingEnabled && cardRequiredForNewSignups();
+  const trialEndsAt = billingEnabled && !cardRequired ? trialEndDate(todayInSaoPaulo()) : null;
 
   const passwordHash = await bcrypt.hash(password, 10);
 
@@ -80,6 +86,7 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
                                                           billingEnabled,
                                                           signupSource,
                                                           trialEndsAt,
+                                                          cardRequired,
                                                           // Pede as boas-vindas pelo WhatsApp (manual + aviso de que o
                                                           // teste está liberado); quem envia é processPendingWelcomes.
                                                           ...(trialEndsAt ? { welcomeRequestedAt: new Date() } : {}),
@@ -99,7 +106,7 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
   // um sinal, sem nenhum dado da pessoa, e dura 15 minutos.
   (await cookies()).set("contay_reg", "1", { maxAge: 900, path: "/", sameSite: "lax", httpOnly: false });
   if (trialEndsAt) after(processPendingWelcomesSafely);
-  redirect(billingEnabled ? "/bem-vindo" : "/dashboard");
+  redirect(cardRequired ? "/assinatura" : billingEnabled ? "/bem-vindo" : "/dashboard");
 }
 
 export async function login(_prevState: AuthFormState, formData: FormData): Promise<AuthFormState> {

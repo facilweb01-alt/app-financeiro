@@ -127,6 +127,13 @@
       "when": 1790900000000,
       "tag": "0017_card_installments",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791000000000,
+      "tag": "0018_card_required",
+      "breakpoints": true
     }
   ]
 }

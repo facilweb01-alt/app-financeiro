@@ -105,6 +105,8 @@ export type VerifiedSession = {
     billingCanceledAt: Date | null;
     trialEndsAt: string | null;
     billingMethod: string;
+    /** fluxo "teste grátis só com cartão" (20/10/2026) */
+    cardRequired: boolean;
 };
 
 /**
@@ -136,6 +138,7 @@ export async function verifySessionInDb(): Promise<VerifiedSession | null> {
                     billingCanceledAt: users.billingCanceledAt,
                     trialEndsAt: users.trialEndsAt,
                     billingMethod: users.billingMethod,
+                    cardRequired: users.cardRequired,
           })
           .from(sessions)
           .innerJoin(users, eq(sessions.userId, users.id))
@@ -160,6 +163,7 @@ export async function verifySessionInDb(): Promise<VerifiedSession | null> {
                                      billingCanceledAt: row.billingCanceledAt,
                                      trialEndsAt: row.trialEndsAt,
                                      billingMethod: row.billingMethod,
+                                     cardRequired: row.cardRequired,
                              };
   });
 }

@@ -43,7 +43,7 @@ function allowedHosts(): string[] {
 }
 
 /** Quem mandou a mensagem tem conta e pode usar o app agora? (mesma regra do lançamento por texto) */
-export async function senderAccess(rawPhone: string): Promise<"sem_conta" | "sem_acesso" | "teste_encerrado" | "ok"> {
+export async function senderAccess(rawPhone: string): Promise<"sem_conta" | "sem_acesso" | "teste_encerrado" | "sem_cartao" | "ok"> {
   const isLid = /@lid\b/i.test(rawPhone);
   const digits = rawPhone.replace(/\D/g, "");
   const [user] = await withServiceMode(() =>
@@ -55,6 +55,7 @@ export async function senderAccess(rawPhone: string): Promise<"sem_conta" | "sem
         billingCanceledAt: users.billingCanceledAt,
         trialEndsAt: users.trialEndsAt,
         billingMethod: users.billingMethod,
+        cardRequired: users.cardRequired,
       })
       .from(users)
       .where(isLid ? eq(users.whatsappLid, digits) : inArray(users.whatsappPhone, whatsappPhoneVariants(digits)))
@@ -69,8 +70,10 @@ export async function senderAccess(rawPhone: string): Promise<"sem_conta" | "sem
     canceledAt: user.billingCanceledAt,
     trialEndsAt: user.trialEndsAt,
     billingMethod: user.billingMethod,
+    cardRequired: user.cardRequired,
   });
   if (ok) return "ok";
+  if (user.status === "pending" && user.cardRequired && !user.billingCanceledAt && user.billingMethod === "PIX") return "sem_cartao";
   return user.status === "pending" && user.trialEndsAt ? "teste_encerrado" : "sem_acesso";
 }
 

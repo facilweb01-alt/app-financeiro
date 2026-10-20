@@ -6,8 +6,8 @@ import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
 import { fillSignup, makeLegacyPending, randomCpf } from "./helpers/signup.mjs";
 
-// Plano anual com 15% de desconto (11/10/2026), de ponta a ponta:
-//  - a tela de pagamento deixa escolher mensal (R$ 29,90) ou anual (R$ 304,98);
+// Plano anual com 10% de desconto (11/10/2026), de ponta a ponta:
+//  - a tela de pagamento deixa escolher mensal (R$ 29,90) ou anual (R$ 322,92);
 //  - trocar de plano refaz a cobrança Pix com o valor e o ciclo certos, sem
 //    deixar duas assinaturas no Asaas;
 //  - pagou a anuidade: o próximo vencimento é um ano depois;
@@ -90,10 +90,10 @@ try {
     const page = await browser.newPage();
     await page.goto(`${BASE}/`);
     const anual = await page.locator('[data-testid="landing-anual"]').innerText();
-    check("página de vendas mostra o plano anual: R$ 304,98 por ano, 15% de desconto, R$ 25,42 por mês", /304,98 por ano/.test(anual) && /15% de desconto/.test(anual) && /25,42 por mês/.test(anual), anual);
+    check("página de vendas mostra o plano anual: R$ 322,92 por ano, 10% de desconto, R$ 26,91 por mês", /322,92 por ano/.test(anual) && /10% de desconto/.test(anual) && /26,91 por mês/.test(anual), anual);
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
-    check("Termos explicam o plano anual (valor, renovação, cancelamento e desistência em 7 dias)", t.includes("Plano mensal e plano anual") && t.includes("R$ 304,98 por ano") && t.includes("uma vez por ano") && t.includes("Nos primeiros 7 dias"));
+    check("Termos explicam o plano anual (valor, renovação, cancelamento e desistência em 7 dias)", t.includes("Plano mensal e plano anual") && t.includes("R$ 322,92 por ano") && t.includes("uma vez por ano") && t.includes("Nos primeiros 7 dias"));
     await page.close();
   }
 
@@ -106,7 +106,7 @@ try {
     await page.goto(`${BASE}/assinatura`);
     check("a escolha do plano aparece antes do CPF, com o mensal marcado", (await page.locator('[data-testid="escolha-plano"]').count()) === 1 && (await page.getAttribute('[data-testid="plano-mensal"]', "aria-pressed")) === "true");
     const opt = await page.locator('[data-testid="plano-anual"]').innerText();
-    check("opção anual mostra valor, desconto, equivalente por mês e economia", /304,98 por ano/.test(opt) && /15% de desconto/.test(opt) && /25,42 por mês/.test(opt) && /53,82/.test(opt), opt);
+    check("opção anual mostra valor, desconto, equivalente por mês e economia", /322,92 por ano/.test(opt) && /10% de desconto/.test(opt) && /26,91 por mês/.test(opt) && /35,88/.test(opt), opt);
     await openPayment(page);
     let u = await userOf(a.email);
     const subMensal = u.asaas_subscription_id;
@@ -117,11 +117,11 @@ try {
     u = await userOf(a.email);
     const subs = activeSubs(u.asaas_customer_id);
     check("trocou para o anual: plano gravado e UMA assinatura ativa no Asaas (a mensal foi apagada)", u.billing_plan === "YEARLY" && subs.length === 1 && subs[0].id === u.asaas_subscription_id && fake.state.subscriptions.get(subMensal).deleted === true, `${u.billing_plan} ${subs.length}`);
-    check("assinatura anual: R$ 304,98, ciclo anual, 1ª cobrança no fim do teste", subs[0].value === 304.98 && subs[0].cycle === "YEARLY" && subs[0].nextDueDate === trialEnd, JSON.stringify({ v: subs[0].value, c: subs[0].cycle, d: subs[0].nextDueDate }));
+    check("assinatura anual: R$ 322,92, ciclo anual, 1ª cobrança no fim do teste", subs[0].value === 322.92 && subs[0].cycle === "YEARLY" && subs[0].nextDueDate === trialEnd, JSON.stringify({ v: subs[0].value, c: subs[0].cycle, d: subs[0].nextDueDate }));
     const local = await sql`select value::text as value, status from billing_payments where user_id = ${u.id} order by created_at`;
-    check("no espelho local: a cobrança mensal ficou cancelada e a anual em aberto", local.length === 2 && local[0].value === "29.90" && local[0].status === "DELETED" && local[1].value === "304.98" && local[1].status === "PENDING", JSON.stringify(local));
+    check("no espelho local: a cobrança mensal ficou cancelada e a anual em aberto", local.length === 2 && local[0].value === "29.90" && local[0].status === "DELETED" && local[1].value === "322.92" && local[1].status === "PENDING", JSON.stringify(local));
     const t = await page.textContent("body");
-    check("a tela passa a mostrar o valor anual e a palavra anuidade", /R\$\s304,98/.test(t) && t.includes("por ano") && t.includes("Contay — anual") && /304,98 · vence/.test(t.replace(/\s+/g, " ")), t.slice(0, 300));
+    check("a tela passa a mostrar o valor anual e a palavra anuidade", /R\$\s322,92/.test(t) && t.includes("por ano") && t.includes("Contay — anual") && /322,92 · vence/.test(t.replace(/\s+/g, " ")), t.slice(0, 300));
     check("continua em teste e com o app aberto", (await page.locator('a:has-text("Voltar ao app")').count()) === 1);
 
     // vai e volta: sem lixo no Asaas
@@ -131,7 +131,7 @@ try {
     await page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
     u = await userOf(a.email);
     const subs2 = activeSubs(u.asaas_customer_id);
-    check("trocar de ideia várias vezes deixa sempre uma única assinatura ativa, do plano escolhido", subs2.length === 1 && subs2[0].cycle === "YEARLY" && subs2[0].value === 304.98, JSON.stringify(subs2.map((s) => [s.cycle, s.value])));
+    check("trocar de ideia várias vezes deixa sempre uma única assinatura ativa, do plano escolhido", subs2.length === 1 && subs2[0].cycle === "YEARLY" && subs2[0].value === 322.92, JSON.stringify(subs2.map((s) => [s.cycle, s.value])));
     const custs = [...fake.state.customers.values()].filter((c) => c.email === a.email);
     check("o cliente no Asaas é sempre o mesmo (não duplica)", custs.length === 1, `${custs.length}`);
 
@@ -193,14 +193,14 @@ try {
     const coId = await fillCard(c.page);
     let u = await userOf(c.email);
     const co = fake.checkoutsOf(u.asaas_customer_id).find((x) => x.id === coId);
-    check("[anual 12x] Checkout de compra: R$ 304,98, à vista ou parcelado em até 12x, sem assinatura", co?.items?.[0]?.value === 304.98 && JSON.stringify(co?.chargeTypes) === '["DETACHED","INSTALLMENT"]' && co?.installment?.maxInstallmentCount === 12 && !co?.subscription, JSON.stringify({ v: co?.items?.[0]?.value, t: co?.chargeTypes, i: co?.installment }));
+    check("[anual 12x] Checkout de compra: R$ 322,92, à vista ou parcelado em até 12x, sem assinatura", co?.items?.[0]?.value === 322.92 && JSON.stringify(co?.chargeTypes) === '["DETACHED","INSTALLMENT"]' && co?.installment?.maxInstallmentCount === 12 && !co?.subscription, JSON.stringify({ v: co?.items?.[0]?.value, t: co?.chargeTypes, i: co?.installment }));
     check("[anual 12x] o início do ano (fim do teste) fica gravado ao abrir o Checkout", isoDate(u.card_period_start) === trialEnd, isoDate(u.card_period_start));
     const reserva = u.asaas_subscription_id;
     check("[anual 12x] até concluir, a assinatura Pix continua como reserva", Boolean(reserva) && activeSubs(u.asaas_customer_id).length === 1);
 
     // concluiu no Asaas em 12x e voltou (sem webhook: a tela confere direto no Asaas)
     const done = await (await fetch(`http://localhost:3998/__test/purchase/${coId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installments: 12 }) })).json();
-    check("[anual 12x] (Asaas falso) 12 parcelas confirmadas somando R$ 304,98", done.payments.length === 12 && Math.round(done.payments.reduce((t, p) => t + p.value, 0) * 100) === 30498);
+    check("[anual 12x] (Asaas falso) 12 parcelas confirmadas somando R$ 322,92", done.payments.length === 12 && Math.round(done.payments.reduce((t, p) => t + p.value, 0) * 100) === 32292);
     await c.page.goto(`${BASE}/assinatura?cartao=ok`);
     await c.page.waitForSelector('[data-testid="anual-pago-ok"]', { timeout: 15000 });
     u = await userOf(c.email);
@@ -215,7 +215,7 @@ try {
     body = (await c.page.textContent("body")).replace(/\s+/g, " ");
     check("[anual 12x] tela: ano pago no cartão até a data, sem cartão nem Pix para pagar e sem escolha de plano", body.includes(`Seu acesso está garantido até ${br(due1)}`) && (await c.page.locator('[data-testid="anual-pago-cartao"]').count()) === 1 && (await c.page.locator("#card-cep").count()) === 0 && (await c.page.locator('img[alt="QR Code do Pix"]').count()) === 0 && (await c.page.locator('[data-testid="escolha-plano"]').count()) === 0, body.slice(0, 600));
     const hist = (await c.page.locator("li", { hasText: "Plano anual a partir de" }).allInnerTexts()).join(" | ").replace(/\s+/g, " ");
-    check("[anual 12x] histórico: UMA linha com o ano, R$ 304,98, cartão em 12x, paga", hist.includes(`Plano anual a partir de ${br(trialEnd)}`) && hist.includes("Cartão em 12x") && /304,98/.test(hist) && hist.includes("Paga") && (await c.page.locator("li", { hasText: "Plano anual a partir de" }).count()) === 1, hist);
+    check("[anual 12x] histórico: UMA linha com o ano, R$ 322,92, cartão em 12x, paga", hist.includes(`Plano anual a partir de ${br(trialEnd)}`) && hist.includes("Cartão em 12x") && /322,92/.test(hist) && hist.includes("Paga") && (await c.page.locator("li", { hasText: "Plano anual a partir de" }).count()) === 1, hist);
 
     // webhooks das parcelas chegando depois: nada muda, nada é recriado
     for (const p of done.payments.slice(0, 3)) await asaasWebhook("PAYMENT_CONFIRMED", fake.state.payments.get(p.id));
@@ -236,7 +236,7 @@ try {
     await c.page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
     u = await userOf(c.email);
     const renSub = fake.state.subscriptions.get(u.asaas_subscription_id);
-    check("[renovação] Pix anual de renovação vencendo no fim do ano pago (não hoje)", renSub?.cycle === "YEARLY" && renSub?.value === 304.98 && renSub?.nextDueDate === due3 && u.billing_method === "PIX", JSON.stringify({ c: renSub?.cycle, d: renSub?.nextDueDate, m: u.billing_method }));
+    check("[renovação] Pix anual de renovação vencendo no fim do ano pago (não hoje)", renSub?.cycle === "YEARLY" && renSub?.value === 322.92 && renSub?.nextDueDate === due3 && u.billing_method === "PIX", JSON.stringify({ c: renSub?.cycle, d: renSub?.nextDueDate, m: u.billing_method }));
     body = (await c.page.textContent("body")).replace(/\s+/g, " ");
     check("[renovação] tela oferece renovar em até 12x no cartão (o ano novo começa no fim do atual) ou Pix", body.includes("Renove por mais um ano no cartão, à vista ou em até 12x") && body.includes(`O novo ano começa em ${br(due3)}`) && body.includes("o Pix em aberto é cancelado"), body.slice(0, 600));
     const coRen = await fillCard(c.page);
@@ -292,7 +292,7 @@ try {
     await e.page.waitForSelector('img[alt="QR Code do Pix"]', { timeout: 15000 });
     let u = await userOf(e.email);
     const sub = fake.state.subscriptions.get(u.asaas_subscription_id);
-    check("[sem teste] anual: R$ 304,98 vencendo hoje", sub.value === 304.98 && sub.cycle === "YEARLY" && sub.nextDueDate === todaySP(), JSON.stringify({ v: sub.value, d: sub.nextDueDate }));
+    check("[sem teste] anual: R$ 322,92 vencendo hoje", sub.value === 322.92 && sub.cycle === "YEARLY" && sub.nextDueDate === todaySP(), JSON.stringify({ v: sub.value, d: sub.nextDueDate }));
     const [pay] = fake.paymentsOf(u.asaas_subscription_id);
     await fetch(`http://localhost:3998/__test/pay/${pay.id}`, { method: "POST" });
     await asaasWebhook("PAYMENT_RECEIVED", fake.state.payments.get(pay.id));
@@ -315,13 +315,13 @@ try {
     check("[sem teste 1x] cartão: pagar o ano à vista ou em até 12x, acesso liberado na hora", body.includes("Pague o ano no cartão, à vista ou em até 12x, e o acesso é liberado na hora"), body.slice(0, 400));
     const coId = await fillCard(f.page);
     const done = await (await fetch(`http://localhost:3998/__test/purchase/${coId}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ installments: 1 }) })).json();
-    check("[sem teste 1x] (Asaas falso) uma cobrança à vista, sem parcelamento", done.payments.length === 1 && done.payments[0].installment === null && done.payments[0].value === 304.98);
+    check("[sem teste 1x] (Asaas falso) uma cobrança à vista, sem parcelamento", done.payments.length === 1 && done.payments[0].installment === null && done.payments[0].value === 322.92);
     await asaasWebhook("PAYMENT_CONFIRMED", done.payments[0]);
     let u = await userOf(f.email);
     check("[sem teste 1x] pago à vista: ativo, um ano a partir de hoje, sem assinatura", u.status === "active" && u.billing_method === "CARD_INSTALLMENT" && activeSubs(u.asaas_customer_id).length === 0 && isoDate(u.subscription_due_date) === addMonths(todaySP(), 12), `${u.status} ${u.billing_method} ${isoDate(u.subscription_due_date)}`);
     await f.page.goto(`${BASE}/assinatura`);
     const hist = (await f.page.locator("li", { hasText: "Plano anual a partir de" }).allInnerTexts()).join(" ").replace(/\s+/g, " ");
-    check("[sem teste 1x] histórico mostra cartão à vista", hist.includes("Cartão à vista") && /304,98/.test(hist), hist);
+    check("[sem teste 1x] histórico mostra cartão à vista", hist.includes("Cartão à vista") && /322,92/.test(hist), hist);
     await f.ctx.close();
   }
 
