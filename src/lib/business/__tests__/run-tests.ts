@@ -1371,7 +1371,8 @@ test("teste grátis: boas-vindas avisam que o teste está liberado e até quando
   assert.match(trial, /^Olá, Ana!/);
   assert.match(trial, /teste grátis de 7 dias está liberado/);
   assert.match(trial, /até 18\/10/);
-  assert.match(trial, /sem pagar nada e sem cartão/);
+  assert.match(trial, /sem pagar nada\. É por este/);
+  assert.doesNotMatch(trial, /sem cart[aã]o/i);
   assert.match(trial, /Manual do Contay/);
   assert.match(trial, /Um dia antes de o teste terminar eu aviso/);
   const paid = buildWelcomeMessage({ ...base });
