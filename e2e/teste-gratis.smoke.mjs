@@ -138,10 +138,10 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/`);
     const landing = await page.textContent("body");
-    check("página de vendas: chamada de teste grátis de 7 dias", landing.includes("Testar grátis por 7 dias") && landing.includes("Acesso liberado na hora") && landing.includes("Como funciona o teste grátis de 7 dias?"));
+    check("página de vendas: chamada de teste grátis de 7 dias", landing.includes("Testar grátis por 7 dias") && landing.includes("Cancele quando quiser") && landing.includes("Como funciona o teste grátis de 7 dias?"));
     check("página de vendas não fala mais em \"sem cartão\" (estratégia de 20/10)", !/sem cart[aã]o|informa cart[aã]o|pedimos cart[aã]o/i.test(landing));
     check("página de vendas não promete mais garantia de devolução", !/[Gg]arantia de 7 dias/.test(landing));
-    check("página de vendas: passo a passo sem CPF e sem pagamento para começar", landing.includes("Nome, e-mail, WhatsApp e senha") && landing.includes("Use 7 dias grátis"));
+    check("página de vendas: passo a passo sem CPF e sem pagamento para começar", landing.includes("Nome, e-mail, WhatsApp e senha") && landing.includes("use 7 dias grátis"));
     const deps = page.locator('[data-testid="depoimento"]');
     check("página de vendas mostra os 2 depoimentos", (await deps.count()) === 2);
     const imgs = await page.$$eval('[data-testid="depoimento"] img', (els) => els.map((e) => ({ src: e.getAttribute("src"), alt: e.getAttribute("alt") })));
@@ -543,7 +543,7 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
-    check("Termos explicam o teste grátis, os avisos e o CPF só no pagamento", t.includes("Teste grátis de 7 dias") && t.includes("nada é cobrado se você não assinar") && t.includes("dois avisos de fim do teste grátis") && t.includes("o CPF é pedido só quando você vai assinar"));
+    check("Termos explicam o teste grátis, os avisos e o CPF só no pagamento", t.includes("Teste grátis de 7 dias") && t.includes("Contas criadas antes de 20/10/2026 seguem a regra do teste da época") && t.includes("dois avisos de fim do teste grátis") && t.includes("o CPF é pedido na tela de pagamento"));
     {
       const man = await (await (await browser.newPage()).goto(`${BASE}/manual`)).text();
       check("Manual não fala mais em teste \"sem cartão\"", man.includes("Teste grátis") && !/sem cart[aã]o|precisa de cart[aã]o/i.test(man));

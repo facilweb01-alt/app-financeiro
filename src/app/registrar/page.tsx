@@ -41,11 +41,12 @@ export default function RegistrarPage() {
         <div className="rounded-2xl border p-6 shadow-sm border-navy-800 bg-navy-900">
           <h1 className="mb-1 text-xl font-semibold text-navy-100">Teste o Contay grátis por {TRIAL_DAYS} dias</h1>
           <p className="mb-3 text-sm text-navy-400">
-            Preencha seus dados e o acesso é liberado na hora. Você <strong className="text-navy-200">não paga nada agora</strong>.
+            Preencha seus dados e, em seguida, cadastre seu cartão de crédito para liberar o teste. Você{" "}
+            <strong className="text-navy-200">não paga nada agora</strong>.
           </p>
           <ul className="mb-5 flex flex-col gap-1.5 rounded-xl border border-emerald-400/25 bg-emerald-500/10 p-3 text-xs text-emerald-100" data-testid="registrar-garantias">
             <li>✅ <b>{TRIAL_DAYS} dias grátis</b>, com tudo liberado, inclusive o WhatsApp.</li>
-            <li>✅ Depois, {formatBRL(PLAN_PRICE)} por mês só se você quiser continuar. Sem fidelidade.</li>
+            <li>✅ Depois do teste, {formatBRL(PLAN_PRICE)} por mês no cartão. Sem fidelidade: cancele antes do fim do teste e não paga nada.</li>
             <li>✅ Não pedimos senha de banco nem acesso à sua conta.</li>
           </ul>
 

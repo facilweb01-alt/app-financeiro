@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
         billingCanceledAt: users.billingCanceledAt,
         trialEndsAt: users.trialEndsAt,
         billingMethod: users.billingMethod,
+        cardRequired: users.cardRequired,
       })
       .from(users)
       .where(
@@ -184,8 +185,17 @@ export async function POST(request: NextRequest) {
     canceledAt: user.billingCanceledAt,
     trialEndsAt: user.trialEndsAt,
     billingMethod: user.billingMethod,
+    cardRequired: user.cardRequired,
   });
   if (!canUse) {
+    // Cadastro do fluxo "cartão obrigatório" (20/10/2026) que ainda não
+    // cadastrou o cartão: diz como liberar o teste.
+    if (user.status === "pending" && user.cardRequired && !user.billingCanceledAt && user.billingMethod === "PIX") {
+      return NextResponse.json(
+        { error: "Falta só cadastrar o cartão de crédito para liberar seus 7 dias grátis do Contay: contay.com.br/assinatura (nada é cobrado agora).", reason: "card_required" },
+        { status: 403 }
+      );
+    }
     // Teste grátis encerrado sem pagamento: diz o que fazer para voltar.
     const trialOver = user.status === "pending" && Boolean(user.trialEndsAt);
     return NextResponse.json(

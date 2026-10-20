@@ -39,7 +39,14 @@ export type WelcomeResult = { sent: number; failed: number };
 export async function processPendingWelcomes(): Promise<WelcomeResult> {
   const pending = await withServiceMode(() =>
     db
-      .select({ id: users.id, name: users.name, whatsappPhone: users.whatsappPhone, status: users.status, trialEndsAt: users.trialEndsAt })
+      .select({
+        id: users.id,
+        name: users.name,
+        whatsappPhone: users.whatsappPhone,
+        status: users.status,
+        trialEndsAt: users.trialEndsAt,
+        billingMethod: users.billingMethod,
+      })
       .from(users)
       .where(pendingFilter())
       .limit(20)
@@ -68,6 +75,7 @@ export async function processPendingWelcomes(): Promise<WelcomeResult> {
           botNumber: WHATSAPP_BOT_DISPLAY,
           // conta ainda em teste grátis: a mensagem avisa até quando ele vale
           trialEndsAt: user.status === "pending" ? user.trialEndsAt : null,
+          cardOnFile: user.billingMethod === "CREDIT_CARD",
         }));
       await sendWhatsappPdf(phone, await buildManualPdf({ appUrl }), "Manual-Contay", "📘 Manual do Contay");
       result.sent += 1;

@@ -4,7 +4,7 @@ import { getRawSession, sessionInTrial } from "@/lib/dal";
 import { PLAN_PRICE, TRIAL_DAYS } from "@/lib/billing/core";
 import { formatBRL, formatDateBR } from "@/lib/format";
 import { Logo } from "@/components/Logo";
-import { MetaPixel } from "@/components/tracking/MetaPixel";
+import { MetaPixel, type MetaEventSpec } from "@/components/tracking/MetaPixel";
 import { metaPixelId } from "@/lib/metaPixelId";
 import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 
@@ -19,7 +19,12 @@ import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 
 export const dynamic = "force-dynamic";
 
-export default async function BemVindoPage() {
+export default async function BemVindoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
+  const params = await searchParams;
   const session = await getRawSession();
   if (!session) redirect("/login");
   if (!sessionInTrial(session) || !session.trialEndsAt) {
@@ -27,6 +32,19 @@ export default async function BemVindoPage() {
     redirect(session.status === "active" ? "/dashboard" : session.billingEnabled ? "/assinatura" : "/conta-pendente");
   }
   const pixelId = metaPixelId();
+  // Cartão obrigatório (20/10/2026): chegou aqui vindo do cadastro do cartão.
+  // É o "cadastro concluído" (e o início do teste) para a medição de anúncios,
+  // uma vez por navegador. No fluxo antigo, conta pelo sinal deixado no cadastro.
+  const cardOnly = session.cardRequired;
+  const events: MetaEventSpec[] =
+    cardOnly
+      ? params.cartao === "1"
+        ? [
+            { name: "CompleteRegistration", onceKey: "cadastro" },
+            { name: "StartTrial", params: { value: PLAN_PRICE, currency: "BRL" }, onceKey: "teste" },
+          ]
+        : []
+      : [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
   // A conversa abre com um "oi" (não com um gasto de exemplo, que viraria um
   // lançamento falso na conta); o Contay responde explicando como lançar.
   const firstMessage = "Oi! Acabei de me cadastrar no Contay.";
@@ -34,7 +52,7 @@ export default async function BemVindoPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden px-4 py-8">
-      <MetaPixel pixelId={pixelId} events={[{ name: "CompleteRegistration", cookieFlag: "contay_reg" }]} />
+      <MetaPixel pixelId={pixelId} events={events} />
       <div className="mesh-glow -left-24 -top-24 h-72 w-72 bg-blue-600" aria-hidden />
       <div className="mesh-glow -bottom-24 -right-24 h-72 w-72 bg-emerald-500" aria-hidden />
 
@@ -44,8 +62,18 @@ export default async function BemVindoPage() {
         <div>
           <h1 className="text-2xl font-bold text-navy-50">Seu teste grátis de {TRIAL_DAYS} dias está liberado 🎉</h1>
           <p className="mt-1.5 text-sm text-navy-300" data-testid="bem-vindo-prazo">
-            Use tudo à vontade até <b className="text-navy-100">{formatDateBR(session.trialEndsAt)}</b>. Você não pagou nada e não
-            informou cartão. Se gostar, assina por {formatBRL(PLAN_PRICE)} por mês; se não gostar, é só não assinar.
+            Use tudo à vontade até <b className="text-navy-100">{formatDateBR(session.trialEndsAt)}</b>.{" "}
+            {cardOnly ? (
+              <>
+                Seu cartão está cadastrado e nada foi cobrado. Depois do teste, a assinatura mensal de {formatBRL(PLAN_PRICE)} é
+                cobrada automaticamente no cartão, sem fidelidade.
+              </>
+            ) : (
+              <>
+                Você não pagou nada e não informou cartão. Se gostar, assina por {formatBRL(PLAN_PRICE)} por mês; se não gostar, é só
+                não assinar.
+              </>
+            )}
           </p>
         </div>
 
@@ -87,8 +115,9 @@ export default async function BemVindoPage() {
         </div>
 
         <p className="text-center text-xs text-navy-500">
-          Um dia antes de o teste terminar avisamos pelo WhatsApp, com o link para continuar. Dúvidas? É só perguntar na mesma
-          conversa.
+          {cardOnly
+            ? "Quer cancelar antes da 1ª cobrança? Fale com o suporte na mesma conversa do WhatsApp. Dúvidas? É só perguntar por lá."
+            : "Um dia antes de o teste terminar avisamos pelo WhatsApp, com o link para continuar. Dúvidas? É só perguntar na mesma conversa."}
         </p>
       </div>
     </div>

@@ -40,6 +40,7 @@ import {
   planFromSubscription,
   planInfo,
   todayInSaoPaulo,
+  trialEndDate,
   type BillingMethod,
   type BillingPlan,
 } from "./core";
@@ -79,6 +80,8 @@ export type BillingOverview = {
     billingPlan: BillingPlan;
     /** último dia do teste grátis (nulo = conta sem teste) */
     trialEndsAt: string | null;
+    /** fluxo "teste grátis só com cartão" (20/10/2026): sem Pix */
+    cardRequired: boolean;
   };
   /** true = falta o CPF para emitir a cobrança (o cadastro com teste grátis não pede CPF) */
   needsCpf: boolean;
@@ -304,6 +307,7 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
         billingPlan: users.billingPlan,
         billingMethod: users.billingMethod,
         subscriptionDueDate: users.subscriptionDueDate,
+        cardRequired: users.cardRequired,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -327,6 +331,11 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
   }
 
   let subscriptionId = user.asaasSubscriptionId;
+  // Conta do fluxo "cartão obrigatório" (20/10/2026): nunca nasce assinatura
+  // Pix — nem como reserva enquanto o cartão não chega, nem na renovação do
+  // anual pago no cartão. Só o cliente do Asaas é criado; a assinatura vem do
+  // Checkout do cartão (syncCardSubscription adota).
+  if (!subscriptionId && user.cardRequired) return;
   if (!subscriptionId) {
     const subscription = await createSubscription({
       customer: customerId,
@@ -469,6 +478,7 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
           trialEndsAt: users.trialEndsAt,
           cardPeriodStart: users.cardPeriodStart,
           cpf: users.cpf,
+          cardRequired: users.cardRequired,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -504,8 +514,14 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
         canceledAt: user.billingCanceledAt,
         trialEndsAt: user.trialEndsAt,
         billingMethod: user.billingMethod,
+        cardRequired: user.cardRequired,
       }).kind;
-      if (!user.asaasSubscriptionId) {
+      if (!user.asaasSubscriptionId && user.cardRequired) {
+        // Cartão obrigatório: só garante o cliente no Asaas (sem Pix). Voltou do
+        // Checkout (ou o webhook atrasou)? Adota a assinatura de cartão nova.
+        await ensureSubscription(userId);
+        if (opts.refresh) await syncCardSubscription(userId);
+      } else if (!user.asaasSubscriptionId) {
         // Ano pago no cartão: a cobrança da renovação só nasce perto do fim do ano.
         if (!installmentPaid || isRenewalWindow(kind)) await ensureSubscription(userId);
       } else if (opts.refresh) {
@@ -556,6 +572,7 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
       billingMethod: normalizeBillingMethod(user.billingMethod),
       billingPlan: normalizeBillingPlan(user.billingPlan),
       trialEndsAt: user.trialEndsAt,
+      cardRequired: user.cardRequired,
     },
     needsCpf: needsCpf && configured && user.billingEnabled && !user.billingCanceledAt,
     openPayment: openPayment && isOpenStatus(openPayment.status) ? openPayment : null,
@@ -648,6 +665,7 @@ export async function startCardCheckout(
           trialEndsAt: users.trialEndsAt,
           billingPlan: users.billingPlan,
           billingMethod: users.billingMethod,
+          cardRequired: users.cardRequired,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -673,7 +691,26 @@ export async function startCardCheckout(
       );
     }
   }
-  // garante o cliente no Asaas (e a assinatura Pix, que vira reserva até o cartão ser aprovado)
+  // Cartão obrigatório (20/10/2026), 1º cartão: o teste de 7 dias começa
+  // agora (não no cadastro) e a 1ª mensalidade é no fim dele. No cadastro só
+  // existe o plano mensal (o anual com desconto é pedido depois, ao suporte).
+  if (
+    before &&
+    before.cardRequired &&
+    before.status === "pending" &&
+    !before.billingCanceledAt &&
+    normalizeBillingMethod(before.billingMethod) === "PIX"
+  ) {
+    await withServiceMode(() =>
+      db
+        .update(users)
+        .set({ trialEndsAt: trialEndDate(todayInSaoPaulo()), billingPlan: "MONTHLY", cardPeriodStart: null })
+        .where(eq(users.id, userId))
+    );
+  }
+
+  // garante o cliente no Asaas (e, fora do "cartão obrigatório", a assinatura
+  // Pix, que vira reserva até o cartão ser aprovado)
   await ensureSubscription(userId);
 
   const [user] = await readUser();
@@ -857,6 +894,11 @@ export async function syncCardSubscription(userId: string): Promise<boolean> {
           asaasCustomerId: users.asaasCustomerId,
           asaasSubscriptionId: users.asaasSubscriptionId,
           billingCanceledAt: users.billingCanceledAt,
+          billingMethod: users.billingMethod,
+          cardRequired: users.cardRequired,
+          status: users.status,
+          trialEndsAt: users.trialEndsAt,
+          welcomeSentAt: users.welcomeSentAt,
         })
         .from(users)
         .where(eq(users.id, userId))
@@ -867,6 +909,9 @@ export async function syncCardSubscription(userId: string): Promise<boolean> {
     const subscriptions = await listCustomerSubscriptions(user.asaasCustomerId);
     const card = pickCardSubscription(subscriptions, user.asaasSubscriptionId);
     if (!card) return;
+
+    const firstCardOfTrial =
+      user.cardRequired && user.status === "pending" && normalizeBillingMethod(user.billingMethod) === "PIX";
 
     // Todas as outras assinaturas ativas do cliente saem (normalmente só a
     // Pix de antes). A cobrança já PAGA continua no histórico.
@@ -909,7 +954,20 @@ export async function syncCardSubscription(userId: string): Promise<boolean> {
         // O plano passa a ser o da assinatura de cartão que o cliente concluiu
         // (ele pode ter aberto o Checkout de um plano e depois escolhido outro
         // na tela): o ciclo seguinte tem que bater com o que o Asaas vai cobrar.
-        .set({ asaasSubscriptionId: card.id, billingMethod: "CREDIT_CARD", billingPlan: planFromSubscription(card) })
+        .set({
+          asaasSubscriptionId: card.id,
+          billingMethod: "CREDIT_CARD",
+          billingPlan: planFromSubscription(card),
+          // Cartão obrigatório (20/10/2026), 1º cartão: libera o teste. O fim
+          // do teste é o dia da 1ª cobrança da assinatura (normalmente o que
+          // foi gravado ao abrir o Checkout) e as boas-vindas saem agora.
+          ...(firstCardOfTrial
+            ? {
+                trialEndsAt: card.nextDueDate && card.nextDueDate > todayInSaoPaulo() ? card.nextDueDate : user.trialEndsAt,
+                ...(user.welcomeSentAt ? {} : { welcomeRequestedAt: new Date() }),
+              }
+            : {}),
+        })
         .where(eq(users.id, userId));
     });
     switched = true;
@@ -959,12 +1017,18 @@ export async function changeBillingPlan(userId: string, plan: BillingPlan): Prom
           billingMethod: users.billingMethod,
           billingPlan: users.billingPlan,
           asaasSubscriptionId: users.asaasSubscriptionId,
+          cardRequired: users.cardRequired,
         })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1)
     );
     if (!user || !user.billingEnabled) throw new PlanChangeError("Esta conta não tem cobrança automática.");
+    // Cartão obrigatório (20/10/2026): o cadastro é sempre no mensal; o anual
+    // com desconto é pedido ao suporte depois.
+    if (user.cardRequired && plan === "YEARLY") {
+      throw new PlanChangeError("O teste grátis começa no plano mensal. Para o plano anual com desconto, fale com o suporte pelo WhatsApp.");
+    }
     if (user.billingCanceledAt) throw new PlanChangeError("Sua assinatura foi cancelada. Para voltar a assinar, fale com o suporte.");
     if (normalizeBillingPlan(user.billingPlan) === plan) return;
     if (user.status !== "pending" || normalizeBillingMethod(user.billingMethod) === "CREDIT_CARD") {

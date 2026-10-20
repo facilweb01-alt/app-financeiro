@@ -505,6 +505,7 @@ import {
   isCardBillingPurchase,
   isRenewalWindow,
   newSubscriptionDueDate,
+  cardRequiredForNewSignups,
   MAX_INSTALLMENTS,
 } from "../../billing/core";
 
@@ -1543,17 +1544,17 @@ test("avisos do teste: textos — véspera e último dia, link de pagamento, pre
 import { TERMS_SECTIONS } from "../../terms";
 import { MANUAL_SECTIONS } from "../../manual";
 
-test("plano anual: 12 mensalidades com 15% de desconto, em centavos exatos", () => {
-  assert.equal(ANNUAL_DISCOUNT_PERCENT, 15);
+test("plano anual: 12 mensalidades com 10% de desconto (desde 20/10/2026), em centavos exatos", () => {
+  assert.equal(ANNUAL_DISCOUNT_PERCENT, 10);
   assert.equal(PLAN_PRICE, 29.9);
-  assert.equal(PLAN_PRICE_YEARLY, 304.98); // 358,80 - 15%
+  assert.equal(PLAN_PRICE_YEARLY, 322.92); // 358,80 - 10%
   const y = planInfo("YEARLY");
   assert.deepEqual(
     { price: y.price, cycle: y.cycle, months: y.months, chargeName: y.chargeName, per: y.per, monthlyEquivalent: y.monthlyEquivalent, yearlySavings: y.yearlySavings },
-    { price: 304.98, cycle: "YEARLY", months: 12, chargeName: "anuidade", per: "por ano", monthlyEquivalent: 25.42, yearlySavings: 53.82 }
+    { price: 322.92, cycle: "YEARLY", months: 12, chargeName: "anuidade", per: "por ano", monthlyEquivalent: 26.91, yearlySavings: 35.88 }
   );
   // conferência da conta sem ponto flutuante
-  assert.equal(Math.round(y.price * 100), Math.round((2990 * 12 * 85) / 100));
+  assert.equal(Math.round(y.price * 100), Math.round((2990 * 12 * 90) / 100));
   const m = planInfo("MONTHLY");
   assert.deepEqual({ price: m.price, cycle: m.cycle, months: m.months, chargeName: m.chargeName, yearlySavings: m.yearlySavings }, { price: 29.9, cycle: "MONTHLY", months: 1, chargeName: "mensalidade", yearlySavings: 0 });
 });
@@ -1859,4 +1860,102 @@ test("anual parcelado: assinatura Pix nova vence no fim do teste, no vencimento 
   assert.equal(newSubscriptionDueDate({ status: "active", subscriptionDueDate: "2027-10-19", today: "2027-10-15" }), "2027-10-19");
   assert.equal(newSubscriptionDueDate({ status: "active", subscriptionDueDate: "2027-10-19", today: "2027-10-21" }), "2027-10-21");
   assert.equal(newSubscriptionDueDate({ status: "active", subscriptionDueDate: null, today: "2027-10-21" }), "2027-10-21");
+});
+
+
+// ---------------------------------------------------------------------------
+// Teste grátis só com cartão (decisão do Marcelo, 20/10/2026)
+// ---------------------------------------------------------------------------
+
+test("cartão obrigatório: sem cartão a conta não entra no app (awaiting_card)", () => {
+  const base = { billingEnabled: true, status: "pending", subscriptionDueDate: null, today: "2026-10-20", cardRequired: true };
+  assert.equal(computeBillingState({ ...base, billingMethod: "PIX", trialEndsAt: null }).kind, "awaiting_card");
+  // mesmo com um fim de teste gravado (checkout aberto e abandonado), sem cartão não entra
+  assert.equal(computeBillingState({ ...base, billingMethod: "PIX", trialEndsAt: "2026-10-27" }).kind, "awaiting_card");
+  assert.equal(hasAppAccess({ ...base, billingMethod: "PIX", trialEndsAt: "2026-10-27" }), false);
+  // cartão cadastrado: teste liberado até o fim (+ tolerância de 3 dias para a 1ª cobrança)
+  assert.equal(computeBillingState({ ...base, billingMethod: "CREDIT_CARD", trialEndsAt: "2026-10-27" }).kind, "trial");
+  assert.equal(hasAppAccess({ ...base, billingMethod: "CREDIT_CARD", trialEndsAt: "2026-10-27" }), true);
+  assert.equal(hasAppAccess({ ...base, billingMethod: "CREDIT_CARD", trialEndsAt: "2026-10-27", today: "2026-10-30" }), true);
+  assert.equal(hasAppAccess({ ...base, billingMethod: "CREDIT_CARD", trialEndsAt: "2026-10-27", today: "2026-10-31" }), false);
+  // cancelada no teste (pelo suporte): sem acesso, sem cobrança
+  assert.equal(computeBillingState({ ...base, billingMethod: "CREDIT_CARD", trialEndsAt: "2026-10-27", canceledAt: new Date() }).kind, "canceled");
+  // conta ativa (1ª mensalidade paga) segue as regras de sempre
+  assert.equal(computeBillingState({ ...base, status: "active", subscriptionDueDate: "2026-11-27", billingMethod: "CREDIT_CARD" }).kind, "ok");
+  // suspensa continua suspensa
+  assert.equal(hasAppAccess({ ...base, status: "suspended", billingMethod: "CREDIT_CARD", trialEndsAt: "2026-10-27" }), false);
+});
+
+test("cartão obrigatório: contas antigas (card_required false) seguem a regra antiga, com Pix", () => {
+  const base = { billingEnabled: true, status: "pending", subscriptionDueDate: null, today: "2026-10-20", trialEndsAt: "2026-10-25", billingMethod: "PIX" };
+  assert.equal(computeBillingState(base).kind, "trial");
+  assert.equal(computeBillingState({ ...base, cardRequired: false }).kind, "trial");
+  assert.equal(hasAppAccess(base), true);
+});
+
+test("cartão obrigatório: ligado por padrão, CADASTRO_EXIGE_CARTAO=0 desliga", () => {
+  assert.equal(cardRequiredForNewSignups({}), true);
+  assert.equal(cardRequiredForNewSignups({ CADASTRO_EXIGE_CARTAO: "1" }), true);
+  assert.equal(cardRequiredForNewSignups({ CADASTRO_EXIGE_CARTAO: "0" }), false);
+  assert.equal(cardRequiredForNewSignups({ CADASTRO_EXIGE_CARTAO: " false " }), false);
+  assert.equal(cardRequiredForNewSignups({ CADASTRO_EXIGE_CARTAO: "não" }), false);
+});
+
+test("cartão obrigatório: 1 lembrete só para quem não cadastrou o cartão, 2 horas depois", () => {
+  const created = new Date("2026-10-20T13:00:00-03:00");
+  const c = {
+    role: "user", status: "pending", createdAt: created, approvedAt: null, billingCanceledAt: null,
+    hasPhone: true, optedOut: false, hasUsage: false, trialEndsAt: null, cardOnFile: false, cardRequired: true,
+  };
+  const start = new Date("2026-10-09T00:00:00-03:00");
+  assert.equal(nextAutomation(c, [], new Date("2026-10-20T14:30:00-03:00"), start), null);
+  assert.deepEqual(nextAutomation(c, [], new Date("2026-10-20T15:00:00-03:00"), start), { kind: "nao_pagou", step: 0, retry: false });
+  const sent = [{ kind: "nao_pagou" as const, step: 0, attempts: 1, lastAttemptAt: new Date("2026-10-20T15:00:00-03:00"), sentAt: new Date("2026-10-20T15:00:00-03:00") }];
+  // depois do lembrete, nada mais (nem as ofertas a cada 15 dias)
+  assert.equal(nextAutomation(c, sent, new Date("2026-11-20T15:00:00-03:00"), start), null);
+  // quem optou por sair não recebe
+  assert.equal(nextAutomation({ ...c, optedOut: true }, [], new Date("2026-10-20T15:00:00-03:00"), start), null);
+  const msg = buildAutomationMessage({ kind: "nao_pagou", step: 0, name: "ana souza", appUrl: "https://contay.com.br", cardRequired: true });
+  assert.match(msg, /^Oi, Ana!/);
+  assert.match(msg, /cadastrar o cartão de crédito/);
+  assert.match(msg, /https:\/\/contay\.com\.br\/assinatura/);
+  assert.match(msg, /SAIR/);
+  assert.doesNotMatch(msg, /pix/i);
+  assert.doesNotMatch(msg, /sem cart[aã]o/i);
+});
+
+test("cartão obrigatório: no teste com cartão saem as dicas, nunca os avisos de fim de teste", () => {
+  const c = {
+    role: "user", status: "pending", createdAt: new Date("2026-10-20T13:00:00-03:00"), approvedAt: null, billingCanceledAt: null,
+    hasPhone: true, optedOut: false, hasUsage: false, trialEndsAt: "2026-10-27", cardOnFile: true, cardRequired: true,
+  };
+  const start = new Date("2026-10-09T00:00:00-03:00");
+  const at = (d: string) => new Date(`${d}T10:00:00-03:00`);
+  assert.deepEqual(nextAutomation(c, [], at("2026-10-21"), start), { kind: "teste", step: 3, retry: false }); // faltam 6
+  assert.equal(nextAutomation(c, [], at("2026-10-22"), start), null); // faltam 5
+  assert.deepEqual(nextAutomation(c, [], at("2026-10-23"), start), { kind: "teste", step: 4, retry: false }); // faltam 4
+  assert.deepEqual(nextAutomation(c, [], at("2026-10-25"), start), { kind: "teste", step: 5, retry: false }); // faltam 2
+  assert.equal(nextAutomation(c, [], at("2026-10-26"), start), null); // véspera: sem aviso
+  assert.equal(nextAutomation(c, [], at("2026-10-27"), start), null); // último dia: sem aviso
+  // regra antiga intacta: cartão cadastrado no teste sem card_required recebe os avisos e não as dicas
+  const old = { ...c, cardRequired: false };
+  assert.equal(nextAutomation(old, [], at("2026-10-21"), start), null);
+  assert.deepEqual(nextAutomation(old, [], at("2026-10-26"), start), { kind: "teste", step: 1, retry: false });
+  for (const step of [3, 4, 5]) {
+    const msg = buildAutomationMessage({ kind: "teste", step, name: "Ana", appUrl: "https://contay.com.br", trialEndsAt: "2026-10-27", cardOnFile: true, cardRequired: true });
+    assert.doesNotMatch(msg, /teste grátis vai até|termina|cobrad|assinatura|pix/i, `dica ${step}`);
+    assert.match(msg, /SAIR/);
+  }
+});
+
+test("cartão obrigatório: boas-vindas dizem quando começa a assinatura no cartão", () => {
+  const msg = buildWelcomeMessage({ name: "Ana", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301", trialEndsAt: "2026-10-27", cardOnFile: true });
+  assert.match(msg, /teste grátis de 7 dias está liberado/);
+  assert.match(msg, /no dia 27\/10 começa a assinatura mensal de R\$ 29,90/);
+  assert.match(msg, /Para cancelar antes, é só falar aqui/);
+  assert.doesNotMatch(msg, /Um dia antes de o teste terminar/);
+  assert.doesNotMatch(msg, /sem cart[aã]o|pix/i);
+  // fluxo antigo (sem cartão no teste) continua igual
+  const old = buildWelcomeMessage({ name: "Ana", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301", trialEndsAt: "2026-10-27" });
+  assert.match(old, /Um dia antes de o teste terminar eu aviso/);
 });

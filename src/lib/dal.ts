@@ -35,6 +35,7 @@ export function sessionBillingKind(session: VerifiedSession) {
           canceledAt: session.billingCanceledAt,
           trialEndsAt: session.trialEndsAt,
           billingMethod: session.billingMethod,
+          cardRequired: session.cardRequired,
     }).kind;
 }
 
