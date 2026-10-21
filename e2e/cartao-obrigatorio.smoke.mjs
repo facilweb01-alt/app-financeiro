@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
-import { fillSignup, randomCpf } from "./helpers/signup.mjs";
+import { fillCardAddress, fillSignup, randomCpf } from "./helpers/signup.mjs";
 
 // Teste grátis só com cartão de crédito (decisão do Marcelo, 20/10/2026).
 //  - página de vendas e cadastro: sem Pix, avisam que o teste pede cartão;
@@ -101,11 +101,8 @@ async function signup(name, { acceptCookies = false } = {}) {
   return { ...v, email, phone, zphone: `55${phone}` };
 }
 
-async function fillCard(page) {
-  await page.fill("#card-cep", "58310000");
-  await page.fill("#card-address", "Rua das Flores");
-  await page.fill("#card-number", "12");
-  await page.fill("#card-province", "Centro");
+async function fillCard(page, cpf) {
+  await fillCardAddress(page, { cpf, cep: "58310000", street: "Rua das Flores", number: "12", district: "Centro" });
   await page.click('button:has-text("Continuar para os dados do cartão")');
   await page.waitForURL(/\/__checkout\/checkoutSession\/show\?id=/, { timeout: 15000 });
   return new URL(page.url()).searchParams.get("id");
@@ -160,7 +157,7 @@ try {
     check("sem boas-vindas e sem nada no Asaas no cadastro", u.welcome_requested_at === null && u.asaas_customer_id === null && zapi.sentTo(a.zphone).length === 0);
     const body = await page.textContent("body");
     check("tela de assinatura: 'Cadastre seu cartão para liberar os 7 dias grátis'", body.includes("Cadastre seu cartão para liberar os 7 dias grátis"));
-    check("tela de assinatura: pede o CPF primeiro (passo 1)", (await page.locator('[data-testid="assinatura-cpf"]').count()) === 1 && body.includes("Passo 1: informe seu CPF"));
+    check("tela de assinatura: uma tela só, com CPF, CEP e número (sem passo separado de CPF)", (await page.locator('[data-testid="assinatura-cpf"]').count()) === 0 && (await page.locator("#card-cpf").count()) === 1 && (await page.locator("#card-cep").count()) === 1 && (await page.locator("#card-number").count()) === 1 && (await page.locator("#card-complement").count()) === 0 && body.includes("Só CPF, CEP e número"));
     check("tela de assinatura: sem Pix e sem escolha de plano", !/\bpix\b/i.test(body) && (await page.locator('input[name="plan"]').count()) === 0, (body.match(/.{0,60}\bpix\b.{0,60}/i) || [""])[0]);
     await page.waitForFunction(() => (window.__px || []).some((e) => e[1] === "Lead"), null, { timeout: 10000 }).catch(() => {});
     const px = await page.evaluate(() => (window.__px || []).map((e) => e[1]));
@@ -176,21 +173,27 @@ try {
     const w = await whatsapp({ phone: a.phone, amount: 12.5, description: "café", categoryKey: "alimentacao" });
     check("sem cartão: WhatsApp não lança e explica como liberar (card_required)", w.status === 403 && w.json.reason === "card_required" && /cadastrar o cartão/.test(w.json.error ?? ""), JSON.stringify(w));
 
-    // CPF -> cliente no Asaas, mas nenhuma assinatura Pix
-    await page.fill("#pay-cpf", randomCpf());
-    await page.click('[data-testid="cpf-form"] button');
-    await page.waitForSelector('[data-testid="card-form"]', { timeout: 15000 });
+    // CEP preenche rua e bairro sozinho (campos escondidos, com "corrigir")
+    await page.fill("#card-cep", "58310000");
+    await page.waitForSelector('[data-testid="card-endereco"]', { timeout: 15000 });
+    check("CEP: rua e bairro vêm sozinhos, sem campos para digitar", (await page.locator("#card-address").count()) === 0 && (await page.locator('[data-testid="card-endereco"]').innerText()).includes("Rua de Teste, Centro"));
+    // CPF inválido: erro claro, continua na tela, campos mantidos
+    await page.fill("#card-cpf", "111.111.111-11");
+    await page.fill("#card-number", "12");
+    await page.click('button:has-text("Continuar para os dados do cartão")');
+    await page.waitForSelector("text=CPF inválido", { timeout: 10000 }).catch(() => {});
     u = await userOf(a.email);
-    const subs = [...fake.state.subscriptions.values()].filter((s) => s.customer === u.asaas_customer_id);
-    check("CPF: cliente criado no Asaas, sem assinatura Pix", Boolean(u.asaas_customer_id) && subs.length === 0 && u.asaas_subscription_id === null, JSON.stringify(subs));
+    check("CPF inválido: erro na mesma tela, nada criado no Asaas, CEP e número mantidos", (await page.textContent("body")).includes("CPF inválido") && u.asaas_customer_id === null && (await page.inputValue("#card-cep")) === "58310000" && (await page.inputValue("#card-number")) === "12");
     const txt = await page.locator('[data-testid="cartao-obrigatorio-texto"]').innerText();
     check("texto do cartão: nada hoje, teste até hoje + 7, depois R$ 29,90 por mês, cancelar pelo suporte", txt.includes("Nada é cobrado hoje") && txt.includes(br(trialEnd)) && /R\$\s29,90/.test(txt) && txt.includes("cancelar antes"), txt);
     check("botão 'Cadastrar cartão e liberar o teste'", (await page.locator('button:has-text("Continuar para os dados do cartão")').count()) === 1 && (await page.textContent("body")).includes("Cadastre seu cartão de crédito"));
 
     // Checkout: mensal, 1ª cobrança no fim do teste
-    const coId = await fillCard(page);
+    const coId = await fillCard(page, randomCpf());
     const co = fake.state.checkouts.get(coId);
     u = await userOf(a.email);
+    const subs = [...fake.state.subscriptions.values()].filter((s) => s.customer === u.asaas_customer_id && s.billingType === "PIX");
+    check("CPF no mesmo envio: gravado, cliente criado no Asaas com o endereço, sem assinatura Pix", Boolean(u.cpf) && Boolean(u.asaas_customer_id) && subs.length === 0, JSON.stringify(subs));
     check("Checkout do cartão: recorrente mensal de R$ 29,90 com 1ª cobrança no fim do teste", co.subscription.cycle === "MONTHLY" && co.items[0].value === 29.9 && co.subscription.nextDueDate === `${trialEnd} 12:00:00`, JSON.stringify(co.subscription));
     check("ao abrir o Checkout o teste passa a contar de hoje", isoDate(u.trial_ends_at) === trialEnd && u.billing_method === "PIX", `${u.trial_ends_at} ${u.billing_method}`);
 

@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
-import { fillSignup, makeLegacyPending, randomCpf } from "./helpers/signup.mjs";
+import { fillCardAddress, fillSignup, makeLegacyPending, randomCpf } from "./helpers/signup.mjs";
 
 // Plano anual com 10% de desconto (11/10/2026), de ponta a ponta:
 //  - a tela de pagamento deixa escolher mensal (R$ 29,90) ou anual (R$ 322,92);
@@ -73,10 +73,7 @@ async function choose(page, which) {
   await page.waitForFunction((w) => document.querySelector(`[data-testid="plano-${w}"]`)?.getAttribute("aria-pressed") === "true", which, { timeout: 15000 });
 }
 async function fillCard(page) {
-  await page.fill("#card-cep", "58310000");
-  await page.fill("#card-address", "Rua das Flores");
-  await page.fill("#card-number", "12");
-  await page.fill("#card-province", "Centro");
+  await fillCardAddress(page, { cep: "58310000", street: "Rua das Flores", number: "12", district: "Centro" });
   await page.click('button:has-text("Continuar para os dados do cartão")');
   await page.waitForURL(/\/__checkout\/checkoutSession\/show\?id=/, { timeout: 15000 });
   return new URL(page.url()).searchParams.get("id");

@@ -51,6 +51,21 @@ export async function payWithCard(_prev: { error: string | null }, formData: For
   if (!session.billingEnabled) return { error: "Esta conta não tem cobrança automática." };
   if (session.status === "suspended") return { error: "Conta suspensa. Fale com o suporte." };
 
+  // Cadastro simplificado (21/10/2026): o CPF vem no mesmo formulário do
+  // cartão quando a conta ainda não tem (antes era uma tela só para ele).
+  const rawCpf = formData.get("cpf")?.toString();
+  if (rawCpf !== undefined) {
+    if (!isValidCpf(rawCpf)) return { error: "CPF inválido. Confira os números." };
+    const [current] = await withRLS(session.userId, () =>
+      db.select({ cpf: users.cpf }).from(users).where(eq(users.id, session.userId)).limit(1)
+    );
+    if (!current) redirect("/login");
+    if (!current.cpf) {
+      const cpf = onlyDigits(rawCpf);
+      await withRLS(session.userId, () => db.update(users).set({ cpf }).where(eq(users.id, session.userId)));
+    }
+  }
+
   const addr = validateBillingAddress({
     postalCode: formData.get("postalCode")?.toString(),
     address: formData.get("address")?.toString(),
@@ -69,7 +84,7 @@ export async function payWithCard(_prev: { error: string | null }, formData: For
       error:
         err instanceof CardCheckoutError
           ? err.message
-          : "Não foi possível abrir o pagamento com cartão agora. Tente de novo em instantes ou pague com Pix.",
+          : "Não foi possível abrir o cadastro do cartão agora. Tente de novo em instantes ou fale com o suporte pelo WhatsApp (83) 98199-5301.",
     };
   }
   redirect(url);

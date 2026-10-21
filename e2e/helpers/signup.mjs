@@ -55,3 +55,19 @@ export async function makeLegacyPending(sql, email, cpf = randomCpf()) {
   await sql`update users set trial_ends_at = null, cpf = ${cpf}, welcome_requested_at = null, welcome_sent_at = null, welcome_error = null where email = ${email}`;
   return cpf;
 }
+
+/**
+ * Formulário do cartão (simplificado em 21/10/2026): CEP e número; rua e
+ * bairro vêm do CEP (ViaCEP) e só viram campos quando a busca não traz a rua
+ * ou falha. Preenche o que estiver na tela.
+ */
+export async function fillCardAddress(page, { cep, street, number, district, cpf } = {}) {
+  if (cpf !== undefined && (await page.locator("#card-cpf").count())) await page.fill("#card-cpf", cpf);
+  await page.fill("#card-cep", cep);
+  await page.waitForSelector('[data-testid="card-endereco"], #card-address', { timeout: 15000 });
+  if (await page.locator("#card-address").count()) {
+    await page.fill("#card-address", street);
+    await page.fill("#card-province", district);
+  }
+  await page.fill("#card-number", number);
+}

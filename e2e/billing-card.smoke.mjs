@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
-import { fillSignup, makeLegacyPending } from "./helpers/signup.mjs";
+import { fillCardAddress, fillSignup, makeLegacyPending } from "./helpers/signup.mjs";
 
 // Cartão de crédito recorrente (Checkout do Asaas), de ponta a ponta, contra
 // o servidor FALSO do Asaas (e2e/helpers/fakeAsaas.mjs) — nunca o real.
@@ -81,10 +81,7 @@ async function goToCheckout(page, buttonLabel, customer) {
   // blocos (trocar de cartão, cartão recusado) ainda abre pelo botão.
   if ((await page.locator("#card-cep").count()) === 0) await page.click(`button:has-text("${buttonLabel}")`);
   // 2ª etapa: endereço de cobrança (o Asaas exige endereço para o cartão)
-  await page.fill("#card-cep", "58310000");
-  await page.fill("#card-address", "Rua das Flores");
-  await page.fill("#card-number", "12");
-  await page.fill("#card-province", "Centro");
+  await fillCardAddress(page, { cep: "58310000", street: "Rua das Flores", number: "12", district: "Centro" });
   await page.click('button:has-text("Continuar para os dados do cartão")');
   await page.waitForURL(/\/__checkout\/checkoutSession\/show\?id=/, { timeout: 15000 });
   const id = new URL(page.url()).searchParams.get("id");
@@ -97,7 +94,7 @@ try {
   const emailA = await signup(pageA, "a");
   let body = await pageA.textContent("body");
   check("tela de pagamento oferece Pix E cartão", body.includes("Falta só o pagamento") && body.includes("1ª opção: cartão de crédito") && body.includes("2ª opção: Pix"));
-  check("formulário do cartão já vem aberto, com os passos (endereço e depois os dados do cartão)", (await pageA.locator("#card-cep").count()) === 1 && body.includes("nome impresso, número") && body.includes("código de segurança (CVV)"));
+  check("formulário do cartão já vem aberto e curto: só CEP e número, depois os dados do cartão no Asaas", (await pageA.locator("#card-cep").count()) === 1 && (await pageA.locator("#card-number").count()) === 1 && (await pageA.locator("#card-complement").count()) === 0 && body.includes("Só o CEP e o número") && body.includes("dados do cartão"));
   check("avisa que o cartão é digitado na página do Asaas", body.includes("página segura do Asaas"));
   let a = await userRow(emailA);
   const pixSubA = a.asaas_subscription_id;
@@ -105,10 +102,7 @@ try {
 
   // sem número -> o navegador/servidor não deixa seguir
   check("pede o endereço de cobrança antes de ir para o Asaas", (await pageA.locator("#card-cep").count()) === 1);
-  await pageA.fill("#card-cep", "58310000");
-  await pageA.fill("#card-address", "Rua das Flores");
-  await pageA.fill("#card-number", "  ");
-  await pageA.fill("#card-province", "Centro");
+  await fillCardAddress(pageA, { cep: "58310000", street: "Rua das Flores", number: "  ", district: "Centro" });
   await pageA.click('button:has-text("Continuar para os dados do cartão")');
   await pageA.waitForSelector("text=Informe o número", { timeout: 10000 }).catch(() => {});
   check("número em branco mostra erro claro e não sai do app", (await pageA.textContent("body")).includes("Informe o número") && pageA.url().includes("/assinatura"));

@@ -146,7 +146,7 @@ export default async function AssinaturaPage({
   const firstPaymentPending = user.status === "pending" && !canceled;
   const showPixBlock = Boolean(openPayment && openPayment.billingType !== "CREDIT_CARD");
   const showCardBlock =
-    configured && !card && !canceled && !error && !needsCpf && !(installmentPaid && !isRenewalWindow(state.kind));
+    configured && !card && !canceled && !error && (!needsCpf || awaitingCard) && !(installmentPaid && !isRenewalWindow(state.kind));
   // Voltou do Checkout do cartão já com a conta liberada (no Pix, quem avisa
   // é o PaymentWatcher, na hora em que o pagamento cai).
   if (cartaoParam === "ok" && user.status === "active" && firstPayment) {
@@ -312,7 +312,7 @@ export default async function AssinaturaPage({
           </p>
         )}
 
-        {needsCpf && !canceled && (
+        {needsCpf && !canceled && !awaitingCard && (
           <div className="glass-card flex flex-col gap-3 rounded-2xl p-5" data-testid="assinatura-cpf">
             <div className="font-semibold text-navy-50">{cardOnly ? "Passo 1: informe seu CPF" : "Para assinar, informe seu CPF"}</div>
             <p className="text-sm text-navy-300">
@@ -441,7 +441,7 @@ export default async function AssinaturaPage({
             </div>
             <p className="text-sm text-navy-300" data-testid={awaitingCard ? "cartao-obrigatorio-texto" : undefined}>
               {awaitingCard
-                ? `Nada é cobrado hoje. Seus ${TRIAL_DAYS} dias grátis começam quando o cartão for cadastrado e vão até ${formatDateBR(trialEndIfCardToday)}. Depois, a assinatura mensal de ${formatBRL(monthly.price)} é cobrada automaticamente no cartão, todo mês, sem fidelidade. Para cancelar antes da 1ª cobrança, fale com o suporte pelo WhatsApp.`
+                ? `Nada é cobrado hoje. Seus ${TRIAL_DAYS} dias grátis vão até ${formatDateBR(trialEndIfCardToday)}. Depois, ${formatBRL(monthly.price)} por mês no cartão, sem fidelidade. Para cancelar antes da 1ª cobrança, é só chamar o suporte no WhatsApp.`
                 : yearlyPurchase
                 ? inTrial && trialEnd
                   ? `Pague o ano no cartão, à vista ou em até ${MAX_INSTALLMENTS}x. A cobrança é feita na hora, mas o ano só começa a contar em ${formatDateBR(trialEnd)}: você não perde nenhum dia do teste.`
@@ -473,6 +473,7 @@ export default async function AssinaturaPage({
               defaultOpen
               pixel={checkoutPixel}
               installments={yearlyPurchase ? MAX_INSTALLMENTS : null}
+              askCpf={awaitingCard && needsCpf}
             />
             <p className="text-center text-xs text-navy-500">
               🔒 Você digita o cartão na página segura do Asaas. O Contay não vê nem guarda os dados do cartão.

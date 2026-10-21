@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
-import { fillSignup, randomCpf } from "./helpers/signup.mjs";
+import { fillCardAddress, fillSignup, randomCpf } from "./helpers/signup.mjs";
 
 // Teste grátis de 7 dias (11/10/2026), de ponta a ponta:
 //  - cadastro sem CPF e sem pagamento libera o app na hora, por 7 dias;
@@ -118,10 +118,7 @@ async function waitWelcome(email) {
 const isoDate = (v) => (v instanceof Date ? v.toISOString().slice(0, 10) : String(v ?? "").slice(0, 10));
 
 async function fillCard(page) {
-  await page.fill("#card-cep", "58310000");
-  await page.fill("#card-address", "Rua das Flores");
-  await page.fill("#card-number", "12");
-  await page.fill("#card-province", "Centro");
+  await fillCardAddress(page, { cep: "58310000", street: "Rua das Flores", number: "12", district: "Centro" });
   await page.click('button:has-text("Continuar para os dados do cartão")');
   await page.waitForURL(/\/__checkout\/checkoutSession\/show\?id=/, { timeout: 15000 });
   return new URL(page.url()).searchParams.get("id");

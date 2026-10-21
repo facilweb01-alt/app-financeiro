@@ -4,7 +4,7 @@ import postgres from "postgres";
 import { config } from "dotenv";
 import { startFakeAsaas } from "./helpers/fakeAsaas.mjs";
 import { startFakeZapi } from "./helpers/fakeZapi.mjs";
-import { fillSignup, randomCpf } from "./helpers/signup.mjs";
+import { fillCardAddress, fillSignup, randomCpf } from "./helpers/signup.mjs";
 
 // Ajustes de conversão de 11/10/2026, de ponta a ponta:
 //  - origem do cadastro: os "utm_*" do anúncio seguem da página de vendas para
@@ -149,10 +149,7 @@ try {
     const [user] = await sql`select signup_source from users where email = ${email}`;
     check("sem anúncio: origem fica vazia (nula)", user.signup_source === null, String(user.signup_source));
     await page.click('button:has-text("Copiar código Pix")');
-    await page.fill("#card-cep", "58000000");
-    await page.fill("#card-address", "Rua de Teste");
-    await page.fill("#card-number", "10");
-    await page.fill("#card-province", "Centro");
+    await fillCardAddress(page, { cep: "58000000", street: "Rua de Teste", number: "10", district: "Centro" });
     await page.click('button:has-text("Continuar para os dados do cartão")');
     await page.waitForURL(/__checkout\/checkoutSession\/show/, { timeout: 15000 });
     check("sem aceitar cookies: pagamento segue normal e NADA vai para a Meta", net.script === 0 && net.other === 0 && pxLog.length === 0, JSON.stringify({ net, n: pxLog.length }));
@@ -171,10 +168,7 @@ try {
     await fillSignup(page, { name: "Cliente Cartao", email, password: "SenhaForte123" });
     await page.click('button[type="submit"]');
     await goPay(page);
-    await page.fill("#card-cep", "58000000");
-    await page.fill("#card-address", "Rua de Teste");
-    await page.fill("#card-number", "10");
-    await page.fill("#card-province", "Centro");
+    await fillCardAddress(page, { cep: "58000000", street: "Rua de Teste", number: "10", district: "Centro" });
     await page.click('button:has-text("Continuar para os dados do cartão")');
     await page.waitForURL(/__checkout\/checkoutSession\/show/, { timeout: 15000 });
     const ic = tracked(pxLog, "InitiateCheckout");

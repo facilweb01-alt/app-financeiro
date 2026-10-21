@@ -137,12 +137,13 @@ export function PaymentWatcher({
 }
 
 /**
- * "Pagar com cartão de crédito" em duas etapas: 1) o cliente informa o
- * endereço de cobrança (o Asaas exige endereço no cliente para cobrar no
- * cartão; o CEP preenche rua e bairro pelo ViaCEP); 2) a Server Action grava o
- * endereço no cliente do Asaas, cria o Checkout e redireciona para a página
- * segura do Asaas, onde o cliente digita o cartão (os dados do cartão nunca
- * passam pelo app).
+ * "Pagar com cartão de crédito", simplificado em 21/10/2026: uma tela só com
+ * CPF (quando a conta ainda não tem), CEP e número. Rua e bairro vêm do CEP
+ * (ViaCEP) e vão escondidos; só aparecem para digitar quando o CEP não traz
+ * a rua (CEP geral de cidade) ou a busca falha. A Server Action grava o CPF,
+ * grava o endereço no cliente do Asaas (exigência do Asaas para cobrar no
+ * cartão), cria o Checkout e redireciona para a página segura do Asaas, onde
+ * o cliente digita o cartão (os dados do cartão nunca passam pelo app).
  */
 export function CardCheckoutButton({
   label,
@@ -150,6 +151,7 @@ export function CardCheckoutButton({
   defaultOpen = false,
   pixel = null,
   installments = null,
+  askCpf = false,
 }: {
   label: string;
   variant?: "primary" | "secondary";
@@ -159,14 +161,23 @@ export function CardCheckoutButton({
   pixel?: PixelCheckout;
   /** Plano anual: o Checkout deixa pagar à vista ou em até N vezes. */
   installments?: number | null;
+  /** A conta ainda não tem CPF: pede no mesmo formulário. */
+  askCpf?: boolean;
 }) {
   const [state, formAction, pending] = useActionState(payWithCard, { error: null });
   const [open, setOpen] = useState(defaultOpen);
+  const [cpf, setCpf] = useState("");
   const [cep, setCep] = useState("");
+  const [number, setNumber] = useState("");
   const [street, setStreet] = useState("");
   const [district, setDistrict] = useState("");
+  const [cityUf, setCityUf] = useState("");
+  // "auto": rua e bairro vieram do CEP (campos escondidos); "manual": digitar.
+  const [addrMode, setAddrMode] = useState<"idle" | "loading" | "auto" | "manual">("idle");
   const [cepMsg, setCepMsg] = useState<string | null>(null);
   const numberRef = useRef<HTMLInputElement>(null);
+  // Servidor reclamou de rua ou bairro (CEP não buscado): mostra os campos.
+  const manual = addrMode === "manual" || Boolean(state.error && /rua|bairro/i.test(state.error));
 
   const btnClass =
     variant === "primary"
@@ -178,20 +189,30 @@ export function CardCheckoutButton({
   async function lookupCep(value: string) {
     const digits = value.replace(/\D/g, "");
     if (digits.length !== 8) return;
+    setAddrMode("loading");
     setCepMsg("Buscando endereço...");
     try {
       const res = await fetch(`https://viacep.com.br/ws/${digits}/json/`);
-      const data = (await res.json()) as { erro?: boolean; logradouro?: string; bairro?: string };
+      const data = (await res.json()) as { erro?: boolean; logradouro?: string; bairro?: string; localidade?: string; uf?: string };
       if (data.erro) {
-        setCepMsg("CEP não encontrado — preencha a rua e o bairro.");
+        setAddrMode("manual");
+        setCepMsg("CEP não encontrado. Confira o CEP ou preencha a rua e o bairro.");
         return;
       }
-      if (data.logradouro) setStreet(data.logradouro);
-      if (data.bairro) setDistrict(data.bairro);
-      setCepMsg(null);
+      setStreet(data.logradouro ?? "");
+      setDistrict(data.bairro ?? "");
+      setCityUf(data.localidade ? `${data.localidade}${data.uf ? "/" + data.uf : ""}` : "");
+      if (data.logradouro && data.bairro) {
+        setAddrMode("auto");
+        setCepMsg(null);
+      } else {
+        setAddrMode("manual");
+        setCepMsg("Esse CEP não traz a rua. Preencha a rua e o bairro.");
+      }
       numberRef.current?.focus();
     } catch {
-      setCepMsg("Não consegui buscar o CEP — preencha a rua e o bairro.");
+      setAddrMode("manual");
+      setCepMsg("Não consegui buscar o CEP. Preencha a rua e o bairro.");
     }
   }
 
@@ -205,80 +226,114 @@ export function CardCheckoutButton({
 
   return (
     <form action={formAction} onSubmit={() => trackCheckoutStart(pixel, "cartao")} className="flex flex-col gap-2.5" data-testid="card-form">
-      <ol className="flex flex-col gap-1 rounded-xl border border-navy-700/70 bg-navy-950/60 p-3 text-xs text-navy-300" data-testid="card-steps">
-        <li>
-          <b className="text-navy-100">1.</b> Preencha abaixo o endereço de cobrança do cartão.
-        </li>
-        <li>
-          <b className="text-navy-100">2.</b> Na tela seguinte, segura, do Asaas, digite os dados do cartão: nome impresso, número,
-          validade e código de segurança (CVV).
-          {installments ? ` Lá você escolhe pagar à vista ou em até ${installments}x.` : null}
-        </li>
-      </ol>
-      <div className="text-sm font-medium text-navy-100">Endereço de cobrança do cartão</div>
-      <p className="-mt-1 text-xs text-navy-400">O Asaas pede o endereço para cobrar no cartão. Ele não fica guardado no Contay.</p>
-      <div>
-        <label htmlFor="card-cep" className="mb-1 block text-xs text-navy-400">
-          CEP
-        </label>
-        <input
-          id="card-cep"
-          name="postalCode"
-          inputMode="numeric"
-          autoComplete="postal-code"
-          placeholder="00000-000"
-          required
-          value={cep}
-          onChange={(e) => {
-            setCep(e.target.value);
-            if (e.target.value.replace(/\D/g, "").length === 8) void lookupCep(e.target.value);
-          }}
-          className={inputClass}
-        />
-        {cepMsg && <p className="mt-1 text-xs text-navy-400">{cepMsg}</p>}
-      </div>
-      <div>
-        <label htmlFor="card-address" className="mb-1 block text-xs text-navy-400">
-          Rua
-        </label>
-        <input
-          id="card-address"
-          name="address"
-          autoComplete="address-line1"
-          required
-          value={street}
-          onChange={(e) => setStreet(e.target.value)}
-          className={inputClass}
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-2.5">
+      <p className="text-xs text-navy-400" data-testid="card-steps">
+        {askCpf ? "Só CPF, CEP e número. " : "Só o CEP e o número. "}
+        Na tela seguinte, segura, do Asaas, você digita os dados do cartão.
+        {installments ? ` Lá você escolhe pagar à vista ou em até ${installments}x.` : null}
+      </p>
+      {askCpf && (
+        <div>
+          <label htmlFor="card-cpf" className="mb-1 block text-xs text-navy-400">
+            CPF do titular do cartão
+          </label>
+          <input
+            id="card-cpf"
+            name="cpf"
+            inputMode="numeric"
+            autoComplete="off"
+            placeholder="000.000.000-00"
+            required
+            value={cpf}
+            onChange={(e) => setCpf(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+      )}
+      <div className="grid grid-cols-[3fr_2fr] gap-2.5">
+        <div>
+          <label htmlFor="card-cep" className="mb-1 block text-xs text-navy-400">
+            CEP
+          </label>
+          <input
+            id="card-cep"
+            name="postalCode"
+            inputMode="numeric"
+            autoComplete="postal-code"
+            placeholder="00000-000"
+            required
+            value={cep}
+            onChange={(e) => {
+              setCep(e.target.value);
+              const digits = e.target.value.replace(/\D/g, "");
+              if (digits.length === 8) void lookupCep(e.target.value);
+              else if (addrMode !== "manual") setAddrMode("idle");
+            }}
+            className={inputClass}
+          />
+        </div>
         <div>
           <label htmlFor="card-number" className="mb-1 block text-xs text-navy-400">
             Número
           </label>
-          <input id="card-number" name="addressNumber" ref={numberRef} required placeholder="123 ou S/N" className={inputClass} />
-        </div>
-        <div>
-          <label htmlFor="card-complement" className="mb-1 block text-xs text-navy-400">
-            Complemento
-          </label>
-          <input id="card-complement" name="complement" autoComplete="address-line2" placeholder="Opcional" className={inputClass} />
+          <input
+            id="card-number"
+            name="addressNumber"
+            ref={numberRef}
+            required
+            placeholder="123 ou S/N"
+            value={number}
+            onChange={(e) => setNumber(e.target.value)}
+            className={inputClass}
+          />
         </div>
       </div>
-      <div>
-        <label htmlFor="card-province" className="mb-1 block text-xs text-navy-400">
-          Bairro
-        </label>
-        <input
-          id="card-province"
-          name="province"
-          required
-          value={district}
-          onChange={(e) => setDistrict(e.target.value)}
-          className={inputClass}
-        />
-      </div>
-      <button type="submit" disabled={pending} className={btnClass}>
+      {cepMsg && <p className="-mt-1 text-xs text-navy-400">{cepMsg}</p>}
+      {addrMode === "auto" && !manual && (
+        <p className="-mt-1 text-xs text-navy-300" data-testid="card-endereco">
+          📍 {street}, {district}
+          {cityUf ? ` · ${cityUf}` : ""}{" "}
+          <button type="button" onClick={() => setAddrMode("manual")} className="text-blue-300 underline hover:text-blue-200">
+            corrigir
+          </button>
+        </p>
+      )}
+      {manual ? (
+        <div className="grid grid-cols-2 gap-2.5">
+          <div>
+            <label htmlFor="card-address" className="mb-1 block text-xs text-navy-400">
+              Rua
+            </label>
+            <input
+              id="card-address"
+              name="address"
+              autoComplete="address-line1"
+              required
+              value={street}
+              onChange={(e) => setStreet(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label htmlFor="card-province" className="mb-1 block text-xs text-navy-400">
+              Bairro
+            </label>
+            <input
+              id="card-province"
+              name="province"
+              required
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+        </div>
+      ) : (
+        <>
+          <input type="hidden" name="address" value={street} />
+          <input type="hidden" name="province" value={district} />
+        </>
+      )}
+      <button type="submit" disabled={pending || addrMode === "loading"} className={btnClass}>
         {pending ? "Abrindo pagamento seguro..." : "Continuar para os dados do cartão"}
       </button>
       {state.error && <p className="text-center text-xs text-red-300">{state.error}</p>}
