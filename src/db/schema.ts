@@ -97,6 +97,9 @@ export const users = pgTable("users", {
     billingEnabled: boolean("billing_enabled").notNull().default(false),
     asaasCustomerId: text("asaas_customer_id"),
     asaasSubscriptionId: text("asaas_subscription_id"),
+    // IDs da conta antiga do Asaas, guardados na troca de conta (migração 0019, 28/10/2026)
+    asaasLegacyCustomerId: text("asaas_legacy_customer_id"),
+    asaasLegacySubscriptionId: text("asaas_legacy_subscription_id"),
     // Assinatura cancelada pelo painel admin (ver migração 0010).
     billingCanceledAt: timestamp("billing_canceled_at", { withTimezone: true }),
     // Forma da assinatura atual no Asaas: 'PIX' ou 'CREDIT_CARD' (migração 0011);
