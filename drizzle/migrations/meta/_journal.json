@@ -134,6 +134,13 @@
       "when": 1791000000000,
       "tag": "0018_card_required",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0019_asaas_nova_conta",
+      "breakpoints": true
     }
   ]
 }
