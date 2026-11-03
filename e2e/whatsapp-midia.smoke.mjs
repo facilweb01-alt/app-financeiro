@@ -98,6 +98,26 @@ try {
   const parcelas = await sql`select count(*)::int as n from card_installments i join card_purchases p on p.id = i.card_purchase_id join credit_cards c on c.id = p.card_id where c.user_id = ${user.id}`;
   check("as 3 parcelas foram geradas no cartão", parcelas[0].n === 3, `${parcelas[0].n}`);
 
+  // ------------------------------------------------------------------ Evolution API: arquivo dentro da mensagem (base64)
+  ai.answer({ tipo: "lancamento", transcricao: "uber 23 reais", description: "Uber", amount: 23, categoryKey: "viagem", categoryName: null, purchaseDate: null, dueDate: null, paymentMethod: null, cardName: null, installments: null });
+  let dl = ai.state.downloads.length;
+  r = await midia({ phone: u1.zphone, kind: "audio", mediaBase64: OGG.toString("base64"), mimeType: "audio/ogg; codecs=opus" });
+  check("Evolution: áudio em base64 vira lançamento sem baixar nada", r.status === 201 && r.json.kind === "lancamento" && r.json.source === "audio" && ai.state.downloads.length === dl, JSON.stringify(r.json));
+  call = ai.state.calls.at(-1);
+  check("Evolution: a IA recebeu o áudio inteiro (mesmo tamanho) como ogg", call.mime === "audio/ogg" && call.bytes === OGG.length, JSON.stringify({ m: call.mime, b: call.bytes }));
+  ai.answer({ tipo: "lancamento", transcricao: "Cupom farmácia R$ 18,00", description: "Farmácia", amount: 18, categoryKey: "saude" });
+  r = await midia({ phone: u1.zphone, kind: "image", mediaBase64: `data:image/jpeg;base64,${JPG.toString("base64")}`, mimeType: "image/jpeg", mediaUrl: null });
+  check("Evolution: imagem em base64 (com prefixo data:) vira lançamento", r.status === 201 && r.json.description === "Farmácia" && ai.state.calls.at(-1).bytes === JPG.length, JSON.stringify(r.json));
+  let callsEvo = ai.state.calls.length;
+  r = await midia({ phone: u1.zphone, kind: "audio" });
+  check("sem mediaUrl e sem mediaBase64: 400, não chama a IA", r.status === 400 && /mediaUrl ou mediaBase64/.test(r.json.error) && ai.state.calls.length === callsEvo, JSON.stringify(r.json));
+  r = await midia({ phone: u1.zphone, kind: "audio", mediaBase64: "isto não é base64 %%%" });
+  check("base64 inválido: 422, não chama a IA", r.status === 422 && ai.state.calls.length === callsEvo, JSON.stringify(r.json));
+  r = await midia({ phone: u1.zphone, kind: "image", mediaBase64: Buffer.alloc(6 * 1024 * 1024 + 10, 2).toString("base64"), mimeType: "image/jpeg" });
+  check("imagem em base64 acima do limite: 422 'grande demais', não chama a IA", r.status === 422 && /grande demais/i.test(r.json.error) && ai.state.calls.length === callsEvo, JSON.stringify(r.json));
+  r = await midia({ phone: u1.zphone, kind: "image", mediaBase64: Buffer.from("%PDF-1.4").toString("base64"), mimeType: "application/pdf" });
+  check("base64 de PDF como imagem: 422 formato não aceito", r.status === 422 && /Formato de imagem/.test(r.json.error), JSON.stringify(r.json));
+
   // ------------------------------------------------------------------ o que NÃO vira lançamento
   const before = await countTx(user.id);
   ai.answer({ tipo: "duvida", transcricao: "como eu cadastro um cartão?" });
