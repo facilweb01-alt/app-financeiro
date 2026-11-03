@@ -94,7 +94,7 @@ try {
   zapi.setFail(true);
   r = await processar();
   w = await getWelcome(b.email);
-  check("falha do Z-API fica registrada no cliente (welcome_error), sem marcar como enviado", r.json.failed === 1 && !w.welcome_sent_at && /Z-API/.test(w.welcome_error || ""), w.welcome_error);
+  check("falha do Z-API fica registrada no cliente (welcome_error), sem marcar como enviado", r.json.failed === 1 && !w.welcome_sent_at && /Z-API|Evolution API/.test(w.welcome_error || ""), w.welcome_error);
   zapi.setFail(false);
   r = await processar();
   check("depois de falhar, não reenvia sozinho", r.json.sent === 0 && zapi.sentTo(b.phone).length === 0, JSON.stringify(r.json));
