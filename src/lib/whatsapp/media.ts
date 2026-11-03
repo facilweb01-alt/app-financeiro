@@ -130,6 +130,21 @@ export async function downloadMedia(kind: MediaKind, rawUrl: string, declaredMim
   return { base64: Buffer.concat(chunks).toString("base64"), mime, bytes };
 }
 
+/**
+ * Arquivo que já chega dentro da mensagem (Evolution API com "Webhook
+ * Base64" ligado): só confere tamanho e tipo, sem baixar nada.
+ */
+export function decodeInlineMedia(kind: MediaKind, rawBase64: string, declaredMime?: string | null): { base64: string; mime: string; bytes: number } {
+  const base64 = rawBase64.replace(/^data:[^;,]+;base64,/, "").replace(/\s+/g, "");
+  if (!base64 || !/^[A-Za-z0-9+/]+=*$/.test(base64)) throw new MediaError("Arquivo inválido.", "arquivo");
+  const bytes = Math.floor((base64.length * 3) / 4) - (base64.endsWith("==") ? 2 : base64.endsWith("=") ? 1 : 0);
+  if (bytes <= 0) throw new MediaError("Arquivo vazio.", "arquivo");
+  if (bytes > MEDIA_MAX_BYTES[kind]) throw new MediaError("Arquivo grande demais.", "arquivo");
+  const mime = normalizeMediaMime(kind, declaredMime);
+  if (!mime) throw new MediaError(kind === "audio" ? "Formato de áudio não aceito." : "Formato de imagem não aceito.", "arquivo");
+  return { base64, mime, bytes };
+}
+
 /** Pede ao Gemini para ouvir/ler o arquivo e devolver o gasto estruturado. */
 export async function interpretMedia(input: { kind: MediaKind; base64: string; mime: string; caption?: string | null }): Promise<MediaAnswer> {
   const key = process.env.GEMINI_API_KEY;
