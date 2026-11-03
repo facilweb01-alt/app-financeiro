@@ -1,7 +1,7 @@
 import * as z from "zod";
 import { NextRequest, NextResponse } from "next/server";
 import { buildMediaReply, type LaunchResult } from "@/lib/business/whatsappMedia";
-import { MediaError, downloadMedia, interpretMedia, isMediaConfigured, senderAccess } from "@/lib/whatsapp/media";
+import { MediaError, decodeInlineMedia, downloadMedia, interpretMedia, isMediaConfigured, senderAccess } from "@/lib/whatsapp/media";
 import { POST as launch } from "../lancamento/route";
 
 // Áudio e imagem pelo WhatsApp (11/10/2026).
@@ -18,6 +18,9 @@ import { POST as launch } from "../lancamento/route";
 // rota responde 503 com um "reply" pedindo para mandar por texto.
 //
 // O arquivo não é guardado: fica só na memória durante a chamada.
+//
+// Desde 03/11/2026 (Evolution API) o n8n pode mandar o arquivo já dentro da
+// mensagem, em "mediaBase64", em vez do endereço "mediaUrl".
 
 export const maxDuration = 60;
 
@@ -27,7 +30,17 @@ const BodySchema = z.object({
     .trim()
     .refine((v) => /^\d{10,20}$/.test(v.replace(/\D/g, "")), "Telefone inválido."),
   kind: z.enum(["audio", "image"], { message: "Tipo precisa ser audio ou image." }),
-  mediaUrl: z.string().trim().min(8, "Informe o endereço do arquivo.").max(2000, "Endereço do arquivo muito longo."),
+  mediaUrl: z
+    .union([z.string(), z.null()])
+    .optional()
+    .transform((v) => (v == null || v.trim() === "" ? undefined : v.trim()))
+    .refine((v) => v === undefined || (v.length >= 8 && v.length <= 2000), "Endereço do arquivo inválido."),
+  // ~8 MB de arquivo viram ~11 MB em base64; o limite real por tipo fica em decodeInlineMedia.
+  mediaBase64: z
+    .union([z.string(), z.null()])
+    .optional()
+    .transform((v) => (v == null || v.trim() === "" ? undefined : v))
+    .refine((v) => v === undefined || v.length <= 12_000_000, "Arquivo grande demais."),
   mimeType: z
     .union([z.string(), z.null()])
     .optional()
@@ -60,6 +73,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Dados inválidos." }, { status: 400 });
   }
   const data = parsed.data;
+  if (!data.mediaUrl && !data.mediaBase64) {
+    return NextResponse.json({ error: "Informe o arquivo (mediaUrl ou mediaBase64)." }, { status: 400 });
+  }
   const kind = data.kind;
 
   if (!isMediaConfigured()) {
@@ -91,7 +107,9 @@ export async function POST(request: NextRequest) {
 
   let answer;
   try {
-    const file = await downloadMedia(kind, data.mediaUrl, data.mimeType);
+    const file = data.mediaBase64
+      ? decodeInlineMedia(kind, data.mediaBase64, data.mimeType)
+      : await downloadMedia(kind, data.mediaUrl!, data.mimeType);
     answer = await interpretMedia({ kind, base64: file.base64, mime: file.mime, caption: data.caption });
   } catch (err) {
     if (err instanceof MediaError) {
