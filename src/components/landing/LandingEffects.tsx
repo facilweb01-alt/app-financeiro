@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 // Os dois efeitos da página de vendas que precisam de JavaScript:
 //   1. barra fixa "Quero esse app" no celular: aparece depois que o topo
 //      (#hero) sai da tela e some quando a seção de preço (#preco) entra;
-//   2. o celular do topo (#stage dentro de #scene) inclina seguindo o mouse,
+//   2. os celulares 3D do topo (#stage dentro de #scene) inclinam seguindo o mouse,
 //      só em computador e só se a pessoa não pediu "reduzir movimento".
 // Sem JavaScript a página continua completa; só perde esses dois detalhes.
 export function LandingEffects({ registerHref = "/registrar" }: { registerHref?: string }) {
@@ -48,7 +48,7 @@ export function LandingEffects({ registerHref = "/registrar" }: { registerHref?:
       const r = scene.getBoundingClientRect();
       const x = (ev.clientX - r.left) / r.width - 0.5;
       const y = (ev.clientY - r.top) / r.height - 0.5;
-      stage.style.transform = `rotateX(${8 - y * 12}deg) rotateY(${-16 + x * 20}deg) rotateZ(1deg)`;
+      stage.style.transform = `rotateX(${4 - y * 8}deg) rotateY(${-6 + x * 12}deg)`;
     };
     const onLeave = () => {
       stage.style.transform = "";
