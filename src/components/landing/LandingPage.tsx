@@ -3,31 +3,35 @@ import "@fontsource-variable/bricolage-grotesque";
 import "@fontsource-variable/figtree";
 import "./landing.css";
 import { LogoSymbol } from "@/components/Logo";
-import { ANNUAL_DISCOUNT_PERCENT, PLAN_PRICE, TRIAL_DAYS, planInfo } from "@/lib/billing/core";
+import { ANNUAL_DISCOUNT_PERCENT, GUARANTEE_DAYS, MAX_INSTALLMENTS, PLAN_PRICE, TRIAL_DAYS, planInfo } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
 import { MediaShowcase } from "./MediaShowcase";
 import { ChatDemo } from "./ChatDemo";
-import { TESTIMONIALS } from "./testimonials";
 import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
 import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 
 // Página de vendas pública (rota "/" para quem não está logado).
 //
-// Estrutura pensada para vender: começa pela dor (o salário some), mostra
-// os números do endividamento, lista as dores, apresenta os 3 diferenciais
-// (WhatsApp, cartões e parcelas, % da renda), compara com planilha e app
-// comum, e só no fim mostra o preço. Veio da prévia aprovada pelo Marcelo.
+// Estrutura (estratégia de conversão de 04/11/2026, aprovada pelo Marcelo):
+// a promessa do anúncio na 1ª dobra (cartão e parcelas pelo WhatsApp, por
+// áudio), um CTA só ("testar sem cartão"), o preço logo na 2ª dobra (anual
+// R$ 97 em 12x ou Pix, mensal R$ 19,90, garantia de 7 dias), as dores, os
+// diferenciais, a comparação e as dúvidas. Sem números de endividamento e
+// sem tom de medo: fala de clareza e praticidade.
 //
 // É um Server Component: o JavaScript no navegador fica em dois pedaços,
 // o LandingEffects (barra fixa do celular e inclinação 3D do celular no
 // computador) e o ChatDemo (demonstração animada do WhatsApp). O visual fica em landing.css, todo dentro de ".lp".
 
 const PRICE = formatBRL(PLAN_PRICE);
-const PRICE_NUMBER = PLAN_PRICE.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 const YEARLY = planInfo("YEARLY");
 const PRICE_YEARLY = formatBRL(YEARLY.price);
 const PRICE_YEARLY_PER_MONTH = formatBRL(YEARLY.monthlyEquivalent);
+// "R$ 97" (sem centavos quando o valor é redondo) nos textos da página
+const PRICE_YEARLY_SHORT = Number.isInteger(YEARLY.price) ? `R$ ${YEARLY.price}` : PRICE_YEARLY;
+const PRICE_YEARLY_NUMBER = YEARLY.price.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
+const YEARLY_INSTALLMENT = formatBRL(Math.round((YEARLY.price / MAX_INSTALLMENTS) * 100) / 100);
 
 export function LandingPage({
   pixelId = null,
@@ -73,17 +77,16 @@ export function LandingPage({
           <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
             <div>
               <span className="pain-tag ok"><i></i>Controle de gastos pelo WhatsApp e no app</span>
-              <h1>Seu dinheiro acaba antes do mês <span className="grad">e você não sabe para onde foi?</span></h1>
-              <p className="lead"><strong>O Contay mostra para onde vai cada real.</strong> Você manda o gasto pelo WhatsApp, <strong>por texto, áudio ou foto do cupom</strong>, e acompanha tudo no app, no celular ou no computador: cartões, parcelas, contas fixas e quanto ainda sobra no mês.</p>
+              <h1>Controle seus gastos e as parcelas do cartão <span className="grad">mandando um áudio no WhatsApp</span></h1>
+              <p className="lead"><strong>Fale, escreva ou mande a foto do cupom:</strong> o Contay lança na categoria certa e mostra no app quanto do mês e das <strong>próximas faturas</strong> já está comprometido. Sem planilha e sem senha do banco.</p>
               <div className="ctas">
-                <Link className="btn btn-cta" href={registerHref}>Testar grátis por {TRIAL_DAYS} dias <span aria-hidden="true">→</span></Link>
-                <a className="btn btn-ghost" href="#como-funciona">Ver como funciona</a>
+                <Link className="btn btn-cta" href={registerHref} data-testid="hero-cta">Testar {TRIAL_DAYS} dias grátis, sem cartão <span aria-hidden="true">→</span></Link>
               </div>
               <div className="trust">
-                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>{TRIAL_DAYS} dias grátis</span>
-                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Cancele quando quiser</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem cartão para testar</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Anual {PRICE_YEARLY_SHORT} ({PRICE_YEARLY_PER_MONTH}/mês)</span>
+                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Garantia de {GUARANTEE_DAYS} dias</span>
                 <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Não pede senha do banco</span>
-                <span><svg width="16" height="16"><use href="#lp-ck"/></svg>Sem fidelidade</span>
               </div>
             </div>
 
@@ -113,13 +116,13 @@ export function LandingPage({
         </section>
 
   
-        <section className="stats" aria-label="Números do endividamento no Brasil">
+        <section className="stats price" aria-label="Preço e teste grátis" data-testid="faixa-preco">
           <div className="wrap">
-            <div className="stat"><div className="num"><em>80,9%</em></div><p>das famílias brasileiras estão endividadas. É o maior número já registrado.</p></div>
-            <div className="stat"><div className="num"><em>8</em> em 10</div><p>têm o cartão de crédito como a principal dívida. Parcela pequena, somada, vira bola de neve.</p></div>
-            <div className="stat"><div className="num"><em>+400%</em></div><p>ao ano é o juro do rotativo do cartão. Uma fatura esquecida custa caro.</p></div>
+            <div className="stat"><div className="num"><em>{TRIAL_DAYS} dias</em> grátis</div><p>Sem cartão e sem pagar nada. Você cria a conta e já manda o 1º gasto pelo WhatsApp.</p></div>
+            <div className="stat"><div className="num"><em>{PRICE_YEARLY_SHORT}</em>/ano</div><p>Em até {MAX_INSTALLMENTS}x de {YEARLY_INSTALLMENT} no cartão ou à vista no Pix. Ou {PRICE} por mês, sem fidelidade.</p></div>
+            <div className="stat"><div className="num"><em>{GUARANTEE_DAYS} dias</em> de garantia</div><p>Assinou e não gostou? Peça pelo WhatsApp em até {GUARANTEE_DAYS} dias e devolvemos 100%.</p></div>
           </div>
-          <div className="wrap src">Fonte: pesquisa Peic da CNC (abril/2026) e Banco Central, divulgados pela Agência Senado.</div>
+          <div className="wrap src"><Link href={registerHref} style={{ color: "inherit", textDecoration: "underline" }}>Começar meu teste grátis agora →</Link></div>
         </section>
 
   
@@ -309,7 +312,7 @@ export function LandingPage({
               <div className="cmp-row"><div className="f">Forma de pagar</div><div className="cmp-cells">
                 <div className="cell"><span className="who">Planilha</span>Grátis, mas dá trabalho manter</div>
                 <div className="cell"><span className="who">App comum</span>Em geral cartão de crédito ou plano anual</div>
-                <div className="cell us"><span className="who">Contay</span>Cartão de crédito, mensal sem fidelidade ou anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto</div></div></div>
+                <div className="cell us"><span className="who">Contay</span>Teste sem cartão. Anual {PRICE_YEARLY_SHORT} em até {MAX_INSTALLMENTS}x ou no Pix, ou {PRICE}/mês</div></div></div>
             </div>
           </div>
         </section>
@@ -343,33 +346,9 @@ export function LandingPage({
             </div>
             <div className="steps">
               <div className="step"><div className="n">1</div><h3>Crie sua conta</h3><p>Nome, e-mail, WhatsApp e senha. Leva menos de um minuto.</p></div>
-              <div className="step"><div className="n">2</div><h3>Cadastre o cartão e use {TRIAL_DAYS} dias grátis</h3><p>Nada é cobrado agora. O acesso é liberado na hora e o manual chega no seu WhatsApp. Mande seu primeiro gasto e veja o app se organizando sozinho.</p></div>
-              <div className="step"><div className="n">3</div><h3>Gostou? Continue por {PRICE}/mês</h3><p>No fim do teste a assinatura mensal começa sozinha, no cartão. Não gostou? Peça o cancelamento pelo WhatsApp antes do último dia do teste e nada é cobrado.</p></div>
+              <div className="step"><div className="n">2</div><h3>Mande seu 1º gasto pelo WhatsApp</h3><p>Sem cartão e sem pagar nada: o acesso é liberado na hora, por {TRIAL_DAYS} dias. Mande um áudio “gastei 25 no almoço” e veja o app se organizando sozinho.</p></div>
+              <div className="step"><div className="n">3</div><h3>Gostou? Anual por {PRICE_YEARLY_SHORT}</h3><p>Em até {MAX_INSTALLMENTS}x no cartão ou no Pix (ou {PRICE} por mês). Não gostou? É só não assinar: nada é cobrado. E depois de assinar ainda tem {GUARANTEE_DAYS} dias de garantia.</p></div>
             </div>
-          </div>
-        </section>
-
-  
-        <section className="sec" id="depoimentos" style={{ paddingTop: "24px" }}>
-          <div className="wrap">
-            <div className="sec-head center">
-              <span className="eyebrow">Quem usa, conta</span>
-              <h2>O que os clientes mandam no nosso WhatsApp</h2>
-              <p>Mensagens reais, recebidas no número do Contay.</p>
-            </div>
-            <div className="deps">
-              {TESTIMONIALS.map((t) => (
-                <figure className="dep" key={t.image} data-testid="depoimento">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={t.image} alt={`Print de mensagem no WhatsApp: “${t.text}”`} width={t.width} height={t.height} loading="lazy" decoding="async" />
-                  <figcaption>
-                    <span className="dep-ico" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a8.5 8.5 0 0 1-12.7 7.4L3 21l1.7-5.1A8.5 8.5 0 1 1 21 12z" /></svg></span>
-                    <span><b>{t.who}</b>{t.detail}</span>
-                  </figcaption>
-                </figure>
-              ))}
-            </div>
-            <p className="deps-note">Prints de conversas reais. Nome, foto e número foram ocultados.</p>
           </div>
         </section>
 
@@ -378,23 +357,23 @@ export function LandingPage({
             <div className="price-wrap">
               <div>
                 <div className="sec-head" style={{ marginBottom: "24px" }}>
-                  <span className="eyebrow pain">Faça a conta</span>
-                  <h2>Quanto custa continuar sem controle?</h2>
-                  <p>O descontrole cobra todo mês, só que escondido. Compare:</p>
+                  <span className="eyebrow">Preço</span>
+                  <h2>Menos de R$ 0,30 por dia no plano anual</h2>
+                  <p>Teste {TRIAL_DAYS} dias sem cartão. Gostou? Escolha o plano:</p>
                 </div>
-                <div className="anchor">
-                  <div className="it"><span>Uma conta paga com atraso (multa + juros)</span><b>dinheiro jogado fora</b></div>
-                  <div className="it"><span>Uma fatura de R$ 1.000 que cai no rotativo por um mês</span><b>mais de R$ 100 em juros</b></div>
-                  <div className="it"><span>Parcelas esquecidas que apertam o mês seguinte</span><b>cheque especial</b></div>
-                  <div className="it ok"><span>Saber para onde vai cada real, todo mês</span><b>menos de R$ 1 por dia</b></div>
-                  <span className="foot">Juros do rotativo acima de 400% ao ano segundo o Banco Central; o valor exato varia por banco.</span>
+                <div className="anchor price">
+                  <div className="it ok"><span>Plano anual (em até {MAX_INSTALLMENTS}x no cartão ou no Pix)</span><b>{PRICE_YEARLY_SHORT} por ano</b></div>
+                  <div className="it"><span>Plano mensal, sem fidelidade</span><b>{PRICE} por mês</b></div>
+                  <div className="it"><span>No anual você paga {ANNUAL_DISCOUNT_PERCENT}% menos que no mensal</span><b>{PRICE_YEARLY_PER_MONTH}/mês</b></div>
+                  <div className="it"><span>Garantia depois de assinar</span><b>{GUARANTEE_DAYS} dias</b></div>
+                  <span className="foot">O mesmo app nos dois planos, com todas as funções. Pagamento processado pelo Asaas.</span>
                 </div>
               </div>
               <div className="plan-scene">
                 <div className="plan">
-                  <div className="row"><strong style={{ color: "var(--text)", fontSize: "19px" }}>Contay</strong><span className="pill">Plano único</span></div>
-                  <div className="amount"><span className="rs">R$</span><span className="v">{PRICE_NUMBER}</span><span className="per">/mês</span></div>
-                  <div className="day">Menos de R$ 1 por dia. Os primeiros {TRIAL_DAYS} dias são grátis.</div>
+                  <div className="row"><strong style={{ color: "var(--text)", fontSize: "19px" }}>Contay</strong><span className="pill">Plano anual</span></div>
+                  <div className="amount"><span className="rs">R$</span><span className="v">{PRICE_YEARLY_NUMBER}</span><span className="per">/ano</span></div>
+                  <div className="day">Em até {MAX_INSTALLMENTS}x de {YEARLY_INSTALLMENT} no cartão ou à vista no Pix. Os primeiros {TRIAL_DAYS} dias são grátis, sem cartão.</div>
                   <ul className="checks">
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Lançamento pelo WhatsApp com inteligência artificial</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cartões, parcelas e fechamento de fatura</li>
@@ -403,12 +382,12 @@ export function LandingPage({
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Fechamento do mês e relatório em PDF</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Celular e computador, lançamentos ilimitados</li>
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Manual em PDF e suporte pelo WhatsApp</li>
-                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cobrança automática no cartão de crédito</li>
+                    <li><svg width="18" height="18"><use href="#lp-ck"/></svg>Cartão de crédito (até {MAX_INSTALLMENTS}x) ou Pix</li>
                   </ul>
-                  <Link className="btn btn-cta" href={registerHref}>Começar meu teste grátis <span aria-hidden="true">→</span></Link>
-                  <p className="fine" data-testid="landing-trial"><strong>{TRIAL_DAYS} dias grátis para testar:</strong> cadastre o cartão e use todas as funções, inclusive o WhatsApp. Nada é cobrado no teste; se cancelar antes do fim, não paga nada.</p>
-                  <p className="fine">Depois do teste: cobrança automática no cartão de crédito, todo mês. Sem fidelidade.</p>
-                  <p className="fine" data-testid="landing-anual"><strong>Plano anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto:</strong> {PRICE_YEARLY} por ano, o que dá {PRICE_YEARLY_PER_MONTH} por mês, em até 12x no cartão. É só pedir ao suporte.</p>
+                  <Link className="btn btn-cta" href={registerHref}>Testar {TRIAL_DAYS} dias grátis, sem cartão <span aria-hidden="true">→</span></Link>
+                  <p className="fine" data-testid="landing-trial"><strong>{TRIAL_DAYS} dias grátis para testar:</strong> sem cartão e sem pagar nada, com todas as funções, inclusive o WhatsApp. Se não gostar, é só não assinar.</p>
+                  <p className="fine">Prefere pagar mês a mês? {PRICE} por mês, no cartão ou no Pix, sem fidelidade.</p>
+                  <p className="fine" data-testid="landing-anual"><strong>Garantia de {GUARANTEE_DAYS} dias:</strong> assinou e não gostou? Peça pelo WhatsApp em até {GUARANTEE_DAYS} dias depois do pagamento e devolvemos 100%.</p>
                 </div>
               </div>
             </div>
@@ -424,10 +403,10 @@ export function LandingPage({
               <details><summary>Posso mandar áudio ou foto do cupom?<span className="pl" aria-hidden="true">+</span></summary><p>Pode. Grave um áudio falando o gasto, por exemplo “gastei trinta reais na farmácia”, ou mande a foto do cupom fiscal, da nota ou do comprovante. O Contay ouve ou lê, lança o total na categoria certa e responde com o que entendeu. Para dizer que foi no cartão ou escolher a categoria, escreva na legenda da foto. O Contay não guarda o arquivo: ele é usado só para ler o gasto.</p></details>
               <details><summary>Preciso dar a senha do meu banco?<span className="pl" aria-hidden="true">+</span></summary><p>Não. O Contay não se conecta à sua conta bancária. Você informa os gastos pelo WhatsApp ou pelo app, e só você decide o que entra.</p></details>
               <details><summary>Preciso instalar alguma coisa?<span className="pl" aria-hidden="true">+</span></summary><p>Não precisa baixar nada da loja. O Contay abre no navegador do celular ou do computador. Para ter o ícone na tela inicial e abrir como aplicativo: no Android (Chrome), toque no menu e em “Adicionar à tela inicial”; no iPhone (Safari), toque em Compartilhar e em “Adicionar à Tela de Início”.</p></details>
-              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>Os primeiros {TRIAL_DAYS} dias são grátis. Para liberar o teste você cadastra um cartão de crédito, e nada é cobrado nesse momento. No último dia do teste a 1ª mensalidade de {PRICE} é cobrada automaticamente no cartão e depois todo mês, no mesmo dia. O plano anual ({PRICE_YEARLY} por ano, {ANNUAL_DISCOUNT_PERCENT}% de desconto) pode ser pago no cartão à vista ou em até 12x: é só pedir ao suporte.</p></details>
+              <details><summary>Como é feita a cobrança?<span className="pl" aria-hidden="true">+</span></summary><p>Os primeiros {TRIAL_DAYS} dias são grátis e não pedimos cartão. Se gostar, você assina na tela de assinatura do app: plano anual de {PRICE_YEARLY_SHORT} (em até {MAX_INSTALLMENTS}x de {YEARLY_INSTALLMENT} no cartão ou à vista no Pix) ou plano mensal de {PRICE}. Assinando durante o teste você não perde nenhum dia: o período pago começa a contar no fim do teste. Depois de pagar, você tem {GUARANTEE_DAYS} dias de garantia.</p></details>
               <details><summary>E se eu atrasar o pagamento?<span className="pl" aria-hidden="true">+</span></summary><p>Você tem 3 dias de tolerância depois do vencimento. Depois disso o acesso fica pausado, sem perder nenhum dado, e volta automaticamente assim que o pagamento é confirmado.</p></details>
-              <details><summary>Como funciona o teste grátis de {TRIAL_DAYS} dias?<span className="pl" aria-hidden="true">+</span></summary><p>Você cria a conta com nome, e-mail, WhatsApp e senha e cadastra um cartão de crédito na página segura do Asaas. O app é liberado na hora por {TRIAL_DAYS} dias, com tudo funcionando, inclusive o lançamento pelo WhatsApp, e nada é cobrado durante o teste. Se não quiser continuar, peça o cancelamento pelo WhatsApp antes do último dia do teste e nada é cobrado. Se não cancelar, a assinatura mensal começa no fim do teste, no cartão.</p></details>
-              <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Você continua usando até o fim do mês que já pagou. No teste grátis, cancelando antes do último dia, nada é cobrado.</p></details>
+              <details><summary>Como funciona o teste grátis de {TRIAL_DAYS} dias?<span className="pl" aria-hidden="true">+</span></summary><p>Você cria a conta só com nome, e-mail, WhatsApp e senha, sem cartão. O app é liberado na hora por {TRIAL_DAYS} dias, com tudo funcionando, inclusive o lançamento pelo WhatsApp por texto, áudio e foto. Perto do fim avisamos pelo WhatsApp. Não assinou? O acesso fica pausado, nada é cobrado e seus dados ficam guardados.</p></details>
+              <details><summary>Tem fidelidade? Posso cancelar?<span className="pl" aria-hidden="true">+</span></summary><p>Não tem fidelidade. Para cancelar, é só falar com o nosso suporte pelo WhatsApp. Nos primeiros {GUARANTEE_DAYS} dias depois do pagamento, devolvemos 100%. Depois disso, você continua usando até o fim do período que já pagou.</p></details>
               <details><summary>E se eu tiver dúvida para usar?<span className="pl" aria-hidden="true">+</span></summary><p>Pergunte no mesmo WhatsApp em que você lança os gastos, por exemplo “como cadastro um cartão?”. A resposta vem na hora, com base no manual. Quando o caso precisa de uma pessoa, um atendente continua a conversa. O <Link href="/manual">manual completo</Link> também fica disponível no app, em Ajuda.</p></details>
               <details><summary>Meus dados ficam seguros?<span className="pl" aria-hidden="true">+</span></summary><p>Sim. Cada conta é isolada no banco de dados, a senha é guardada criptografada e seus lançamentos não são vendidos nem repassados a anunciantes. Para a cobrança, só nome, CPF, e-mail e WhatsApp vão para o Asaas, a instituição que processa o pagamento. Os dados do cartão são digitados direto na página segura do Asaas: o Contay não vê nem guarda.</p></details>
             </div>
@@ -459,10 +438,10 @@ export function LandingPage({
         <section className="sec" style={{ paddingTop: "8px" }}>
           <div className="wrap">
             <div className="final">
-              <h2>Daqui a 30 dias você pode estar no mesmo lugar. Ou pode saber exatamente para onde foi cada real.</h2>
-              <p>Crie sua conta, teste {TRIAL_DAYS} dias grátis e mande seu primeiro gasto pelo WhatsApp em menos de 5 minutos.</p>
-              <Link className="btn btn-cta" href={registerHref}>Testar grátis por {TRIAL_DAYS} dias <span aria-hidden="true">→</span></Link>
-              <div className="fine">{TRIAL_DAYS} dias grátis · depois {PRICE}/mês no cartão · sem fidelidade</div>
+              <h2>Mande seu 1º gasto em menos de 5 minutos. Sem cartão.</h2>
+              <p>Crie sua conta, mande um áudio com o seu último gasto e veja o mês se organizando. São {TRIAL_DAYS} dias grátis para decidir.</p>
+              <Link className="btn btn-cta" href={registerHref}>Testar {TRIAL_DAYS} dias grátis, sem cartão <span aria-hidden="true">→</span></Link>
+              <div className="fine">{TRIAL_DAYS} dias grátis sem cartão · anual {PRICE_YEARLY_SHORT} ou {PRICE}/mês · garantia de {GUARANTEE_DAYS} dias</div>
             </div>
           </div>
         </section>
