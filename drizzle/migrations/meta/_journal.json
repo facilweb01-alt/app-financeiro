@@ -141,6 +141,13 @@
       "when": 1791100000000,
       "tag": "0019_asaas_nova_conta",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0020_conversao",
+      "breakpoints": true
     }
   ]
 }
