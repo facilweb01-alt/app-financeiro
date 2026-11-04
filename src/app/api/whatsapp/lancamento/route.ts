@@ -1,5 +1,6 @@
 import * as z from "zod";
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
+import { noteFirstEntry } from "@/lib/firstEntry";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { CUSTOM_CATEGORY_COLORS } from "@/lib/categories";
 import { db, withRLS, withServiceMode } from "@/db/client";
@@ -264,6 +265,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
     const { created, category, categoryCreated, closedMonthNotice } = result;
+    after(() => noteFirstEntry(user.id));
 
     return NextResponse.json(
       {
@@ -533,6 +535,7 @@ async function registerCardPurchase(params: {
   if (result.status !== 201) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+  after(() => noteFirstEntry(userId));
 
   const settledNotice =
     result.settled.length > 0
