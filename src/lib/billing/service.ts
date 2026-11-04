@@ -3,6 +3,7 @@ import { and, asc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { db, withServiceMode } from "@/db/client";
 import { billingPayments, billingWebhookEvents, users } from "@/db/schema";
 import { readFileSync } from "node:fs";
+import { sendMetaServerEvent } from "@/lib/metaCapi";
 import { join } from "node:path";
 import {
   AsaasError,
@@ -19,6 +20,7 @@ import {
   listCustomerSubscriptions,
   listSubscriptionPayments,
   updateCustomerAddress,
+  updateSubscriptionValue,
   type AsaasBillingAddress,
   type AsaasPayment,
 } from "./asaas";
@@ -28,6 +30,9 @@ import {
   collapseCardPurchases,
   computeBillingState,
   computeSubscriptionDueDate,
+  firstChargePrice,
+  PLAN_PRICE_YEARLY,
+  yearlyPromoActive,
   isCardBillingPurchase,
   isRenewalWindow,
   MAX_INSTALLMENTS,
@@ -180,6 +185,23 @@ export async function applyAsaasPayment(
       });
 
     await recomputeUserBilling(owner.id);
+    // 1º ano do anual pago no Pix com a oferta de fim de teste: a renovação,
+    // daqui a um ano, volta ao preço cheio.
+    if (
+      paid &&
+      !payment.deleted &&
+      payment.billingType !== "CREDIT_CARD" &&
+      payment.subscription &&
+      payment.subscription === owner.asaasSubscriptionId &&
+      payment.value >= 50 &&
+      payment.value < PLAN_PRICE_YEARLY - 0.005
+    ) {
+      try {
+        await updateSubscriptionValue(payment.subscription, PLAN_PRICE_YEARLY);
+      } catch (err) {
+        console.error("[billing] não consegui voltar a assinatura anual ao preço cheio", payment.subscription, err);
+      }
+    }
     // Cobrança de cartão de uma assinatura que o app ainda não conhece = o
     // cliente acabou de concluir o Checkout do Asaas. Quem chamou (webhook)
     // roda syncCardSubscription() para adotar a assinatura nova.
@@ -212,6 +234,7 @@ async function recomputeUserBilling(userId: string): Promise<void> {
       asaasSubscriptionId: billingPayments.asaasSubscriptionId,
       asaasInstallmentId: billingPayments.asaasInstallmentId,
       periodStart: billingPayments.periodStart,
+      value: billingPayments.value,
     })
     .from(billingPayments)
     .where(eq(billingPayments.userId, userId));
@@ -225,6 +248,10 @@ async function recomputeUserBilling(userId: string): Promise<void> {
       approvedAt: users.approvedAt,
       asaasSubscriptionId: users.asaasSubscriptionId,
       billingPlan: users.billingPlan,
+      adsConsentAt: users.adsConsentAt,
+      metaFbp: users.metaFbp,
+      metaFbc: users.metaFbc,
+      metaUa: users.metaUa,
     })
     .from(users)
     .where(eq(users.id, userId))
@@ -252,6 +279,19 @@ async function recomputeUserBilling(userId: string): Promise<void> {
       ...(activate ? { status: "active", approvedAt: user.approvedAt ?? new Date(), welcomeRequestedAt: new Date() } : {}),
     })
     .where(eq(users.id, userId));
+  // 1º pagamento: avisa a Meta pelo servidor (só de quem aceitou os cookies no
+  // cadastro). Sem esperar: a resposta ao Asaas/cliente não depende disso.
+  if (activate && user.adsConsentAt) {
+    const paidValue = rows
+      .filter((r) => isPaidStatus(r.status))
+      .reduce((sum, r) => sum + Number(r.value ?? 0), 0);
+    void sendMetaServerEvent({
+      eventName: "Purchase",
+      eventId: `compra-${userId}`,
+      user: { id: userId, adsConsentAt: user.adsConsentAt, metaFbp: user.metaFbp, metaFbc: user.metaFbc, metaUa: user.metaUa },
+      customData: { value: Math.round((paidValue || planInfo(user.billingPlan).price) * 100) / 100, currency: "BRL" },
+    });
+  }
 }
 
 /**
@@ -308,6 +348,7 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
         billingMethod: users.billingMethod,
         subscriptionDueDate: users.subscriptionDueDate,
         cardRequired: users.cardRequired,
+        billingCanceledAt: users.billingCanceledAt,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -315,6 +356,11 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
   );
   if (!user) return;
   const plan = planInfo(user.billingPlan);
+  // Oferta de fim de teste (04/11/2026): o 1º ano do anual sai por R$ 77.
+  const promo =
+    plan.plan === "YEARLY" &&
+    yearlyPromoActive({ status: user.status, trialEndsAt: user.trialEndsAt, today: todayInSaoPaulo(), canceledAt: user.billingCanceledAt });
+  const firstPrice = firstChargePrice(plan.plan, promo);
 
   let customerId = user.asaasCustomerId;
   if (!customerId) {
@@ -331,6 +377,29 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
   }
 
   let subscriptionId = user.asaasSubscriptionId;
+  // A oferta começou e a assinatura Pix do anual (criada antes, a preço cheio)
+  // ainda não teve nada pago: troca por uma nova com o valor da oferta, para o
+  // Pix da tela bater com a oferta da mensagem.
+  if (subscriptionId && promo && user.status === "pending" && normalizeBillingMethod(user.billingMethod) === "PIX") {
+    const current = await listSubscriptionPayments(subscriptionId);
+    const anyPaid = current.some((p) => isPaidStatus(p.status));
+    const openFull = current.some((p) => !p.deleted && isOpenStatus(p.status) && p.value > firstPrice + 0.005);
+    if (!anyPaid && openFull) {
+      try {
+        await deleteSubscription(subscriptionId);
+      } catch (err) {
+        if (!(err instanceof AsaasError && err.status === 404)) throw err;
+      }
+      await withServiceMode(() =>
+        db
+          .update(billingPayments)
+          .set({ status: "DELETED", updatedAt: new Date() })
+          .where(and(eq(billingPayments.userId, userId), inArray(billingPayments.status, ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"])))
+      );
+      await withServiceMode(() => db.update(users).set({ asaasSubscriptionId: null, subscriptionDueDate: null }).where(eq(users.id, userId)));
+      subscriptionId = null;
+    }
+  }
   // Conta do fluxo "cartão obrigatório" (20/10/2026): nunca nasce assinatura
   // Pix — nem como reserva enquanto o cartão não chega, nem na renovação do
   // anual pago no cartão. Só o cliente do Asaas é criado; a assinatura vem do
@@ -339,7 +408,7 @@ async function ensureSubscriptionLocked(userId: string): Promise<void> {
   if (!subscriptionId) {
     const subscription = await createSubscription({
       customer: customerId,
-      value: plan.price,
+      value: firstPrice,
       cycle: plan.cycle,
       // Em teste grátis, a 1ª cobrança vence no último dia do teste (pagar
       // antes não tira nenhum dia: o mês pago começa a contar dali). Sem
@@ -530,6 +599,13 @@ export async function getBillingOverview(userId: string, opts: { refresh?: boole
         await syncCardSubscription(userId);
         await refreshOpenPayments(userId);
         // traz cobranças novas que o webhook ainda não entregou
+        await ensureSubscription(userId);
+      } else if (
+        normalizeBillingPlan(user.billingPlan) === "YEARLY" &&
+        normalizeBillingMethod(user.billingMethod) === "PIX" &&
+        yearlyPromoActive({ status: user.status, trialEndsAt: user.trialEndsAt, today: todayInSaoPaulo(), canceledAt: user.billingCanceledAt })
+      ) {
+        // oferta de fim de teste valendo: troca o Pix de R$ 97 pelo de R$ 77 (ensureSubscription decide)
         await ensureSubscription(userId);
       }
       openPayment = await getOpenPaymentWithPix(userId);
@@ -749,9 +825,15 @@ export async function startCardCheckout(
   // Quem já tem o cartão recorrente anual (antes desta mudança) continua nele.
   if (plan.plan === "YEARLY" && normalizeBillingMethod(user.billingMethod) !== "CREDIT_CARD") {
     await withServiceMode(() => db.update(users).set({ cardPeriodStart: firstDue }).where(eq(users.id, userId)));
+    const promo = yearlyPromoActive({
+      status: user.status,
+      trialEndsAt: user.trialEndsAt,
+      today: todayInSaoPaulo(),
+      canceledAt: user.billingCanceledAt,
+    });
     const purchase = await createCardPurchaseCheckout({
       customer: user.asaasCustomerId,
-      value: plan.price,
+      value: firstChargePrice("YEARLY", promo),
       maxInstallmentCount: MAX_INSTALLMENTS,
       itemName: "Contay — plano anual",
       itemDescription: `1 ano de acesso ao Contay, à vista ou em até ${MAX_INSTALLMENTS}x no cartão de crédito`,
@@ -1066,6 +1148,76 @@ export async function changeBillingPlan(userId: string, plan: BillingPlan): Prom
     }
     await withServiceMode(() =>
       db.update(users).set({ billingPlan: plan, asaasSubscriptionId: null, subscriptionDueDate: null }).where(eq(users.id, userId))
+    );
+    changed = true;
+  });
+  return changed;
+}
+
+/**
+ * Reativação (04/11/2026): cadastro antigo que nunca pagou ganha um teste novo
+ * de 7 dias, sem cartão, a partir de hoje, no plano anual sugerido. Apaga no
+ * Asaas a assinatura Pix antiga que ainda não teve nada pago (cobrança velha
+ * de R$ 29,90 vencida) para a tela de assinatura começar limpa. Não mexe em
+ * conta que já pagou, foi cancelada ou suspensa. Devolve false se não mudou.
+ */
+export async function reactivateWithNewTrial(userId: string, today: string = todayInSaoPaulo()): Promise<boolean> {
+  let changed = false;
+  await withServiceMode(async () => {
+    await db.execute(sql`select pg_advisory_xact_lock(hashtext(${"billing:" + userId}))`);
+    const [user] = await withServiceMode(() =>
+      db
+        .select({
+          status: users.status,
+          billingEnabled: users.billingEnabled,
+          billingCanceledAt: users.billingCanceledAt,
+          billingMethod: users.billingMethod,
+          asaasSubscriptionId: users.asaasSubscriptionId,
+        })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1)
+    );
+    if (!user || !user.billingEnabled || user.status !== "pending" || user.billingCanceledAt) return;
+    if (normalizeBillingMethod(user.billingMethod) !== "PIX") return; // cartão já cadastrado: não mexe
+    const paid = await withServiceMode(() =>
+      db
+        .select({ id: billingPayments.id })
+        .from(billingPayments)
+        .where(and(eq(billingPayments.userId, userId), inArray(billingPayments.status, ["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH"])))
+        .limit(1)
+    );
+    if (paid.length > 0) return;
+    if (user.asaasSubscriptionId) {
+      try {
+        await deleteSubscription(user.asaasSubscriptionId);
+      } catch (err) {
+        if (!(err instanceof AsaasError && err.status === 404)) {
+          console.error("[reativacao] não consegui apagar a assinatura antiga", user.asaasSubscriptionId, err);
+          return; // sem apagar, não reativa (evita duas cobranças)
+        }
+      }
+      await withServiceMode(() =>
+        db
+          .update(billingPayments)
+          .set({ status: "DELETED", updatedAt: new Date() })
+          .where(and(eq(billingPayments.userId, userId), inArray(billingPayments.status, ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"])))
+      );
+    }
+    await withServiceMode(() =>
+      db
+        .update(users)
+        .set({
+          cardRequired: false,
+          trialEndsAt: trialEndDate(today),
+          billingPlan: "YEARLY",
+          billingMethod: "PIX",
+          asaasSubscriptionId: null,
+          subscriptionDueDate: null,
+          cardPeriodStart: null,
+          reactivatedAt: new Date(),
+        })
+        .where(eq(users.id, userId))
     );
     changed = true;
   });
