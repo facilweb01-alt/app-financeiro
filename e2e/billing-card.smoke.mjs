@@ -112,7 +112,7 @@ try {
   const cusA = fake.state.customers.get(a.asaas_customer_id);
   check("endereço gravado no cliente do Asaas (sem guardar no app)", cusA.postalCode === "58310000" && cusA.address === "Rua das Flores" && cusA.addressNumber === "12" && cusA.province === "Centro");
   check("abre o Checkout do Asaas do cliente certo", Boolean(coA) && coA.customer === a.asaas_customer_id);
-  check("checkout: cartão recorrente mensal de R$ 29,90", coA?.chargeTypes?.[0] === "RECURRENT" && coA?.items?.[0]?.value === 29.9 && coA?.subscription?.cycle === "MONTHLY");
+  check("checkout: cartão recorrente mensal de R$ 19,90", coA?.chargeTypes?.[0] === "RECURRENT" && coA?.items?.[0]?.value === 19.9 && coA?.subscription?.cycle === "MONTHLY");
   check("checkout: 1ª cobrança hoje (conta ainda sem pagamento)", coA?.subscription?.nextDueDate?.startsWith(todaySP()), coA?.subscription?.nextDueDate);
   check("checkout: manda a imagem do plano e volta para /assinatura", (coA?.items?.[0]?.imageBase64 ?? "").length > 100 && coA?.callback?.successUrl?.endsWith("/assinatura?cartao=ok"), coA?.callback?.successUrl);
   check("dados do cartão nunca passam pelo app (checkout sem creditCard)", !("creditCard" in (coA ?? {})) && !("creditCardHolderInfo" in (coA ?? {})));

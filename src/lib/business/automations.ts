@@ -34,7 +34,23 @@
 //    (AUTOMATIONS_DEFAULT_START), para clientes e cadastros antigos não
 //    receberem tudo de uma vez no dia em que a função entrar no ar.
 
-export type AutomationKind = "sem_uso" | "nao_pagou" | "teste";
+//  • "ativacao" (04/11/2026, estratégia de conversão): teste grátis SEM cartão.
+//    Substitui as dicas e avisos de "teste" para as contas novas. O objetivo
+//    é a pessoa lançar gastos e ver o resultado antes do fim do teste:
+//      passo 1 — 1º dia (faltando 6), à noite (a partir das 19h): "quanto
+//                gastou hoje? manda num áudio" (ou o 1º gasto, se ainda não lançou);
+//      passo 2 — 2º dia (faltando 5): foto do cupom/fatura;
+//      passo 3 — 3º dia (faltando 4): resumo do que já lançou + parcelas futuras;
+//      passo 4 — 5º dia (faltando 2): oferta do anual por R$ 77 até o dia
+//                seguinte ao fim do teste;
+//      passo 5 — véspera do fim; passo 6 — último dia (com o link e a oferta).
+//    Quem pagou no meio do teste sai do fluxo (conta vira ativa).
+//  • "reativacao" (04/11/2026): cadastros antigos que não pagaram (teste
+//    encerrado ou pararam no cartão obrigatório) ganham um teste novo de 7
+//    dias sem cartão e uma mensagem; depois seguem o fluxo "ativacao".
+//    Escolha e limite diário ficam em src/lib/whatsapp/automations.ts.
+
+export type AutomationKind = "sem_uso" | "nao_pagou" | "teste" | "ativacao" | "reativacao";
 
 export const AUTOMATION_RULES = {
   semUsoDays: [5, 10] as const,
@@ -50,10 +66,21 @@ export const AUTOMATION_RULES = {
   maxAttempts: 3,
   windowStartHour: 8, // inclusive
   windowEndHour: 22, // exclusive (até 21h59)
+  /** "ativacao": passo por dias que faltam para o fim do teste. */
+  activationStepByDaysLeft: { 6: 1, 5: 2, 4: 3, 2: 4, 1: 5, 0: 6 } as Record<number, number>,
+  /** "ativacao" passo 1 só sai a partir desta hora (lembrete da noite). */
+  activationEveningHour: 19,
 } as const;
 
 /** A partir de quando as regras valem (cadastro/liberação). Pode ser trocada pela variável AUTOMACOES_DESDE. */
 export const AUTOMATIONS_DEFAULT_START = "2026-10-09T00:00:00-03:00";
+
+// Preços nos textos (04/11/2026). Ficam aqui (e não importados de
+// billing/core) para este arquivo seguir puro; o teste confere que batem.
+export const PRICE_MONTHLY_TEXT = "R$ 19,90";
+export const PRICE_YEARLY_TEXT = "R$ 97";
+export const PROMO_YEARLY_TEXT = "R$ 77";
+const PLAN_PRICE_YEARLY_PROMO_VALUE = 77;
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -73,6 +100,8 @@ export type AutomationCandidate = {
   cardOnFile?: boolean;
   /** Conta do fluxo "teste grátis só com cartão" (users.card_required, 20/10/2026). */
   cardRequired?: boolean;
+  /** Ganhou teste novo na reativação (04/11/2026): conta como cadastro novo a partir daí. */
+  reactivatedAt?: Date | null;
 };
 
 export type AutomationRecord = {
@@ -131,7 +160,8 @@ export function nextAutomation(
   c: AutomationCandidate,
   history: AutomationRecord[],
   now: Date,
-  startAt: Date = new Date(AUTOMATIONS_DEFAULT_START)
+  startAt: Date = new Date(AUTOMATIONS_DEFAULT_START),
+  opts: { eveningHour?: number } = {}
 ): PlannedAutomation | null {
   if (c.role !== "user" || !c.hasPhone || c.optedOut) return null;
   const t = now.getTime();
@@ -157,7 +187,7 @@ export function nextAutomation(
   }
 
   if (c.status === "pending") {
-    if (c.billingCanceledAt || c.createdAt.getTime() < startAt.getTime()) return null;
+    if (c.billingCanceledAt || (c.reactivatedAt ?? c.createdAt).getTime() < startAt.getTime()) return null;
 
     // Cartão obrigatório e o cartão ainda não foi cadastrado: um lembrete só.
     if (c.cardRequired && !c.cardOnFile) {
@@ -172,6 +202,18 @@ export function nextAutomation(
     // Passou o dia sem enviar (servidor fora do ar, fora do horário)? Não
     // manda atrasado.
     const trialDaysLeft = c.trialEndsAt ? daysBetweenDates(saoPauloDate(now), c.trialEndsAt) : null;
+    // Teste sem cartão (04/11/2026): fluxo "ativacao".
+    if (trialDaysLeft !== null && trialDaysLeft >= 0 && !c.cardRequired) {
+      const step = AUTOMATION_RULES.activationStepByDaysLeft[trialDaysLeft] ?? null;
+      if (step === null) return null;
+      // já deixou o cartão recorrente (mensal) cadastrado = já contratou: só os avisos de fim
+      if (c.cardOnFile && step < 5) return null;
+      if (step === 1 && saoPauloHour(now) < (opts.eveningHour ?? AUTOMATION_RULES.activationEveningHour)) return null;
+      const state = stepState(record(history, "ativacao", step), now);
+      if (state === "sent" || state === "wait") return null;
+      return { kind: "ativacao", step, retry: state === "retry" };
+    }
+
     if (trialDaysLeft !== null && trialDaysLeft >= 0) {
       const tipIndex = (AUTOMATION_RULES.trialTipsDaysLeft as readonly number[]).indexOf(trialDaysLeft);
       // dica = passos 3, 4, 5; quem já cadastrou o cartão (já contratou) não recebe dicas,
@@ -243,8 +285,13 @@ export function buildAutomationMessage(input: {
   hasUsage?: boolean;
   /** Conta do fluxo "teste grátis só com cartão" (20/10/2026). */
   cardRequired?: boolean;
+  /** Só para "ativacao" passo 3: resumo do que a pessoa já lançou. */
+  summary?: ActivationSummary | null;
 }): string {
   const { kind, step, name, appUrl } = input;
+
+  if (kind === "ativacao") return buildActivationMessage(step, input);
+  if (kind === "reativacao") return buildReactivationMessage(input);
 
   if (kind === "teste" && step >= 3) return buildTrialTip(step - 2, input);
 
@@ -256,7 +303,7 @@ export function buildAutomationMessage(input: {
       return [
         `${hello(name)} Seu teste grátis do *Contay* ${when}.`,
         "",
-        `Como você já cadastrou o cartão, não precisa fazer nada: a 1ª mensalidade de R$ 29,90 será cobrada nele ${lastDay ? "hoje" : "amanhã"} e o app continua liberado, sem interrupção.`,
+        `Como você já cadastrou o cartão, não precisa fazer nada: a 1ª cobrança da assinatura será feita nele ${lastDay ? "hoje" : "amanhã"} e o app continua liberado, sem interrupção.`,
         "",
         `Mudou de ideia? Fale com o suporte por aqui antes da cobrança que a gente cancela. Para ver a assinatura: ${appUrl}/assinatura`,
         "",
@@ -271,7 +318,7 @@ export function buildAutomationMessage(input: {
         : "Para continuar com o app e lançar seus gastos pelo WhatsApp, é só assinar:",
       `👉 ${appUrl}/assinatura`,
       "",
-      "São R$ 29,90 por mês, no Pix ou no cartão de crédito, sem fidelidade: cancela quando quiser. No plano anual tem 10% de desconto (R$ 322,92 por ano).",
+      `Plano anual: ${PRICE_YEARLY_TEXT} (em até 12x no cartão ou Pix). Ou ${PRICE_MONTHLY_TEXT} por mês, sem fidelidade. Garantia de 7 dias.`,
       lastDay
         ? "A partir de amanhã o acesso fica pausado até a assinatura (nada é apagado)."
         : "Assinando hoje você não perde nenhum dia: a mensalidade só começa a contar no fim do teste.",
@@ -318,7 +365,7 @@ export function buildAutomationMessage(input: {
       "Vi que você criou sua conta, mas ainda falta cadastrar o cartão de crédito para liberar seus *7 dias grátis*. Leva 1 minuto:",
       `👉 ${appUrl}/assinatura (entre com o e-mail e a senha do cadastro)`,
       "",
-      "Nada é cobrado na hora: o teste começa quando o cartão é cadastrado e a assinatura de R$ 29,90 por mês só começa depois dos 7 dias. Para cancelar antes, é só falar aqui.",
+      "Nada é cobrado na hora: o teste começa quando o cartão é cadastrado e a assinatura só começa depois dos 7 dias. Para cancelar antes, é só falar aqui.",
       "",
       "Ficou alguma dúvida? Pergunte aqui que eu respondo.",
       OPT_OUT_LINE,
@@ -331,7 +378,7 @@ export function buildAutomationMessage(input: {
       "",
       "Vi que você começou seu cadastro, mas o pagamento ainda não foi concluído. Ficou alguma dúvida sobre o Contay? Pergunte aqui que eu respondo na hora.",
       "",
-      `Para concluir, entre em ${appUrl}/assinatura com o e-mail e a senha do cadastro e escolha Pix ou cartão. São R$ 29,90 por mês, sem fidelidade.`,
+      `Para concluir, entre em ${appUrl}/assinatura com o e-mail e a senha do cadastro e escolha Pix ou cartão. Plano anual por ${PRICE_YEARLY_TEXT} (em até 12x) ou ${PRICE_MONTHLY_TEXT} por mês.`,
       "",
       OPT_OUT_LINE,
     ].join("\n");
@@ -360,7 +407,7 @@ export function buildAutomationMessage(input: {
   return [
     ...body,
     "",
-    `R$ 29,90 por mês, sem fidelidade. Para concluir: ${appUrl}/assinatura`,
+    `Plano anual por ${PRICE_YEARLY_TEXT} (em até 12x no cartão ou Pix), ou ${PRICE_MONTHLY_TEXT} por mês. Para assinar: ${appUrl}/assinatura`,
     "Dúvidas? Responda aqui.",
     OPT_OUT_LINE,
   ].join("\n");
@@ -440,7 +487,169 @@ function buildTrialTip(
     "🙈 Modo discreto: um toque no olho e os valores somem da tela.",
     "",
     `Gostou? Para continuar sem interrupção: 👉 ${appUrl}/assinatura`,
-    "R$ 29,90 por mês, ou o anual com 10% de desconto em até 12x no cartão. Sem fidelidade.",
+    `Plano anual por ${PRICE_YEARLY_TEXT} (em até 12x) ou ${PRICE_MONTHLY_TEXT} por mês. Sem fidelidade.`,
+    "",
+    OPT_OUT_LINE,
+  ].join("\n");
+}
+
+// --- Ativação do teste sem cartão e reativação (04/11/2026) -----------------
+
+export type ActivationSummary = {
+  /** quantos registros (gastos + compras no cartão) a pessoa já fez */
+  entries: number;
+  /** soma dos gastos do mês atual (lançamentos + parcelas que vencem no mês) */
+  monthTotal: number;
+  /** categoria com mais gasto no mês */
+  topCategory?: { name: string; total: number } | null;
+  /** soma das parcelas de cartão que vencem DEPOIS do mês atual */
+  futureInstallments: number;
+  /** quantos meses à frente essas parcelas ocupam */
+  futureMonths: number;
+};
+
+function brl(v: number): string {
+  return v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function ddmm(date: string): string {
+  return `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+}
+
+/** Último dia da oferta de fim de teste (dia seguinte ao fim do teste). */
+function promoEnd(trialEndsAt: string): string {
+  const [y, m, d] = trialEndsAt.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+function buildActivationMessage(
+  step: number,
+  input: { name: string | null; appUrl: string; trialEndsAt?: string | null; cardOnFile?: boolean; hasUsage?: boolean; summary?: ActivationSummary | null }
+): string {
+  const { name, appUrl } = input;
+  const end = input.trialEndsAt ? ddmm(input.trialEndsAt) : null;
+  const offerUntil = input.trialEndsAt ? ddmm(promoEnd(input.trialEndsAt)) : null;
+
+  if (step === 1) {
+    return input.hasUsage
+      ? [
+          `${hello(name)} Quanto você gastou hoje? 🤔`,
+          "",
+          "Manda tudo num áudio só, do seu jeito: \"almoço 25, uber 18 e 40 no mercado\". Eu separo e lanço cada um.",
+          "",
+          OPT_OUT_LINE,
+        ].join("\n")
+      : [
+          `${hello(name)} Ainda dá tempo de lançar o seu 1º gasto hoje. 🙂`,
+          "",
+          "Aperta o microfone e fala: \"gastei 25 no almoço\". Leva 5 segundos e eu já lanço na categoria certa.",
+          "",
+          "Se preferir, escreve: \"uber 18,50\".",
+          "",
+          OPT_OUT_LINE,
+        ].join("\n");
+  }
+
+  if (step === 2) {
+    return [
+      `${hello(name)} Dica do *Contay* de hoje: 📸`,
+      "",
+      "Tira uma foto de um cupom fiscal ou de uma compra da fatura e manda aqui. Eu leio o valor, a data e o lugar e lanço sozinho.",
+      "",
+      "Compra parcelada? Escreve assim: \"300 no cartão Nubank em 3x\". Eu coloco cada parcela na fatura certa.",
+      "",
+      OPT_OUT_LINE,
+    ].join("\n");
+  }
+
+  if (step === 3) {
+    const sm = input.summary;
+    if (sm && sm.entries > 0) {
+      return [
+        `${hello(name)} Seu resumo do *Contay* até agora: 📊`,
+        "",
+        `• ${sm.entries} ${sm.entries === 1 ? "registro" : "registros"}`,
+        `• ${brl(sm.monthTotal)} em gastos neste mês`,
+        ...(sm.topCategory ? [`• Maior categoria: ${sm.topCategory.name} (${brl(sm.topCategory.total)})`] : []),
+        sm.futureInstallments > 0
+          ? `• ${brl(sm.futureInstallments)} de parcelas do cartão já comprometidos nos próximos ${sm.futureMonths} ${sm.futureMonths === 1 ? "mês" : "meses"}`
+          : "• Nenhuma parcela futura de cartão lançada ainda (tem alguma? manda: \"600 no cartão em 6x\")",
+        "",
+        `Veja o painel completo: ${appUrl}/dashboard`,
+        "",
+        "Quanto mais você lança, mais o mês fica claro. 😉",
+        OPT_OUT_LINE,
+      ].join("\n");
+    }
+    return [
+      `${hello(name)} Você ainda não lançou nenhum gasto no *Contay*.`,
+      "",
+      "Faz um teste agora com o último gasto que você lembra: manda um áudio \"gastei 30 na farmácia\" ou a foto do cupom.",
+      "",
+      "Amanhã eu te mando o resumo do mês com o que você lançou. 📊",
+      "",
+      OPT_OUT_LINE,
+    ].join("\n");
+  }
+
+  if (step === 4) {
+    return [
+      `${hello(name)} Faltam 2 dias para o fim do seu teste grátis${end ? ` (${end})` : ""}. 🎁`,
+      "",
+      `Oferta para quem está testando: o *plano anual por ${PROMO_YEARLY_TEXT}* no 1º ano (o normal é ${PRICE_YEARLY_TEXT}). Dá ${brl(Math.round((PLAN_PRICE_YEARLY_PROMO_VALUE / 12) * 100) / 100)} por mês, em até 12x no cartão ou no Pix.`,
+      offerUntil ? `Vale até ${offerUntil}.` : "",
+      "",
+      `👉 ${appUrl}/assinatura`,
+      "",
+      "Garantia de 7 dias: se não gostar, devolvemos 100%.",
+      OPT_OUT_LINE,
+    ]
+      .filter((l, i, a) => !(l === "" && a[i - 1] === ""))
+      .join("\n");
+  }
+
+  // passos 5 (véspera) e 6 (último dia)
+  const lastDay = step >= 6;
+  const when = lastDay ? `termina *hoje*${end ? ` (${end})` : ""}` : `termina *amanhã*${end ? ` (${end})` : ""}`;
+  if (input.cardOnFile) {
+    return [
+      `${hello(name)} Seu teste grátis do *Contay* ${when}.`,
+      "",
+      `Como você já cadastrou o cartão, não precisa fazer nada: a 1ª cobrança será feita nele ${lastDay ? "hoje" : "amanhã"} e o app continua liberado.`,
+      "",
+      `Mudou de ideia? Fale aqui antes da cobrança que a gente cancela. Assinatura: ${appUrl}/assinatura`,
+      "",
+      OPT_OUT_LINE,
+    ].join("\n");
+  }
+  return [
+    `${hello(name)} Seu teste grátis do *Contay* ${when}.`,
+    "",
+    input.hasUsage
+      ? "Seus registros ficam guardados. Para continuar usando sem interrupção:"
+      : "Para continuar lançando seus gastos pelo WhatsApp:",
+    `👉 ${appUrl}/assinatura`,
+    "",
+    `🎁 Plano anual por *${PROMO_YEARLY_TEXT}* no 1º ano${offerUntil ? ` (oferta até ${offerUntil})` : ""}, em até 12x no cartão ou no Pix. Ou ${PRICE_MONTHLY_TEXT} por mês.`,
+    "Garantia de 7 dias: se não gostar, devolvemos 100%.",
+    lastDay ? "A partir de amanhã o acesso fica pausado até a assinatura (nada é apagado)." : "",
+    "",
+    "Dúvidas? Responda aqui.",
+    OPT_OUT_LINE,
+  ]
+    .filter((l, i, a) => !(l === "" && a[i - 1] === ""))
+    .join("\n");
+}
+
+function buildReactivationMessage(input: { name: string | null; appUrl: string }): string {
+  return [
+    `${hello(input.name)} Aqui é o *Contay*.`,
+    "",
+    "Mudamos uma coisa: agora você testa *7 dias grátis, sem cartão*. Seu acesso já está liberado.",
+    "",
+    "Para começar, me manda o seu último gasto, pode ser em áudio. Ex.: \"gastei 32 no mercado\".",
+    "",
+    `(Se preferir o app: ${input.appUrl}, com o e-mail e a senha do cadastro.)`,
     "",
     OPT_OUT_LINE,
   ].join("\n");

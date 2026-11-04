@@ -66,7 +66,7 @@ export function LandingEffects({ registerHref = "/registrar" }: { registerHref?:
       <div className="txt">
         <b>Teste o Contay 7 dias grátis</b>
         <br />
-        acesso completo, liberado na hora
+        sem cartão · anual R$ 97 se gostar
       </div>
       <Link className="btn btn-cta" href={registerHref} tabIndex={visible ? 0 : -1}>
         Testar grátis

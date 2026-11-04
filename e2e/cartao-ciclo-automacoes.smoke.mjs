@@ -167,7 +167,7 @@ try {
   await sql`update automation_messages set sent_at = now() - interval '15 days 1 minute', last_attempt_at = now() - interval '15 days 1 minute' where user_id = ${pid} and kind = 'nao_pagou' and step = 0`;
   await processar();
   msgs = zapi.sentTo(p.zphone);
-  check("15 dias depois: 1ª oferta curta, com preço e SAIR", msgs.length === 2 && /29,90/.test(msgs[1].body.message) && /SAIR/.test(msgs[1].body.message), JSON.stringify(msgs.map((m) => m.body.message)));
+  check("15 dias depois: 1ª oferta curta, com preço e SAIR", msgs.length === 2 && /R\$ 97/.test(msgs[1].body.message) && /SAIR/.test(msgs[1].body.message), JSON.stringify(msgs.map((m) => m.body.message)));
 
   // SAIR pelo WhatsApp (o n8n manda optOut: true).
   const out = await whatsapp({ phone: p.zphone, optOut: true });
@@ -186,7 +186,7 @@ try {
   await processar();
   zapi.setFail(false);
   let [row] = await sql`select attempts, sent_at, error from automation_messages where user_id = ${fid} and kind = 'nao_pagou' and step = 0`;
-  check("falha no envio fica registrada (1 tentativa, sem enviado)", row && row.attempts === 1 && row.sent_at === null && /Z-API/.test(row.error ?? ""), JSON.stringify(row));
+  check("falha no envio fica registrada (1 tentativa, sem enviado)", row && row.attempts === 1 && row.sent_at === null && /Z-API|Evolution/.test(row.error ?? ""), JSON.stringify(row));
   await processar();
   check("logo depois da falha não tenta de novo", zapi.sentTo(f.zphone).length === 0);
   await sql`update automation_messages set last_attempt_at = now() - interval '7 hours' where user_id = ${fid}`;
@@ -198,18 +198,19 @@ try {
   const s = await signup("Sara Semuso");
   const sid = await userId(s.email);
   await activateUser(s.email);
-  await sql`update users set approved_at = now() - interval '6 days' where id = ${sid}`;
+  // regra de 13/10/2026: 5 e 10 dias (era 7 e 14)
+  await sql`update users set approved_at = now() - interval '4 days' where id = ${sid}`;
   await processar();
-  check("ativo há 6 dias sem lançamento: ainda nada", zapi.sentTo(s.zphone).length === 0);
-  await sql`update users set approved_at = now() - interval '7 days 1 minute' where id = ${sid}`;
+  check("ativo há 4 dias sem lançamento: ainda nada", zapi.sentTo(s.zphone).length === 0);
+  await sql`update users set approved_at = now() - interval '5 days 1 minute' where id = ${sid}`;
   await processar();
   msgs = zapi.sentTo(s.zphone);
-  check("7 dias sem lançamento: mensagem com exemplos e o manual, sem SAIR", msgs.length === 1 && /ainda não fez nenhum lançamento/.test(msgs[0].body.message) && /\/manual/.test(msgs[0].body.message) && !/SAIR/.test(msgs[0].body.message), JSON.stringify(msgs.map((m) => m.body.message)));
-  await sql`update users set approved_at = now() - interval '14 days 1 minute' where id = ${sid}`;
+  check("5 dias sem lançamento: mensagem com exemplos e o manual, sem SAIR", msgs.length === 1 && /ainda não fez nenhum lançamento/.test(msgs[0].body.message) && /\/manual/.test(msgs[0].body.message) && !/SAIR/.test(msgs[0].body.message), JSON.stringify(msgs.map((m) => m.body.message)));
+  await sql`update users set approved_at = now() - interval '10 days 1 minute' where id = ${sid}`;
   await sql`update automation_messages set sent_at = now() - interval '7 days', last_attempt_at = now() - interval '7 days' where user_id = ${sid}`;
   await processar();
   msgs = zapi.sentTo(s.zphone);
-  check("14 dias: reforço com dicas (cartão com fechamento/vencimento, contas fixas)", msgs.length === 2 && /fechamento/.test(msgs[1].body.message) && /contas fixas/.test(msgs[1].body.message), JSON.stringify(msgs.map((m) => m.body.message)));
+  check("10 dias: reforço com dicas (cartão com fechamento/vencimento, contas fixas)", msgs.length === 2 && /fechamento/.test(msgs[1].body.message) && /contas fixas/.test(msgs[1].body.message), JSON.stringify(msgs.map((m) => m.body.message)));
 
   // Quem já lançou não recebe.
   const u = await signup("Ursula Usou");

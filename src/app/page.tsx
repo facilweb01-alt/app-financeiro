@@ -9,12 +9,12 @@ import { registerHrefWithSource } from "@/lib/business/signupSource";
 export const metadata: Metadata = {
   title: "Contay — controle financeiro pelo WhatsApp",
   description:
-    "O salário some e você não sabe onde gastou? Mande seus gastos pelo WhatsApp e o Contay organiza tudo: cartões e parcelas, contas fixas, investimentos, gráficos e fechamento do mês. Teste grátis por 7 dias.",
+    "Controle seus gastos e as parcelas do cartão mandando um áudio, texto ou foto do cupom no WhatsApp. Teste 7 dias grátis, sem cartão. Plano anual de R$ 97.",
   alternates: { canonical: "/" },
   openGraph: {
     title: "Contay — saiba para onde vai cada real",
     description:
-      "Controle financeiro pessoal com lançamento pelo WhatsApp: cartões, parcelas, contas fixas e quanto ainda sobra no mês. Teste grátis por 7 dias, sem fidelidade.",
+      "Gastos e parcelas do cartão pelo WhatsApp, por áudio, texto ou foto. Teste 7 dias grátis, sem cartão.",
     images: [{ url: "/icons/icon-512.png", width: 512, height: 512 }],
     locale: "pt_BR",
     type: "website",

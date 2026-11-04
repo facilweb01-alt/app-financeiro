@@ -113,6 +113,15 @@ export const users = pgTable("users", {
     // sem Pix e sem acesso até o cartão ser cadastrado no Checkout do Asaas.
     // Contas antigas ficam false (regra antiga, Pix aceito).
     cardRequired: boolean("card_required").notNull().default(false),
+    // Estratégia de conversão (04/11/2026, migração 0020): 1º registro feito,
+    // consentimento dos cookies da Meta no cadastro (com os identificadores dos
+    // cookies dela) e reativação com novo teste grátis.
+    firstEntryAt: timestamp("first_entry_at", { withTimezone: true }),
+    adsConsentAt: timestamp("ads_consent_at", { withTimezone: true }),
+    metaFbp: text("meta_fbp"),
+    metaFbc: text("meta_fbc"),
+    metaUa: text("meta_ua"),
+    reactivatedAt: timestamp("reactivated_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

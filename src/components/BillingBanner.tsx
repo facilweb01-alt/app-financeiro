@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { computeBillingState, planInfo, TRIAL_DAYS, todayInSaoPaulo } from "@/lib/billing/core";
+import { computeBillingState, planInfo, PLAN_PRICE_YEARLY_PROMO, TRIAL_DAYS, todayInSaoPaulo, yearlyPromoActive, yearlyPromoEndDate } from "@/lib/billing/core";
 import { formatBRL, formatDateBR } from "@/lib/format";
 
 // Aviso de mensalidade no topo do app (só para contas com cobrança
@@ -53,7 +53,9 @@ export function BillingBanner({
           <div className="mt-0.5 text-navy-300">
             {card
               ? `Cartão cadastrado: a 1ª ${plan.chargeName} de ${formatBRL(plan.price)} será cobrada em ${formatDateBR(trialEndsAt)} e o app continua liberado.`
-              : `Para continuar depois disso, assine por ${formatBRL(plan.price)} ${plan.per}, no cartão ou no Pix${plan.plan === "MONTHLY" ? ", sem fidelidade" : ""}. Assinando antes você não perde nenhum dia do teste.`}
+              : yearlyPromoActive({ status, trialEndsAt, today: todayInSaoPaulo(), canceledAt })
+                ? `🎁 Oferta de fim de teste: plano anual por ${formatBRL(PLAN_PRICE_YEARLY_PROMO)} no 1º ano, até ${formatDateBR(yearlyPromoEndDate(trialEndsAt))}, em até 12x no cartão ou no Pix. Assinando antes você não perde nenhum dia do teste.`
+                : `Para continuar depois disso, assine por ${formatBRL(plan.price)} ${plan.per}, no cartão ou no Pix${plan.plan === "MONTHLY" ? ", sem fidelidade" : " (em até 12x no cartão)"}. Assinando antes você não perde nenhum dia do teste.`}
           </div>
         </div>
         {!card && (

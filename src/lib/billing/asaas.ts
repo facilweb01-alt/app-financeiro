@@ -135,6 +135,15 @@ export function createSubscription(input: {
   });
 }
 
+/**
+ * Muda o valor das PRÓXIMAS cobranças de uma assinatura (ex.: o 1º ano do
+ * anual saiu com a oferta de fim de teste e a renovação volta ao preço cheio).
+ * As cobranças já geradas não mudam (updatePendingPayments: false).
+ */
+export function updateSubscriptionValue(subscriptionId: string, value: number): Promise<AsaasSubscription> {
+  return request("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}`, { value, updatePendingPayments: false });
+}
+
 export async function listSubscriptionPayments(subscriptionId: string): Promise<AsaasPayment[]> {
   const res = await request<{ data: AsaasPayment[] }>(
     "GET",

@@ -2,7 +2,7 @@
 
 import bcrypt from "bcryptjs";
 import { eq, inArray } from "drizzle-orm";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { db, withRLS, withServiceMode } from "@/db/client";
@@ -72,6 +72,24 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
   // origem, campanha e anúncio; valor desconhecido ou estranho vira nulo.
   const signupSource = normalizeSignupSource(String(formData.get("source") ?? ""));
 
+  // Aceitou os cookies da Meta na página de vendas (campo escondido do
+  // formulário): guarda só os identificadores dos cookies da própria Meta e o
+  // navegador, para o servidor avisar a Meta do 1º registro e da assinatura
+  // (src/lib/metaCapi.ts). Sem aceite, nada disso é gravado.
+  const metaCookie = (v: FormDataEntryValue | null) => {
+    const t = String(v ?? "").trim();
+    return /^fb\.\d\.\d{6,}\.[A-Za-z0-9_.-]{1,300}$/.test(t) ? t.slice(0, 400) : null;
+  };
+  const adsConsent = formData.get("adsConsent") === "1";
+  const adsFields = adsConsent
+    ? {
+        adsConsentAt: new Date(),
+        metaFbp: metaCookie(formData.get("fbp")),
+        metaFbc: metaCookie(formData.get("fbc")),
+        metaUa: ((await headers()).get("user-agent") ?? "").slice(0, 400) || null,
+      }
+    : {};
+
   // Aceite dos termos gravado no mesmo insert (data/hora + versão do texto
   // aceito, não só um booleano) — ver src/lib/terms.ts.
   const [created] = await withServiceMode(() =>
@@ -87,6 +105,10 @@ export async function signup(_prevState: AuthFormState, formData: FormData): Pro
                                                           signupSource,
                                                           trialEndsAt,
                                                           cardRequired,
+                                                          // Teste sem cartão (04/11/2026): o plano sugerido é o anual
+                                                          // (R$ 97); a pessoa troca para o mensal na tela de assinatura.
+                                                          ...(trialEndsAt ? { billingPlan: "YEARLY" } : {}),
+                                                          ...adsFields,
                                                           // Pede as boas-vindas pelo WhatsApp (manual + aviso de que o
                                                           // teste está liberado); quem envia é processPendingWelcomes.
                                                           ...(trialEndsAt ? { welcomeRequestedAt: new Date() } : {}),

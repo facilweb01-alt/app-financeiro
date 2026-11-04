@@ -127,22 +127,11 @@ try {
   // =========================================================================
   {
     const { ctx, page } = await newVisitor();
-    await page.goto(`${BASE}/`);
-    const landing = await page.textContent("body");
-    check("página de vendas não fala em Pix", !/\bpix\b/i.test(landing), (landing.match(/.{0,60}\bpix\b.{0,60}/i) || [""])[0]);
-    check("página de vendas explica que o teste pede cartão e que nada é cobrado nos 7 dias", landing.includes("Cadastre o cartão e use 7 dias grátis") && landing.includes("Nada é cobrado agora") && landing.includes("Peça o cancelamento pelo WhatsApp antes do último dia do teste"));
-    check("página de vendas: anual com 10% de desconto (R$ 322,92)", landing.includes("10% de desconto") && landing.includes("322,92") && !landing.includes("15% de desconto") && !landing.includes("304,98"));
-    check("página de vendas não fala mais em \"sem cartão\"", !/sem cart[aã]o|informa cart[aã]o|pedimos cart[aã]o/i.test(landing));
+    // (desde 04/11/2026 a página de vendas, os Termos e o manual falam do teste SEM cartão —
+    // conferidos em teste-gratis; com CADASTRO_EXIGE_CARTAO=1 só o cadastro muda o texto)
     await page.goto(`${BASE}/registrar`);
     const reg = await page.textContent("body");
     check("cadastro avisa que o próximo passo é o cartão e que nada é cobrado agora", reg.includes("cadastre seu cartão de crédito para liberar o teste") && reg.includes("não paga nada agora") && reg.includes("cancele antes do fim do teste e não paga nada"));
-    await page.goto(`${BASE}/termos`);
-    const termos = await page.textContent("body");
-    check("termos: teste só com cartão, 1ª cobrança automática no fim, cancelamento antes pelo suporte", termos.includes("é preciso cadastrar um cartão de crédito") && termos.includes("cobrada automaticamente no cartão, sem novo aviso") && termos.includes("peça o cancelamento ao suporte pelo WhatsApp antes do último dia do teste"));
-    check("termos: Pix só para contas criadas antes de 20/10/2026; anual a R$ 322,92", termos.includes("O Pix continua disponível apenas para as contas criadas antes de 20/10/2026") && termos.includes("R$ 322,92"));
-    await page.goto(`${BASE}/manual`);
-    const manual = await page.textContent("body");
-    check("manual: teste pede cartão; cancelar antes do último dia; anual 10% pelo suporte", manual.includes("Para liberar o teste é preciso cadastrar um cartão de crédito") && manual.includes("antes do último dia do teste") && manual.includes("R$ 322,92"));
     await ctx.close();
   }
 
@@ -185,7 +174,7 @@ try {
     u = await userOf(a.email);
     check("CPF inválido: erro na mesma tela, nada criado no Asaas, CEP e número mantidos", (await page.textContent("body")).includes("CPF inválido") && u.asaas_customer_id === null && (await page.inputValue("#card-cep")) === "58310000" && (await page.inputValue("#card-number")) === "12");
     const txt = await page.locator('[data-testid="cartao-obrigatorio-texto"]').innerText();
-    check("texto do cartão: nada hoje, teste até hoje + 7, depois R$ 29,90 por mês, cancelar pelo suporte", txt.includes("Nada é cobrado hoje") && txt.includes(br(trialEnd)) && /R\$\s29,90/.test(txt) && txt.includes("cancelar antes"), txt);
+    check("texto do cartão: nada hoje, teste até hoje + 7, depois R$ 19,90 por mês, cancelar pelo suporte", txt.includes("Nada é cobrado hoje") && txt.includes(br(trialEnd)) && /R\$\s19,90/.test(txt) && txt.includes("cancelar antes"), txt);
     check("botão 'Cadastrar cartão e liberar o teste'", (await page.locator('button:has-text("Continuar para os dados do cartão")').count()) === 1 && (await page.textContent("body")).includes("Cadastre seu cartão de crédito"));
 
     // Checkout: mensal, 1ª cobrança no fim do teste
@@ -194,7 +183,7 @@ try {
     u = await userOf(a.email);
     const subs = [...fake.state.subscriptions.values()].filter((s) => s.customer === u.asaas_customer_id && s.billingType === "PIX");
     check("CPF no mesmo envio: gravado, cliente criado no Asaas com o endereço, sem assinatura Pix", Boolean(u.cpf) && Boolean(u.asaas_customer_id) && subs.length === 0, JSON.stringify(subs));
-    check("Checkout do cartão: recorrente mensal de R$ 29,90 com 1ª cobrança no fim do teste", co.subscription.cycle === "MONTHLY" && co.items[0].value === 29.9 && co.subscription.nextDueDate === `${trialEnd} 12:00:00`, JSON.stringify(co.subscription));
+    check("Checkout do cartão: recorrente mensal de R$ 19,90 com 1ª cobrança no fim do teste", co.subscription.cycle === "MONTHLY" && co.items[0].value === 19.9 && co.subscription.nextDueDate === `${trialEnd} 12:00:00`, JSON.stringify(co.subscription));
     check("ao abrir o Checkout o teste passa a contar de hoje", isoDate(u.trial_ends_at) === trialEnd && u.billing_method === "PIX", `${u.trial_ends_at} ${u.billing_method}`);
 
     // Concluiu o Checkout -> volta, cartão adotado, teste liberado
@@ -214,7 +203,7 @@ try {
     const msgs = zapi.sentTo(a.zphone);
     const wtxt = msgs[0]?.body.message ?? "";
     check("boas-vindas pelo WhatsApp saem só agora: texto + manual", u.welcome_sent_at !== null && msgs.length === 2 && msgs[1].kind === "send-document/pdf", JSON.stringify(msgs.map((m) => m.kind)) + " " + u.welcome_error);
-    check("boas-vindas: data da 1ª cobrança no cartão e como cancelar", wtxt.includes(`no dia ${ddmm(trialEnd)} começa a assinatura mensal de R$ 29,90`) && wtxt.includes("Para cancelar antes, é só falar aqui") && !/\bpix\b|sem cart/i.test(wtxt), wtxt);
+    check("boas-vindas: data da 1ª cobrança no cartão e como cancelar", wtxt.includes(`no fim do teste (${ddmm(trialEnd)}) começa a assinatura`) && wtxt.includes("Para cancelar antes, é só falar aqui") && !/\bpix\b|sem cart/i.test(wtxt), wtxt);
 
     // app e WhatsApp liberados
     await page.click('[data-testid="bem-vindo-app"]');

@@ -17,15 +17,27 @@
 
 import { addMonthsClamped } from "@/lib/business/dates";
 
-export const PLAN_PRICE = 29.9;
+// Preços (04/11/2026, estratégia de conversão aprovada pelo Marcelo): o
+// mercado de controle de gastos pelo WhatsApp cobra R$ 67–120 por ano. O
+// plano principal passa a ser o anual de R$ 97 (12x no cartão ou Pix à
+// vista); o mensal fica como alternativa. Antes: R$ 29,90/mês e anual com 10%.
+export const PLAN_PRICE = 19.9;
 export const PLAN_NAME = "Contay — plano mensal";
 
-// Plano anual (pedido do Marcelo em 11/10/2026): 12 mensalidades com 15% de
-// desconto, cobradas de uma vez, uma vez por ano. Os valores saem sempre de
-// planInfo() para a tela, a cobrança e os textos nunca divergirem.
-export const ANNUAL_DISCOUNT_PERCENT = 10; // era 15% até 20/10/2026 (decisão do Marcelo)
-export const PLAN_PRICE_YEARLY = Math.round(PLAN_PRICE * 12 * (100 - ANNUAL_DISCOUNT_PERCENT)) / 100; // 322,92 (com 15% era 304,98)
+export const PLAN_PRICE_YEARLY = 97;
 export const PLAN_NAME_YEARLY = "Contay — plano anual";
+/** Desconto do anual em relação a 12 mensalidades (só para os textos). */
+export const ANNUAL_DISCOUNT_PERCENT = Math.round((1 - PLAN_PRICE_YEARLY / (PLAN_PRICE * 12)) * 100); // 59
+
+// Oferta de fim de teste (04/11/2026): do 5º dia do teste (faltando 2 dias)
+// até o dia seguinte ao fim do teste, o 1º ano do anual sai por R$ 77. A
+// renovação, um ano depois, volta ao preço cheio.
+export const PLAN_PRICE_YEARLY_PROMO = 77;
+export const PROMO_STARTS_DAYS_BEFORE_TRIAL_END = 2;
+export const PROMO_ENDS_DAYS_AFTER_TRIAL_END = 1;
+
+/** Garantia: devolve 100% se pedir em até N dias depois do 1º pagamento. */
+export const GUARANTEE_DAYS = 7;
 
 export type BillingPlan = "MONTHLY" | "YEARLY";
 
@@ -90,7 +102,8 @@ export function planInfo(plan: string | null | undefined): PlanInfo {
 export function planFromSubscription(sub: { cycle?: string | null; value?: number | null }): BillingPlan {
   if (sub.cycle === "YEARLY") return "YEARLY";
   if (sub.cycle === "MONTHLY") return "MONTHLY";
-  return typeof sub.value === "number" && sub.value > PLAN_PRICE * 6 ? "YEARLY" : "MONTHLY";
+  // mensal: até R$ 29,90 (preço antigo); anual: a partir de R$ 67
+  return typeof sub.value === "number" && sub.value >= 50 ? "YEARLY" : "MONTHLY";
 }
 // Teste grátis (pedido do Marcelo em 11/10/2026): quem se cadastra pela
 // página de vendas usa o app por TRIAL_DAYS dias sem pagar nada e sem
@@ -220,6 +233,34 @@ export function cardRequiredForNewSignups(env: Record<string, string | undefined
 /** Último dia do teste grátis de quem se cadastra em `signupDate` ("YYYY-MM-DD"). */
 export function trialEndDate(signupDate: string): string {
   return addDays(signupDate, TRIAL_DAYS);
+}
+
+/**
+ * A oferta de fim de teste (anual a R$ 77) vale hoje para esta conta?
+ * Só para quem ainda não pagou nada, teve teste grátis e está entre o 5º dia
+ * do teste e o dia seguinte ao fim dele.
+ */
+export function yearlyPromoActive(input: {
+  status: string;
+  trialEndsAt?: string | null;
+  today: string;
+  canceledAt?: Date | string | null;
+}): boolean {
+  if (input.status !== "pending" || !input.trialEndsAt || input.canceledAt) return false;
+  const start = addDays(input.trialEndsAt, -PROMO_STARTS_DAYS_BEFORE_TRIAL_END);
+  const end = addDays(input.trialEndsAt, PROMO_ENDS_DAYS_AFTER_TRIAL_END);
+  return input.today >= start && input.today <= end;
+}
+
+/** Último dia (inclusive) da oferta de fim de teste. */
+export function yearlyPromoEndDate(trialEndsAt: string): string {
+  return addDays(trialEndsAt, PROMO_ENDS_DAYS_AFTER_TRIAL_END);
+}
+
+/** Valor da 1ª cobrança do plano: no anual com a oferta valendo, R$ 77. */
+export function firstChargePrice(plan: string | null | undefined, promo: boolean): number {
+  const info = planInfo(plan);
+  return info.plan === "YEARLY" && promo ? PLAN_PRICE_YEARLY_PROMO : info.price;
 }
 
 /**

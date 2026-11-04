@@ -7,6 +7,11 @@ import { logout } from "@/app/actions/auth";
 import { getBillingOverview } from "@/lib/billing/service";
 import {
   ANNUAL_DISCOUNT_PERCENT,
+  firstChargePrice,
+  GUARANTEE_DAYS,
+  PLAN_PRICE_YEARLY_PROMO,
+  yearlyPromoActive,
+  yearlyPromoEndDate,
   cardFirstDueDate,
   computeBillingState,
   isRenewalWindow,
@@ -118,6 +123,11 @@ export default async function AssinaturaPage({
   const cardFirstDue = cardFirstDueDate({ status: user.status, subscriptionDueDate: user.subscriptionDueDate, today, trialEndsAt: user.trialEndsAt });
   // Fim do teste de quem cadastrar o cartão hoje (o teste começa no cadastro do cartão).
   const trialEndIfCardToday = trialEndDate(today);
+  // Oferta de fim de teste (04/11/2026): 1º ano do anual por R$ 77.
+  const promo = !cardOnly && yearlyPromoActive({ status: user.status, trialEndsAt: user.trialEndsAt, today, canceledAt: user.billingCanceledAt });
+  const promoEnd = promo && user.trialEndsAt ? yearlyPromoEndDate(user.trialEndsAt) : null;
+  // Valor da cobrança que a pessoa vai pagar agora (no anual com a oferta, R$ 77).
+  const chargePrice = user.status === "pending" ? firstChargePrice(plan.plan, promo) : plan.price;
 
   // Cartão obrigatório: voltou do Checkout e o cartão já foi adotado -> tela
   // de boas-vindas do teste (onde a medição conta o cadastro concluído).
@@ -135,7 +145,7 @@ export default async function AssinaturaPage({
   // vendas): cadastro concluído e 1ª assinatura paga. Sem dado da pessoa.
   const pixelId = metaPixelId();
   const receiver = pixReceiver();
-  const purchase = { value: plan.price, currency: "BRL" };
+  const purchase = { value: chargePrice, currency: "BRL" };
   const firstPayment = history.filter((h) => isPaidStatus(h.status)).length <= 1;
   // Cartão obrigatório: o cadastro só "conclui" com o cartão (conta na tela de
   // boas-vindas); aqui o formulário preenchido conta como "Lead".
@@ -170,7 +180,7 @@ export default async function AssinaturaPage({
     title = `Seu teste grátis vai até ${formatDateBR(trialEnd)}`;
     subtitle = card
       ? `Cartão cadastrado: a 1ª ${plan.chargeName} de ${formatBRL(plan.price)} será cobrada em ${formatDateBR(trialEnd)} e o app continua liberado, sem interrupção.`
-      : `Para continuar depois do teste, assine por ${formatBRL(plan.price)} ${plan.per}${yearlyPurchase ? ` (em até ${MAX_INSTALLMENTS}x no cartão)` : ""}. Assinando agora você não perde nenhum dia: a ${plan.chargeName} só começa a contar em ${formatDateBR(trialEnd)}.`;
+      : `Para continuar depois do teste, assine por ${formatBRL(chargePrice)} ${plan.per}${yearlyPurchase ? ` (em até ${MAX_INSTALLMENTS}x no cartão ou Pix)` : ""}. Assinando agora você não perde nenhum dia: a ${plan.chargeName} só começa a contar em ${formatDateBR(trialEnd)}.`;
   } else if (trialEnded) {
     title = "Seu teste grátis terminou";
     subtitle = card
@@ -236,7 +246,12 @@ export default async function AssinaturaPage({
               <div className="font-semibold text-navy-50">Contay — {plan.plan === "YEARLY" ? "anual" : "mensal"}</div>
             </div>
             <div className="text-right">
-              <div className="text-2xl font-extrabold text-navy-50">{formatBRL(plan.price)}</div>
+              <div className="text-2xl font-extrabold text-navy-50">
+                {chargePrice < plan.price && (
+                  <span className="mr-1.5 text-sm font-medium text-navy-400 line-through">{formatBRL(plan.price)}</span>
+                )}
+                {formatBRL(chargePrice)}
+              </div>
               <div className="text-xs text-navy-400">
                 {plan.per} ·{" "}
                 {cardOnly
@@ -295,19 +310,27 @@ export default async function AssinaturaPage({
           </div>
         )}
 
+        {promo && promoEnd && (
+          <div className="rounded-2xl border border-amber-300/40 bg-amber-400/10 p-4 text-sm text-amber-100" data-testid="oferta-fim-teste">
+            <b>🎁 Oferta de fim de teste:</b> o 1º ano do plano anual sai por <b>{formatBRL(PLAN_PRICE_YEARLY_PROMO)}</b> (em vez de{" "}
+            {formatBRL(yearly.price)}), em até {MAX_INSTALLMENTS}x no cartão ou no Pix. Vale até {formatDateBR(promoEnd)}.
+            {plan.plan !== "YEARLY" ? " Para aproveitar, escolha o plano anual abaixo." : ""}
+          </div>
+        )}
+
         {/* Escolha do plano: só para quem ainda não pagou e ainda não cadastrou cartão. */}
         {configured && user.status === "pending" && !canceled && !card && !cardOnly && (
           <PlanChooser
             current={plan.plan}
             monthlyLabel={`${formatBRL(monthly.price)} por mês`}
-            yearlyLabel={`${formatBRL(yearly.price)} por ano`}
-            yearlyDetail={`${ANNUAL_DISCOUNT_PERCENT}% de desconto: sai por ${formatBRL(yearly.monthlyEquivalent)} por mês e você economiza ${formatBRL(yearly.yearlySavings)} no ano. No cartão, em até ${MAX_INSTALLMENTS}x.`}
+            yearlyLabel={promo ? `${formatBRL(PLAN_PRICE_YEARLY_PROMO)} no 1º ano` : `${formatBRL(yearly.price)} por ano`}
+            yearlyDetail={`${ANNUAL_DISCOUNT_PERCENT}% mais barato que o mensal: sai por ${formatBRL(promo ? Math.round((PLAN_PRICE_YEARLY_PROMO / 12) * 100) / 100 : yearly.monthlyEquivalent)} por mês. No cartão em até ${MAX_INSTALLMENTS}x, ou no Pix.`}
           />
         )}
 
         {user.status === "active" && !canceled && plan.plan === "MONTHLY" && (
           <p className="-mt-2 text-center text-xs text-navy-400" data-testid="oferta-anual">
-            Plano anual com {ANNUAL_DISCOUNT_PERCENT}% de desconto ({formatBRL(yearly.price)} por ano): para trocar, fale com o suporte
+            Plano anual por {formatBRL(yearly.price)} por ano ({ANNUAL_DISCOUNT_PERCENT}% mais barato): para trocar, fale com o suporte
             pelo WhatsApp.
           </p>
         )}
@@ -579,6 +602,12 @@ export default async function AssinaturaPage({
               ))}
             </ul>
           </div>
+        )}
+
+        {user.status === "pending" && !canceled && (
+          <p className="text-center text-xs text-navy-400" data-testid="assinatura-garantia">
+            🛡️ Garantia de {GUARANTEE_DAYS} dias: se não gostar, peça pelo WhatsApp em até {GUARANTEE_DAYS} dias depois de pagar e devolvemos 100%.
+          </p>
         )}
 
         <p className="text-center text-xs text-navy-500" data-testid="assinatura-support">

@@ -100,7 +100,7 @@ try {
   check("página de vendas conta visita e conteúdo visto", JSON.stringify(names(ev)) === JSON.stringify(["PageView", "ViewContent"]), JSON.stringify(names(ev)));
 
   // 5. Clica no botão da página -> cadastro conta nova visita (sem duplicar).
-  await page.click('main a:has-text("Testar grátis por 7 dias")');
+  await page.click('[data-testid="hero-cta"]');
   await page.waitForURL(`${BASE}/registrar`, { timeout: 10000 });
   await page.waitForFunction(() => (window.__px || []).filter((e) => e[1] === "PageView").length === 2, null, { timeout: 10000 });
   check("cadastro conta 1 visita e não mostra o aviso de novo", (await page.$('[data-testid="cookie-banner"]')) === null);
@@ -141,7 +141,7 @@ try {
   await page.waitForFunction(() => (window.__px || []).some((e) => e[1] === "Purchase"), null, { timeout: 20000 });
   ev = await events(page);
   const purchase = ev.filter((e) => e[1] === "Purchase");
-  check("assinatura paga contada 1 vez, R$ 29,90 em BRL", purchase.length === 1 && purchase[0][2].value === 29.9 && purchase[0][2].currency === "BRL", JSON.stringify(purchase));
+  check("assinatura paga contada 1 vez, R$ 97 (anual sugerido) em BRL", purchase.length === 1 && purchase[0][2].value === 97 && purchase[0][2].currency === "BRL", JSON.stringify(purchase));
 
   // 8. Dentro do app: a página recarrega sozinha e fica SEM o script da Meta.
   await page.waitForURL(`${BASE}/dashboard`, { timeout: 15000 });

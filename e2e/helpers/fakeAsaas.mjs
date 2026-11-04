@@ -239,6 +239,13 @@ export async function startFakeAsaas(port = 3998, apiKey = "$aact_hmlg_teste") {
       return send(200, sub);
     }
     let m = path.match(/^\/v3\/subscriptions\/([^/]+)$/);
+    if (req.method === "POST" && m) {
+      // atualizar assinatura (valor das próximas cobranças, 04/11/2026)
+      const sub = state.subscriptions.get(m[1]);
+      if (!sub || sub.deleted) return send(404, { errors: [{ description: "not found" }] });
+      if (typeof json.value === "number") sub.value = json.value;
+      return send(200, sub);
+    }
     if (req.method === "DELETE" && m) {
       const sub = state.subscriptions.get(m[1]);
       if (!sub) return send(404, { errors: [{ description: "not found" }] });
