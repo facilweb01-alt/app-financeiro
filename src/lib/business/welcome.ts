@@ -37,6 +37,26 @@ export function buildWelcomeMessage(input: {
   cardOnFile?: boolean;
 }): string {
   const who = firstName(input.name);
+  // Teste grátis (04/11/2026, estratégia de conversão): a 1ª mensagem pede o
+  // 1º gasto NA HORA — é ele que faz o teste valer a pena.
+  if (input.trialEndsAt && !input.cardOnFile) {
+    return [
+      `Olá${who ? `, ${who}` : ""}! 👋 Seja bem-vindo(a) ao *Contay*.`,
+      "",
+      `🎁 Seu *teste grátis de 7 dias está liberado* até ${shortDateBR(input.trialEndsAt)}, sem cartão e sem pagar nada.`,
+      "",
+      "👉 *Vamos começar agora?* Me manda o último gasto que você fez. Pode ser:",
+      '🎙️ um áudio: "gastei 25 no almoço"',
+      '✍️ escrito: "uber 18,50"',
+      "📸 a foto do cupom",
+      "",
+      "Eu lanço na categoria certa e o app já mostra para onde está indo o seu dinheiro no mês.",
+      "",
+      `📌 Salve este contato como *Contay* (${input.botNumber}). 📘 O manual vai em PDF logo abaixo e fica em ${input.appUrl}/manual`,
+      "",
+      "❓ Ficou com dúvida? Pergunte aqui mesmo, a qualquer hora.",
+    ].join("\n");
+  }
   const released = input.trialEndsAt
     ? `🎁 Seu *teste grátis de 7 dias está liberado*: use tudo à vontade até ${shortDateBR(input.trialEndsAt)}, sem pagar nada. É por este número que você lança seus gastos e tira suas dúvidas.`
     : "Sua conta está liberada. É por este número que você lança seus gastos e tira suas dúvidas.";
@@ -47,7 +67,7 @@ export function buildWelcomeMessage(input: {
     "",
     `📌 *Salve este contato* na sua agenda como *Contay*, número ${input.botNumber}. Assim você acha a conversa rápido e as suas mensagens chegam certinho.`,
     "",
-    "💬 *Para lançar um gasto*, é só escrever do seu jeito:",
+    "💬 *Para lançar um gasto*, é só escrever do seu jeito (ou mandar um áudio ou a foto do cupom):",
     "• gastei 45 no mercado",
     "• uber 18,50",
     "• 300 no cartão Nubank em 3x",
@@ -60,10 +80,8 @@ export function buildWelcomeMessage(input: {
     ...(input.trialEndsAt && input.cardOnFile
       ? [
           "",
-          `💳 Seu cartão já está cadastrado: no dia ${shortDateBR(input.trialEndsAt)} começa a assinatura mensal de R$ 29,90, cobrada automaticamente no cartão (sem fidelidade). Para cancelar antes, é só falar aqui.`,
+          `💳 Seu cartão já está cadastrado: no fim do teste (${shortDateBR(input.trialEndsAt)}) começa a assinatura, cobrada automaticamente no cartão (sem fidelidade). Para cancelar antes, é só falar aqui.`,
         ]
-      : input.trialEndsAt
-        ? ["", `Um dia antes de o teste terminar eu aviso por aqui e mando o link para continuar (R$ 29,90 por mês, sem fidelidade).`]
-        : []),
+      : []),
   ].join("\n");
 }
