@@ -8,6 +8,7 @@ import { formatBRL } from "@/lib/format";
 import { LandingEffects } from "./LandingEffects";
 import { MediaShowcase } from "./MediaShowcase";
 import { ChatDemo } from "./ChatDemo";
+import { ReelsShowcase } from "./ReelsShowcase";
 import { CookiePrefsLink } from "@/components/tracking/MetaPixel";
 import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 
@@ -20,9 +21,16 @@ import { WHATSAPP_BOT_DISPLAY, whatsappSupportLink } from "@/lib/whatsappBot";
 // diferenciais, a comparação e as dúvidas. Sem números de endividamento e
 // sem tom de medo: fala de clareza e praticidade.
 //
-// É um Server Component: o JavaScript no navegador fica em dois pedaços,
-// o LandingEffects (barra fixa do celular e inclinação 3D do celular no
-// computador) e o ChatDemo (demonstração animada do WhatsApp). O visual fica em landing.css, todo dentro de ".lp".
+// Repaginada de 04/11/2026: o topo mostra os celulares 3D com as telas reais
+// (mesma arte dos anúncios, feita com o kit design-3d-redes), logo depois do
+// preço entra a seção com os 3 Reels da campanha (ReelsShowcase) e os
+// diferenciais de cartão e app usam as mesmas artes 3D. Imagens e vídeos
+// ficam em public/landing/.
+//
+// É um Server Component: o JavaScript no navegador fica em poucos pedaços,
+// o LandingEffects (barra fixa do celular e inclinação 3D do topo no
+// computador), o ChatDemo (demonstração animada do WhatsApp), o MediaShowcase
+// e o ReelsShowcase. O visual fica em landing.css, todo dentro de ".lp".
 
 const PRICE = formatBRL(PLAN_PRICE);
 const YEARLY = planInfo("YEARLY");
@@ -60,6 +68,7 @@ export function LandingPage({
         <div className="wrap">
           <a className="logo" href="#topo" aria-label="Contay, início"><LogoSymbol size={34} /><span>Con<b>tay</b></span></a>
           <nav>
+            <a className="link hide-sm" href="#video">Veja funcionando</a>
             <a className="link hide-sm" href="#diferenciais">Diferenciais</a>
             <a className="link hide-sm" href="#como-funciona">Como funciona</a>
             <a className="link hide-sm" href="#duvidas">Dúvidas</a>
@@ -77,6 +86,7 @@ export function LandingPage({
           <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
             <div>
               <span className="pain-tag ok"><i></i>Controle de gastos pelo WhatsApp e no app</span>
+              <div className="ways" aria-label="Três jeitos de lançar"><span>✍️ Escreva</span><span>🎙️ Fale</span><span>📸 Fotografe</span></div>
               <h1>Controle seus gastos e as parcelas do cartão <span className="grad">mandando um áudio no WhatsApp</span></h1>
               <p className="lead"><strong>Fale, escreva ou mande a foto do cupom:</strong> o Contay lança na categoria certa e mostra no app quanto do mês e das <strong>próximas faturas</strong> já está comprometido. Sem planilha e sem senha do banco.</p>
               <div className="ctas">
@@ -91,22 +101,9 @@ export function LandingPage({
             </div>
 
             <div className="scene" id="scene">
-              <div className="stage" id="stage">
-                <div className="phone">
-                  <div className="notch"></div>
-                  <div className="chat-head">
-                    <LogoSymbol size={30} />
-                    <div><div className="n">Contay</div><div className="s">online</div></div>
-                  </div>
-                  <div className="chat">
-                    <div className="b me">gastei 85 no mercado<small>12:41</small></div>
-                    <div className="b bot">✅ <strong>Lançamento registrado!</strong><br />Mercado · R$ 85,00<br />Categoria: Compra de alimentos<small>12:41</small></div>
-                    <div className="b me">400 no cartão azul em 4x<small>18:03</small></div>
-                    <div className="b bot">💳 <strong>Compra no cartão registrada!</strong><br />Cartão Azul · 4x de R$ 100,00<br />1ª parcela na fatura de outubro<small>18:03</small></div>
-                    <div className="b me">farmácia 42,90<small>20:15</small></div>
-                    <div className="b bot">✅ <strong>Lançamento registrado!</strong><br />Farmácia · R$ 42,90 · Saúde<small>20:15</small></div>
-                  </div>
-                </div>
+              <div className="stage stage3d" id="stage">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="hero3d" src="/landing/hero-3d.webp" width={1200} height={1074} fetchPriority="high" alt="Três celulares com o Contay: no centro o WhatsApp registrando gastos falados em áudio, à esquerda o painel do mês e à direita as parcelas do cartão em cada fatura" data-testid="hero-3d" />
                 <div className="chip c1"><span className="dot" style={{ background: "rgba(16,185,129,.18)" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg></span><span><span className="k">Sobra do mês</span><span className="v">R$ 612,40</span></span></div>
                 <div className="chip c2"><span className="dot" style={{ background: "rgba(167,139,250,.18)" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.2" strokeLinecap="round"><rect x="2.5" y="5" width="19" height="14" rx="3"/><path d="M2.5 10h19"/></svg></span><span><span className="k">Parcelas em novembro</span><span className="v">R$ 520,00</span></span></div>
                 <div className="chip c3"><span className="dot" style={{ background: "rgba(251,191,36,.16)" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.2" strokeLinecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span><span className="k">Internet vence em 3 dias</span><span className="v">R$ 99,90</span></span></div>
@@ -126,6 +123,22 @@ export function LandingPage({
         </section>
 
   
+        <section className="sec reels-sec" id="video" aria-labelledby="video-titulo">
+          <div className="glow" style={{ width: "520px", height: "520px", left: "50%", top: "80px", marginLeft: "-260px", background: "#2563eb" }}></div>
+          <div className="wrap" style={{ position: "relative", zIndex: 1 }}>
+            <div className="sec-head center">
+              <span className="eyebrow">Veja funcionando</span>
+              <h2 id="video-titulo">15 segundos para entender <span className="grad">o Contay inteiro</span></h2>
+              <p>Gravamos as telas reais do app e do WhatsApp. Toque no vídeo para ouvir.</p>
+            </div>
+            <ReelsShowcase />
+            <div className="reels-cta">
+              <Link className="btn btn-cta" href={registerHref} data-testid="reels-cta">Quero testar {TRIAL_DAYS} dias grátis <span aria-hidden="true">→</span></Link>
+              <span className="fine">Sem cartão · anual {PRICE_YEARLY_SHORT} se gostar · garantia de {GUARANTEE_DAYS} dias</span>
+            </div>
+          </div>
+        </section>
+
         <section className="sec media3d" id="audio-foto" style={{ paddingTop: "56px" }}>
           <div className="glow" style={{ width: "460px", height: "460px", right: "-160px", top: "40px", background: "#10b981" }}></div>
           <div className="glow" style={{ width: "380px", height: "380px", left: "-140px", top: "220px", background: "#2563eb" }}></div>
@@ -204,20 +217,10 @@ export function LandingPage({
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>No fechamento do mês, as parcelas restantes seguem para frente sozinhas</li>
                   </ul>
                 </div>
-                <div className="cardscene">
-                  <div className="ccard" aria-hidden="true">
-                    <div className="chipi"></div>
-                    <span className="inst">parcela 2 de 4</span>
-                    <div className="dig">•••• •••• •••• 4821</div>
-                    <div className="nm">Cartão Azul</div>
-                  </div>
-                  <div className="months" aria-label="Parcelas previstas nos próximos meses (exemplo)">
-                    <div className="mrow"><span className="m">out/26</span><span className="bar"><i style={{ width: "100%" }}></i></span><span className="val">R$ 640,00</span></div>
-                    <div className="mrow"><span className="m">nov/26</span><span className="bar"><i style={{ width: "81%" }}></i></span><span className="val">R$ 520,00</span></div>
-                    <div className="mrow"><span className="m">dez/26</span><span className="bar"><i style={{ width: "59%" }}></i></span><span className="val">R$ 380,00</span></div>
-                    <div className="mrow"><span className="m">jan/27</span><span className="bar"><i style={{ width: "23%" }}></i></span><span className="val">R$ 150,00</span></div>
-                    <span className="cap">Exemplo: parcelas que já estão contratadas, mês a mês.</span>
-                  </div>
+                <div className="scene3d">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/landing/cartao-3d.webp" width={640} height={742} loading="lazy" alt="Dois celulares: no WhatsApp a compra de 400 em 4x no cartão registrada, e no app o gráfico das parcelas a vencer nos próximos meses" />
+                  <div className="cap">Telas reais do app, com dados de exemplo.</div>
                 </div>
               </article>
 
@@ -265,17 +268,9 @@ export function LandingPage({
                     <li><svg width="18" height="18"><use href="#lp-ck"/></svg>A mesma conta no celular e no computador</li>
                   </ul>
                 </div>
-                <div className="appscene">
-                  <div className="appshots">
-                    <div className="appphone back">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/landing/app-categorias.webp" width={390} height={800} loading="lazy" alt="Tela do app Contay no celular com o gráfico de gastos por categoria" />
-                    </div>
-                    <div className="appphone">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src="/landing/app-painel.webp" width={390} height={800} loading="lazy" alt="Tela inicial do app Contay no celular: total comprometido no mês, porcentagem da renda e menu com Painel, Lançamentos, Cartões, Investimentos, Contas fixas e Fechamento" />
-                    </div>
-                  </div>
+                <div className="scene3d">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/landing/app-3d.webp" width={640} height={709} loading="lazy" alt="Dois celulares: o painel do Contay com o total comprometido no mês e a porcentagem da renda, e o resumo do mês enviado pelo WhatsApp" />
                   <div className="cap">Telas reais do app, com dados de exemplo.</div>
                 </div>
               </article>
