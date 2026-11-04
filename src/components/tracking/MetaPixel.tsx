@@ -29,7 +29,9 @@ export function MetaPixel({ pixelId, events = [] }: { pixelId: string | null; ev
     const list: MetaEventSpec[] = JSON.parse(key);
     // O cookie de "acabou de se cadastrar" é consumido mesmo sem
     // consentimento, para não sobrar e contar um cadastro velho depois.
-    const flags = new Map(list.filter((e) => e.cookieFlag).map((e) => [e.cookieFlag!, takeCookieFlag(e.cookieFlag!)]));
+    // (cada cookie é lido uma vez só, mesmo que vários eventos dependam dele)
+    const flagNames = [...new Set(list.map((e) => e.cookieFlag).filter((f): f is string => Boolean(f)))];
+    const flags = new Map(flagNames.map((f) => [f, takeCookieFlag(f)]));
     let sent = false;
     const send = () => {
       if (sent || readConsent() !== "aceito") return;
