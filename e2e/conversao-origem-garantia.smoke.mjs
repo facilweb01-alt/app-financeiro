@@ -98,12 +98,12 @@ try {
     })());
 
     await page.click('[data-testid="cookie-banner"] button:has-text("Aceitar")');
-    await page.click('main a:has-text("Testar grátis por 7 dias")');
+    await page.click('[data-testid="hero-cta"]');
     await page.waitForURL(`${BASE}/registrar?${STORED}`, { timeout: 10000 });
     await page.waitForFunction(() => document.querySelector('input[name="source"]')?.value.includes("utm_source=meta"), null, { timeout: 10000 });
     const reg = await page.textContent("body");
-    check("cadastro: diz que não paga nada agora e não promete só Pix", reg.includes("não paga nada agora") && !reg.includes("aparece o Pix de"));
-    check("cadastro: mostra 7 dias grátis, sem fidelidade e sem senha de banco", (await page.locator('[data-testid="registrar-garantias"] li').count()) === 3 && reg.includes("7 dias grátis"));
+    check("cadastro: diz que é sem cartão e sem pagar nada e não promete só Pix", reg.includes("Sem cartão e sem pagar nada") && !reg.includes("aparece o Pix de"));
+    check("cadastro: mostra 7 dias grátis, planos, garantia e sem senha de banco", (await page.locator('[data-testid="registrar-garantias"] li').count()) === 4 && reg.includes("7 dias grátis") && reg.includes("Garantia de 7 dias"));
 
     const email = `origem.${Date.now()}@example.com`;
     const { phone } = await fillSignup(page, { name: "Cliente Origem", email, password: "SenhaForte123" });
@@ -128,7 +128,7 @@ try {
     await page.click('button:has-text("Código copiado"), button:has-text("Copiar código Pix")');
     await page.waitForTimeout(400);
     const ic = tracked(pxLog, "InitiateCheckout");
-    check("copiar o Pix conta 'começou a pagar' 1 única vez, R$ 29,90 em BRL", ic.length === 1 && ic[0][2].value === 29.9 && ic[0][2].currency === "BRL" && ic[0][2].content_name === "pix", JSON.stringify(ic));
+    check("copiar o Pix conta 'começou a pagar' 1 única vez, R$ 97 (anual sugerido) em BRL", ic.length === 1 && ic[0][2].value === 97 && ic[0][2].currency === "BRL" && ic[0][2].content_name === "pix", JSON.stringify(ic));
     const all = JSON.stringify(pxLog);
     check("nenhum evento leva e-mail, CPF, WhatsApp, nome ou a origem", !all.includes(email) && !all.includes(cpf) && !all.includes(phone) && !all.includes("Cliente Origem") && !all.includes("utm_"));
     check("nenhuma chamada direta à Meta além do script falso", net.other === 0, `${net.other}`);
@@ -161,7 +161,7 @@ try {
     const { ctx, page, pxLog } = await newVisitor();
     await page.goto(`${BASE}/?utm_source=meta&utm_content=IMG01`);
     await page.click('[data-testid="cookie-banner"] button:has-text("Aceitar")');
-    await page.click('main a:has-text("Testar grátis por 7 dias")');
+    await page.click('[data-testid="hero-cta"]');
     await page.waitForURL(/\/registrar\?utm_source=meta&utm_content=IMG01$/, { timeout: 10000 });
     await page.waitForFunction(() => document.querySelector('input[name="source"]')?.value === "utm_source=meta&utm_content=IMG01", null, { timeout: 10000 });
     const email = `cartao.${Date.now()}@example.com`;
@@ -172,7 +172,7 @@ try {
     await page.click('button:has-text("Continuar para os dados do cartão")');
     await page.waitForURL(/__checkout\/checkoutSession\/show/, { timeout: 15000 });
     const ic = tracked(pxLog, "InitiateCheckout");
-    check("seguir para o cartão conta 'começou a pagar' 1 vez, como cartão", ic.length === 1 && ic[0][2].content_name === "cartao" && ic[0][2].value === 29.9, JSON.stringify(ic));
+    check("seguir para o cartão conta 'começou a pagar' 1 vez, como cartão", ic.length === 1 && ic[0][2].content_name === "cartao" && ic[0][2].value === 97, JSON.stringify(ic));
     const [user] = await sql`select signup_source from users where email = ${email}`;
     check("origem parcial gravada como veio", user.signup_source === "utm_source=meta&utm_content=IMG01", user.signup_source);
     await ctx.close();
@@ -208,7 +208,7 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
-    check("Termos na versão 2026-10-20.1", t.includes("Versão: 2026-10-20.1"));
+    check("Termos na versão 2026-11-04.1", t.includes("Versão: 2026-11-04.1"));
     check("Termos explicam a origem do cadastro e o evento de início do pagamento", t.includes("o nome da origem, da campanha e do anúncio") && t.includes("o início do pagamento"));
     await ctx.close();
   }

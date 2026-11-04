@@ -44,6 +44,7 @@ function check(label, cond, extra) {
 const todaySP = (offsetDays = 0) =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(Date.now() + offsetDays * 86_400_000));
 const br = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+const addYear = (iso) => `${Number(iso.slice(0, 4)) + 1}${iso.slice(4)}`;
 const addMonth = (iso) => {
   const [y, m, d] = iso.split("-").map(Number);
   const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
@@ -135,19 +136,18 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/`);
     const landing = await page.textContent("body");
-    check("página de vendas: chamada de teste grátis de 7 dias", landing.includes("Testar grátis por 7 dias") && landing.includes("Cancele quando quiser") && landing.includes("Como funciona o teste grátis de 7 dias?"));
-    check("página de vendas não fala mais em \"sem cartão\" (estratégia de 20/10)", !/sem cart[aã]o|informa cart[aã]o|pedimos cart[aã]o/i.test(landing));
-    check("página de vendas não promete mais garantia de devolução", !/[Gg]arantia de 7 dias/.test(landing));
-    check("página de vendas: passo a passo sem CPF e sem pagamento para começar", landing.includes("Nome, e-mail, WhatsApp e senha") && landing.includes("use 7 dias grátis"));
-    const deps = page.locator('[data-testid="depoimento"]');
-    check("página de vendas mostra os 2 depoimentos", (await deps.count()) === 2);
-    const imgs = await page.$$eval('[data-testid="depoimento"] img', (els) => els.map((e) => ({ src: e.getAttribute("src"), alt: e.getAttribute("alt") })));
-    const imgStatus = await Promise.all(imgs.map((i) => fetch(`${BASE}${i.src}`).then((r) => `${r.status} ${r.headers.get("content-type")}`)));
-    check("as imagens dos depoimentos abrem sem login", imgStatus.every((s) => s.startsWith("200 image/webp")), imgStatus.join(" | "));
-    check("depoimentos têm a mensagem transcrita para leitor de tela e não mostram telefone", imgs.every((i) => i.alt.length > 80) && !/\(?\b\d{2}\)?\s?9\d{4}-?\d{4}/.test(await page.locator("#depoimentos").innerText()));
+    // estratégia de conversão (04/11/2026): promessa do anúncio na 1ª dobra, 1 CTA, preço na 2ª dobra
+    const h1 = await page.locator("h1").innerText();
+    check("página de vendas: topo promete gastos e parcelas do cartão por áudio no WhatsApp", /parcelas do cartão/.test(h1) && /áudio no WhatsApp/.test(h1), h1);
+    check("página de vendas: 1 CTA no topo, teste sem cartão", (await page.locator(".hero .ctas a").count()) === 1 && (await page.locator('[data-testid="hero-cta"]').innerText()).includes("sem cartão"));
+    const strip = (await page.locator('[data-testid="faixa-preco"]').innerText()).replace(/\u00a0/g, " ");
+    check("página de vendas: faixa de preço logo depois do topo (anual R$ 97 em 12x ou Pix, mensal R$ 19,90, garantia)", strip.includes("R$ 97") && strip.includes("12x de R$ 8,08") && strip.includes("Pix") && strip.includes("R$ 19,90") && /garantia/i.test(strip), strip);
+    check("página de vendas sem números de endividamento nem rotativo", !/endividad|rotativo|80,9%/i.test(landing));
+    check("página de vendas: passo a passo sem cartão e com o 1º gasto pelo WhatsApp", landing.includes("Nome, e-mail, WhatsApp e senha") && landing.includes("Mande seu 1º gasto pelo WhatsApp") && landing.includes("Como funciona o teste grátis de 7 dias?"));
+    check("página de vendas sem a seção de depoimentos", (await page.locator('[data-testid="depoimento"]').count()) === 0);
 
     // "Escreva, fale ou fotografe" (carrossel 3D de áudio e foto)
-    check("página de vendas: topo fala de texto, áudio e foto do cupom", landing.includes("por texto, áudio ou foto do cupom"));
+    check("página de vendas: topo fala de áudio e foto do cupom", landing.includes("Fale, escreva ou mande a foto do cupom"));
     const ms = page.locator('[data-testid="media-showcase"]');
     await ms.scrollIntoViewIfNeeded();
     check("seção 'Escreva, fale ou fotografe' aparece com 3 abas e 3 cartões", (await page.locator("#audio-foto h2").innerText()).includes("Escreva, fale ou fotografe") && (await ms.locator('[role="tab"]').count()) === 3 && (await ms.locator(".ms-card").count()) === 3);
@@ -227,8 +227,8 @@ try {
     const msgs = zapi.sentTo(a.zphone);
     check("boas-vindas pelo WhatsApp: 1 texto + o manual em PDF", u.welcome_sent_at !== null && msgs.length === 2 && msgs[0].kind === "send-text" && msgs[1].kind === "send-document/pdf", JSON.stringify(msgs.map((m) => m.kind)) + " " + u.welcome_error);
     const wtxt = msgs[0]?.body.message ?? "";
-    check("boas-vindas avisam que o teste de 7 dias está liberado e até quando", /^Olá, Tania!/.test(wtxt) && /teste grátis de 7 dias está liberado/.test(wtxt) && wtxt.includes(`${trialEnd.slice(8, 10)}/${trialEnd.slice(5, 7)}`) && /Manual do Contay/.test(wtxt), wtxt.slice(0, 300));
-    check("boas-vindas não falam mais em \"sem cartão\"", !/sem cart[aã]o/i.test(wtxt), wtxt.slice(0, 300));
+    check("boas-vindas avisam que o teste de 7 dias está liberado e até quando", /^Olá, Tania!/.test(wtxt) && /teste grátis de 7 dias está liberado/.test(wtxt) && wtxt.includes(`${trialEnd.slice(8, 10)}/${trialEnd.slice(5, 7)}`) && /manual/.test(wtxt), wtxt.slice(0, 300));
+    check("boas-vindas: teste sem cartão e pedido do 1º gasto na hora", /sem cart[aã]o/i.test(wtxt) && /Me manda o último gasto/.test(wtxt), wtxt.slice(0, 300));
 
     // usa o app sem ter pago
     await page.click('[data-testid="bem-vindo-app"]');
@@ -275,9 +275,9 @@ try {
     const u = await userOf(a.email);
     check("CPF gravado só com dígitos; cliente e assinatura criados no Asaas", u.cpf === cpf && Boolean(u.asaas_customer_id && u.asaas_subscription_id));
     const sub = fake.state.subscriptions.get(u.asaas_subscription_id);
-    check("1ª cobrança Pix vence no último dia do teste (não hoje)", sub.nextDueDate === trialEnd && sub.value === 29.9 && sub.billingType === "PIX", sub.nextDueDate);
+    check("1ª cobrança Pix (plano anual sugerido, R$ 97) vence no último dia do teste (não hoje)", sub.nextDueDate === trialEnd && sub.value === 97 && sub.cycle === "YEARLY" && sub.billingType === "PIX", sub.nextDueDate);
     t = await page.textContent("body");
-    check("explica que pagar agora não tira dias do teste", (await page.locator('[data-testid="pix-no-teste"]').innerText()).includes(br(trialEnd)) && t.includes("nada é cobrado hoje"));
+    check("explica que pagar agora não tira dias do teste", (await page.locator('[data-testid="pix-no-teste"]').innerText()).includes(br(trialEnd)) && t.includes("o ano só começa a contar em"));
     check("continua em teste e usando o app depois de abrir a cobrança", u.status === "pending");
     await page.goto(`${BASE}/dashboard`);
     check("o app continua abrindo com a cobrança em aberto", new URL(page.url()).pathname === "/dashboard");
@@ -290,43 +290,26 @@ try {
   // C. Avisos na véspera e no último dia, com o link de pagamento
   // =========================================================================
   {
-    // dicas de uso um dia sim, outro não (2º, 4º e 6º dia = faltando 6, 4 e 2 dias)
+    // ativação do teste sem cartão (04/11/2026): faltando 6 (à noite; aqui a hora é ignorada), 5, 4, 2, 1 e 0 dias
     const start = zapi.sentTo(a.zphone).length;
-    const tips = [];
-    for (const left of [6, 5, 4, 3, 2]) {
+    const steps = [];
+    for (const left of [6, 5, 4, 3, 2, 1, 0]) {
       await setTrialEnd(a.email, todaySP(left));
       await processar();
       await processar(); // rodar de novo não repete
-      const now = zapi.sentTo(a.zphone).length;
-      tips.push(`${left}:${now - start}`);
+      steps.push(`${left}:${zapi.sentTo(a.zphone).length - start}`);
     }
-    const tipMsgs = texts(a.zphone).slice(-3);
-    check("dicas do teste: 1 mensagem faltando 6, 4 e 2 dias; nada faltando 5 e 3", tips.join(",") === "6:1,5:1,4:2,3:2,2:3", tips.join(","));
-    check("dicas do teste: 3 textos diferentes (WhatsApp/áudio/foto, cartões e parcelas, recursos + assinatura), com SAIR", new Set(tipMsgs).size === 3 && /foto do cupom/.test(tipMsgs[0]) && /parcelas/.test(tipMsgs[1]) && /Faltam 2 dias/.test(tipMsgs[2]) && tipMsgs[2].includes("/assinatura") && tipMsgs.every((m) => /SAIR/.test(m) && /^Oi, Tania!/.test(m)), tipMsgs.map((m) => m.slice(0, 60)).join(" | "));
-    check("dicas do teste: quem já lançou algo ouve 'Você já começou'", /Você já começou/.test(tipMsgs[0]));
-
-    const before = zapi.sentTo(a.zphone).length;
-
-    await setTrialEnd(a.email, todaySP(1));
-    let r = await processar();
-    let msgs = texts(a.zphone);
-    const eve = msgs[msgs.length - 1] ?? "";
-    check("véspera: 1 mensagem dizendo que o teste termina amanhã", zapi.sentTo(a.zphone).length === before + 1 && /termina \*amanhã\*/.test(eve), `${r.status} ${eve.slice(0, 200)}`);
-    check("véspera: chama pelo nome, traz o link de pagamento, o preço e o SAIR", /^Oi, Tania!/.test(eve) && eve.includes("/assinatura") && /R\$ 29,90/.test(eve) && /SAIR/.test(eve));
-    check("véspera: como já lançou algo, diz que os lançamentos continuam guardados", /continuam guardados/.test(eve));
-    await processar();
-    await processar();
-    check("rodar de novo não repete a mensagem da véspera", zapi.sentTo(a.zphone).length === before + 1);
-
-    await setTrialEnd(a.email, today);
-    await processar();
-    msgs = texts(a.zphone);
-    const last = msgs[msgs.length - 1] ?? "";
-    check("último dia: 1 mensagem dizendo que termina hoje, com o link de pagamento", zapi.sentTo(a.zphone).length === before + 2 && /termina \*hoje\*/.test(last) && last.includes("/assinatura") && /acesso fica pausado/.test(last), last.slice(0, 200));
-    await processar();
-    check("rodar de novo não repete a mensagem do último dia", zapi.sentTo(a.zphone).length === before + 2);
+    check("ativação: 1 mensagem faltando 6, 5, 4, 2, 1 e 0 dias; nada faltando 3", steps.join(",") === "6:1,5:2,4:3,3:3,2:4,1:5,0:6", steps.join(","));
+    const act = texts(a.zphone).slice(-6);
+    check("ativação: todas chamam pelo nome e têm SAIR", act.every((m) => /^Oi, Tania!/.test(m) && /SAIR/.test(m)), act.map((m) => m.slice(0, 50)).join(" | "));
+    check("ativação 1º dia: quem já lançou ouve 'Quanto você gastou hoje?'", /Quanto você gastou hoje/.test(act[0]), act[0].slice(0, 120));
+    check("ativação 2º dia: dica da foto", /foto/.test(act[1]));
+    check("ativação 3º dia: resumo com o que já lançou (1 registro, Compra de alimentos)", /Seu resumo/.test(act[2]) && /1 registro/.test(act[2]) && /Compra de alimentos/.test(act[2]), act[2]);
+    check("ativação 5º dia: oferta do anual por R$ 77 com prazo e link", /R\$ 77/.test(act[3]) && /R\$ 97/.test(act[3]) && /Vale até/.test(act[3]) && act[3].includes("/assinatura"), act[3]);
+    check("ativação véspera: termina amanhã, link, oferta e registros guardados", /termina \*amanhã\*/.test(act[4]) && act[4].includes("/assinatura") && /R\$ 77/.test(act[4]) && /ficam guardados/.test(act[4]), act[4]);
+    check("ativação último dia: termina hoje e acesso pausa amanhã", /termina \*hoje\*/.test(act[5]) && /acesso fica pausado/.test(act[5]), act[5]);
     const rows = await sql`select kind, step, sent_at is not null as sent from automation_messages where user_id = ${(await userOf(a.email)).id} order by step`;
-    check("envios registrados: dicas (passos 3, 4, 5) e avisos (passos 1 e 2), nenhum 'não pagou'", JSON.stringify(rows.map((x) => `${x.kind}:${x.step}:${x.sent}`)) === JSON.stringify(["teste:1:true", "teste:2:true", "teste:3:true", "teste:4:true", "teste:5:true"]), JSON.stringify(rows));
+    check("envios registrados: ativação passos 1 a 6, nenhum 'não pagou'", JSON.stringify(rows.map((x) => `${x.kind}:${x.step}:${x.sent}`)) === JSON.stringify([1, 2, 3, 4, 5, 6].map((n) => `ativacao:${n}:true`)), JSON.stringify(rows));
     await a.page.goto(`${BASE}/dashboard`);
     const banner = await a.page.locator('[data-testid="trial-banner"]').innerText();
     check("no último dia o app ainda abre e o aviso diz 'termina hoje'", banner.includes("termina hoje"), banner);
@@ -390,7 +373,7 @@ try {
     await asaasWebhook("PAYMENT_RECEIVED", fake.state.payments.get(pay.id));
     await b.page.waitForURL(`${BASE}/dashboard`, { timeout: 30000 });
     u = await userOf(b.email);
-    check("[Pix no teste] pagou no 1º dia: ativo, e o próximo vencimento é um mês depois do FIM do teste", u.status === "active" && isoDate(u.subscription_due_date) === addMonth(trialEnd), `${u.status} ${u.subscription_due_date} esperado ${addMonth(trialEnd)}`);
+    check("[Pix no teste] pagou o anual no 1º dia: ativo, e o próximo vencimento é um ano depois do FIM do teste", u.status === "active" && isoDate(u.subscription_due_date) === addYear(trialEnd), `${u.status} ${u.subscription_due_date} esperado ${addYear(trialEnd)}`);
     const before = zapi.sentTo(b.zphone).length;
     await sql`update users set trial_ends_at = ${todaySP(1)} where email = ${b.email}`;
     await processar();
@@ -404,6 +387,8 @@ try {
   {
     const c = await signup("Carla Cartao");
     await waitWelcome(c.email);
+    // cartão recorrente é o plano mensal (o anual no cartão é compra à vista ou em 12x, testado em plano-anual)
+    await sql`update users set billing_plan = 'MONTHLY' where email = ${c.email}`;
     await c.page.goto(`${BASE}/assinatura`);
     await c.page.fill("#pay-cpf", randomCpf());
     await c.page.click('[data-testid="cpf-form"] button[type="submit"]');
@@ -429,7 +414,7 @@ try {
     await setTrialEnd(c.email, todaySP(1));
     await processar();
     const eve = texts(c.zphone).pop() ?? "";
-    check("[cartão no teste] véspera: avisa que a mensalidade será cobrada no cartão amanhã", zapi.sentTo(c.zphone).length === before + 1 && /será cobrada nele amanhã/.test(eve) && !/é só assinar/.test(eve), eve.slice(0, 220));
+    check("[cartão no teste] véspera: avisa que a mensalidade será cobrada no cartão amanhã", zapi.sentTo(c.zphone).length === before + 1 && /será feita nele amanhã/.test(eve) && !/é só assinar/.test(eve), eve.slice(0, 220));
 
     // a cobrança demora: tolerância de 3 dias com o cartão cadastrado
     await setTrialEnd(c.email, todaySP(-2));
@@ -512,13 +497,13 @@ try {
     await processar();
     zapi.setFail(false);
     const fid = (await userOf(f.email)).id;
-    let [row] = await sql`select attempts, sent_at, error from automation_messages where user_id = ${fid} and kind = 'teste' and step = 1`;
+    let [row] = await sql`select attempts, sent_at, error from automation_messages where user_id = ${fid} and kind = 'ativacao' and step = 5`;
     check("falha no envio do aviso fica registrada, sem marcar como enviado", row?.attempts === 1 && row.sent_at === null && Boolean(row.error), JSON.stringify(row));
     await processar();
     check("logo depois da falha não tenta de novo", zapi.sentTo(f.zphone).length === beforeF);
     await sql`update automation_messages set last_attempt_at = now() - interval '7 hours' where user_id = ${fid}`;
     await processar();
-    [row] = await sql`select attempts, sent_at, error from automation_messages where user_id = ${fid} and kind = 'teste' and step = 1`;
+    [row] = await sql`select attempts, sent_at, error from automation_messages where user_id = ${fid} and kind = 'ativacao' and step = 5`;
     check("6 horas depois tenta de novo e envia", zapi.sentTo(f.zphone).length === beforeF + 1 && row.attempts === 2 && row.sent_at !== null, JSON.stringify(row));
     await f.ctx.close();
 
@@ -540,13 +525,12 @@ try {
     const { ctx, page } = await newVisitor();
     await page.goto(`${BASE}/termos`);
     const t = await page.textContent("body");
-    check("Termos explicam o teste grátis, os avisos e o CPF só no pagamento", t.includes("Teste grátis de 7 dias") && t.includes("Contas criadas antes de 20/10/2026 seguem a regra do teste da época") && t.includes("dois avisos de fim do teste grátis") && t.includes("o CPF é pedido na tela de pagamento"));
+    check("Termos explicam o teste grátis sem cartão, as mensagens e o CPF só no pagamento", t.includes("Teste grátis de 7 dias") && t.includes("sem cadastrar cartão e sem pagar nada") && t.includes("os avisos de fim do teste na véspera e no último dia") && t.includes("o CPF é pedido na tela de pagamento"));
     {
       const man = await (await (await browser.newPage()).goto(`${BASE}/manual`)).text();
-      check("Manual não fala mais em teste \"sem cartão\"", man.includes("Teste grátis") && !/sem cart[aã]o|precisa de cart[aã]o/i.test(man));
+      check("Manual: teste sem cartão, anual R$ 97 e mensal R$ 19,90", man.includes("Teste grátis") && /sem cart[aã]o/i.test(man) && man.includes("R$ 97") && man.includes("R$ 19,90"));
     }
-    check("Termos não falam mais em teste \"sem cartão\" (estratégia de 20/10)", !/sem cart[aã]o|pedimos pagamento, cart[aã]o|precisa de cart[aã]o/i.test(t));
-    check("Termos não prometem mais garantia de devolução", !t.includes("Garantia de 7 dias"));
+    check("Termos: garantia de 7 dias e oferta de fim de teste", t.includes("Garantia: nos primeiros 7 dias") && t.includes("R$ 77"));
     await ctx.close();
   }
   await a.ctx.close();

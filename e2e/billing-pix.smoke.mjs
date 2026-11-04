@@ -53,7 +53,7 @@ try {
   // 1. Página de vendas pública
   await page.goto(`${BASE}/`);
   const landing = await page.textContent("body");
-  check("página de vendas abre para visitante", landing.includes("não sabe para onde foi") && landing.includes("App no celular") && /R\$\s29,90/.test(landing));
+  check("página de vendas abre para visitante", landing.includes("parcelas do cartão") && landing.includes("App no celular") && /R\$\s97/.test(landing) && /R\$\s19,90/.test(landing));
   check("página de vendas mostra dores, comparação e dúvidas", landing.includes("Você se reconhece?") && landing.includes("Planilha, app comum ou Contay?") && landing.includes("Perguntas frequentes"));
   check("página de vendas tem a seção de privacidade e o rodapé sem outra marca", landing.includes("Seu dinheiro é assunto seu") && landing.includes("LGPD") && landing.includes("© 2026 Contay") && !landing.includes("Fácil Web"));
   check("destaca o WhatsApp", landing.includes("WhatsApp"));
@@ -101,7 +101,7 @@ try {
   check("CPF e WhatsApp gravados só com dígitos", user.cpf === cpf && user.whatsapp_phone === phone, `${user.cpf} ${user.whatsapp_phone}`);
   check("cliente e assinatura criados no Asaas", Boolean(user.asaas_customer_id && user.asaas_subscription_id));
   const sub = fake.state.subscriptions.get(user.asaas_subscription_id);
-  check("assinatura Pix mensal de R$ 29,90 vencendo hoje", sub.billingType === "PIX" && sub.cycle === "MONTHLY" && sub.value === 29.9 && sub.nextDueDate === todaySP(), JSON.stringify({ v: sub.value, d: sub.nextDueDate }));
+  check("assinatura Pix mensal de R$ 19,90 vencendo hoje", sub.billingType === "PIX" && sub.cycle === "MONTHLY" && sub.value === 19.9 && sub.nextDueDate === todaySP(), JSON.stringify({ v: sub.value, d: sub.nextDueDate }));
 
   // 4. Acesso ao app bloqueado até pagar
   await page.goto(`${BASE}/dashboard`);
