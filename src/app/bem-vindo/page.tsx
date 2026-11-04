@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getRawSession, sessionInTrial } from "@/lib/dal";
-import { PLAN_PRICE, TRIAL_DAYS } from "@/lib/billing/core";
+import { GUARANTEE_DAYS, PLAN_PRICE, PLAN_PRICE_YEARLY, TRIAL_DAYS } from "@/lib/billing/core";
 import { formatBRL, formatDateBR } from "@/lib/format";
 import { Logo } from "@/components/Logo";
 import { MetaPixel, type MetaEventSpec } from "@/components/tracking/MetaPixel";
@@ -44,7 +44,11 @@ export default async function BemVindoPage({
             { name: "StartTrial", params: { value: PLAN_PRICE, currency: "BRL" }, onceKey: "teste" },
           ]
         : []
-      : [{ name: "CompleteRegistration", cookieFlag: "contay_reg" }];
+      : [
+          { name: "CompleteRegistration", cookieFlag: "contay_reg" },
+          // teste sem cartão (04/11/2026): o teste começa no cadastro
+          { name: "StartTrial", params: { value: PLAN_PRICE_YEARLY, currency: "BRL" }, cookieFlag: "contay_reg" },
+        ];
   // A conversa abre com um "oi" (não com um gasto de exemplo, que viraria um
   // lançamento falso na conta); o Contay responde explicando como lançar.
   const firstMessage = "Oi! Acabei de me cadastrar no Contay.";
@@ -70,8 +74,8 @@ export default async function BemVindoPage({
               </>
             ) : (
               <>
-                Você não pagou nada e não informou cartão. Se gostar, assina por {formatBRL(PLAN_PRICE)} por mês; se não gostar, é só
-                não assinar.
+                Você não pagou nada e não informou cartão. Se gostar, assina o plano anual por {formatBRL(PLAN_PRICE_YEARLY)} (ou{" "}
+                {formatBRL(PLAN_PRICE)} por mês), com garantia de {GUARANTEE_DAYS} dias; se não gostar, é só não assinar.
               </>
             )}
           </p>
