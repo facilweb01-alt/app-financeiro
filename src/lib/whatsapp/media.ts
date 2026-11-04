@@ -19,7 +19,7 @@ import {
 // Variáveis de ambiente (Render → app-financeiro → Environment):
 //   GEMINI_API_KEY — chave do Google AI Studio (a mesma usada no n8n). Sem
 //     ela, o recurso fica desligado e a rota avisa o cliente para mandar texto.
-//   GEMINI_MODEL — opcional; padrão "gemini-2.5-flash-lite".
+//   GEMINI_MODEL — opcional; padrão "gemini-3.5-flash-lite" (o 2.5 foi desligado pelo Google em 16/10/2026).
 //   WHATSAPP_MIDIA_HOSTS — opcional; domínios de onde o arquivo pode ser
 //     baixado, separados por vírgula (ex.: "z-api.io,backblazeb2.com").
 //   GEMINI_BASE_URL — só para os testes apontarem para um Gemini falso.
@@ -150,7 +150,7 @@ export async function interpretMedia(input: { kind: MediaKind; base64: string; m
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new MediaError("Áudio e imagem ainda não estão ligados.", "ia");
   const base = (process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta").replace(/\/$/, "");
-  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash-lite";
+  const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 
   let res: Response;
   try {
