@@ -3,6 +3,8 @@
 import * as z from "zod";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { noteFirstEntry } from "@/lib/firstEntry";
 import { db, withRLS } from "@/db/client";
 import { fixedAccounts } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
@@ -31,6 +33,7 @@ export async function createFixedAccount(_prev: SimpleFormState, formData: FormD
       amount: data.amount.toString(),
     })
   );
+  after(() => noteFirstEntry(session.userId));
 
   revalidatePath("/contas-fixas");
   revalidatePath("/dashboard");

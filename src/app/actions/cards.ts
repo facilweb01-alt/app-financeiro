@@ -3,6 +3,8 @@
 import * as z from "zod";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { noteFirstEntry } from "@/lib/firstEntry";
 import { db, withRLS } from "@/db/client";
 import { creditCards, cardPurchases, cardInstallments } from "@/db/schema";
 import { verifySession } from "@/lib/dal";
@@ -213,6 +215,7 @@ export async function createCardPurchase(_prev: SimpleFormState, formData: FormD
 
   if (result.ok) {
     revalidateCardViews();
+    after(() => noteFirstEntry(session.userId));
   }
   return result;
 }

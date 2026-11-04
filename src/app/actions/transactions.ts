@@ -3,6 +3,8 @@
 import * as z from "zod";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { noteFirstEntry } from "@/lib/firstEntry";
 import { db, withRLS } from "@/db/client";
 import { transactions, monthClosings } from "@/db/schema";
 import { toYearMonth } from "@/lib/business/dates";
@@ -64,6 +66,7 @@ export async function createTransaction(
     });
     return Boolean(closed);
   });
+  after(() => noteFirstEntry(session.userId));
 
   revalidatePath("/lancamentos");
   revalidatePath("/dashboard");
