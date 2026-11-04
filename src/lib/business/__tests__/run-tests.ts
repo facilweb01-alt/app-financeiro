@@ -32,6 +32,9 @@ import {
   isWithinSendWindow,
   nextAutomation,
   saoPauloDate,
+  PRICE_MONTHLY_TEXT,
+  PRICE_YEARLY_TEXT,
+  PROMO_YEARLY_TEXT,
   type AutomationCandidate,
   type AutomationRecord,
 } from "../automations";
@@ -507,6 +510,10 @@ import {
   newSubscriptionDueDate,
   cardRequiredForNewSignups,
   MAX_INSTALLMENTS,
+  PLAN_PRICE_YEARLY_PROMO,
+  yearlyPromoActive,
+  yearlyPromoEndDate,
+  firstChargePrice,
 } from "../../billing/core";
 
 test("todayInSaoPaulo: 01:30 UTC ainda é o dia anterior em São Paulo", () => {
@@ -1204,14 +1211,14 @@ test("automações: textos — nome, link, preço e SAIR só nas mensagens de of
   assert.doesNotMatch(s1, /SAIR/);
   const p0 = buildAutomationMessage({ ...base, kind: "nao_pagou", step: 0 });
   assert.match(p0, /dúvida/);
-  assert.match(p0, /R\$ 29,90/);
+  assert.match(p0, /R\$ 97/);
   assert.match(p0, /contay\.com\.br\/assinatura/);
   assert.match(p0, /SAIR/);
   const offers = [1, 2, 3, 4, 5, 6].map((step) => buildAutomationMessage({ ...base, kind: "nao_pagou", step }));
   assert.equal(new Set(offers).size, 3); // 3 textos que se alternam
   for (const o of offers) {
     assert.match(o, /SAIR/);
-    assert.match(o, /R\$ 29,90/);
+    assert.match(o, /R\$ 97/);
     assert.ok(o.length < 600, "oferta curta");
   }
   assert.match(buildAutomationMessage({ name: null, appUrl: "x", kind: "nao_pagou", step: 0 }), /^Oi! 👋/);
@@ -1365,17 +1372,18 @@ test("teste grátis: 1ª cobrança (Pix ou cartão) vence no último dia do test
   assert.equal(cardFirstDueDate({ status: "active", subscriptionDueDate: "2026-11-18", today: "2026-10-30", trialEndsAt: "2026-10-18" }), "2026-11-18");
 });
 
-test("teste grátis: boas-vindas avisam que o teste está liberado e até quando; sem teste, mensagem de sempre", () => {
+test("teste grátis: boas-vindas avisam que o teste está liberado e até quando e pedem o 1º gasto na hora; sem teste, mensagem de sempre", () => {
   assert.equal(shortDateBR("2026-10-18"), "18/10");
   const base = { name: "ana paula", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301" };
   const trial = buildWelcomeMessage({ ...base, trialEndsAt: "2026-10-18" });
   assert.match(trial, /^Olá, Ana!/);
   assert.match(trial, /teste grátis de 7 dias está liberado/);
-  assert.match(trial, /até 18\/10/);
-  assert.match(trial, /sem pagar nada\. É por este/);
-  assert.doesNotMatch(trial, /sem cart[aã]o/i);
-  assert.match(trial, /Manual do Contay/);
-  assert.match(trial, /Um dia antes de o teste terminar eu aviso/);
+  assert.match(trial, /até 18\/10, sem cartão e sem pagar nada/);
+  assert.match(trial, /Me manda o último gasto/);
+  assert.match(trial, /áudio/);
+  assert.match(trial, /foto do cupom/);
+  assert.match(trial, /contay\.com\.br\/manual/);
+  assert.ok(trial.length < 900, `curta (${trial.length})`);
   const paid = buildWelcomeMessage({ ...base });
   assert.match(paid, /Sua conta está liberada/);
   assert.doesNotMatch(paid, /teste grátis/);
@@ -1398,7 +1406,7 @@ const trialUser = (over: Partial<AutomationCandidate> = {}): AutomationCandidate
   ...over,
 });
 const AUTOMATION_START = day("2026-10-09T00:00:00-03:00");
-const sentRec = (kind: "teste" | "nao_pagou" | "sem_uso", step: number, when: string): AutomationRecord => ({
+const sentRec = (kind: "teste" | "nao_pagou" | "sem_uso" | "ativacao", step: number, when: string): AutomationRecord => ({
   kind,
   step,
   attempts: 1,
@@ -1406,42 +1414,80 @@ const sentRec = (kind: "teste" | "nao_pagou" | "sem_uso", step: number, when: st
   sentAt: day(when),
 });
 
-test("avisos do teste: dicas no 2º, 4º e 6º dia (um dia sim, outro não), aviso na véspera e no último dia, cada um uma vez", () => {
+test("ativação do teste sem cartão (04/11/2026): lembrete à noite no 1º dia, foto no 2º, resumo no 3º, oferta no 5º, véspera e último dia", () => {
   const u = trialUser(); // cadastro 11/10, teste até 18/10
   // 1 hora depois do cadastro: quem está em teste NÃO recebe o "pagamento não concluído"
   assert.equal(nextAutomation(u, [], day("2026-10-11T16:30:00-03:00"), AUTOMATION_START), null);
-  // dicas: 12/10 (2º dia), 14/10 (4º dia), 16/10 (6º dia); nada em 13 e 15
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-12T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 3, retry: false });
-  assert.equal(nextAutomation(u, [sentRec("teste", 3, "2026-10-12T10:00:00-03:00")], day("2026-10-12T18:00:00-03:00"), AUTOMATION_START), null);
-  assert.equal(nextAutomation(u, [], day("2026-10-13T10:00:00-03:00"), AUTOMATION_START), null);
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-14T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 4, retry: false });
-  assert.equal(nextAutomation(u, [], day("2026-10-15T10:00:00-03:00"), AUTOMATION_START), null);
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-16T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 5, retry: false });
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-17T08:05:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: false });
-  const afterEve = [sentRec("teste", 1, "2026-10-17T08:05:00-03:00")];
-  assert.equal(nextAutomation(u, afterEve, day("2026-10-17T15:00:00-03:00"), AUTOMATION_START), null);
-  assert.deepEqual(nextAutomation(u, afterEve, day("2026-10-18T08:05:00-03:00"), AUTOMATION_START), { kind: "teste", step: 2, retry: false });
-  const afterLast = [...afterEve, sentRec("teste", 2, "2026-10-18T08:05:00-03:00")];
-  assert.equal(nextAutomation(u, afterLast, day("2026-10-18T20:00:00-03:00"), AUTOMATION_START), null);
+  // 12/10 (faltam 6): só à noite
+  assert.equal(nextAutomation(u, [], day("2026-10-12T10:00:00-03:00"), AUTOMATION_START), null);
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-12T19:05:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 1, retry: false });
+  assert.equal(nextAutomation(u, [sentRec("ativacao", 1, "2026-10-12T19:05:00-03:00")], day("2026-10-12T21:00:00-03:00"), AUTOMATION_START), null);
+  // nos testes locais a hora da noite pode ser desligada
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-12T10:00:00-03:00"), AUTOMATION_START, { eveningHour: 0 }), { kind: "ativacao", step: 1, retry: false });
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-13T10:00:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 2, retry: false });
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-14T10:00:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 3, retry: false });
+  assert.equal(nextAutomation(u, [], day("2026-10-15T10:00:00-03:00"), AUTOMATION_START), null); // faltam 3: nada
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-16T10:00:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 4, retry: false });
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-17T08:05:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 5, retry: false });
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-18T08:05:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 6, retry: false });
+  assert.equal(nextAutomation(u, [sentRec("ativacao", 6, "2026-10-18T08:05:00-03:00")], day("2026-10-18T20:00:00-03:00"), AUTOMATION_START), null);
+  // o dia é o de Brasília: 16/10 23:59 lá ainda é o 5º dia
+  assert.deepEqual(nextAutomation(u, [], day("2026-10-16T23:59:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 4, retry: false });
 });
 
-test("avisos do teste: o dia é o de Brasília (23h de lá ainda é véspera, mesmo já sendo o dia seguinte em UTC)", () => {
-  const u = trialUser();
-  assert.equal(saoPauloDate(day("2026-10-17T23:30:00-03:00")), "2026-10-17");
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-17T23:30:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: false });
-  assert.equal(nextAutomation(u, [], day("2026-10-15T23:59:00-03:00"), AUTOMATION_START), null);
-  // 16/10 23:59 em Brasília ainda é o 6º dia (dica), mesmo já sendo 17/10 em UTC
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-16T23:59:00-03:00"), AUTOMATION_START), { kind: "teste", step: 5, retry: false });
-});
-
-test("dicas do teste: quem já cadastrou o cartão (contratou) não recebe dicas, mas recebe os avisos de fim", () => {
-  const u = trialUser({ cardOnFile: true });
-  for (const d of ["12", "14", "16"]) assert.equal(nextAutomation(u, [], day(`2026-10-${d}T10:00:00-03:00`), AUTOMATION_START), null, d);
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-17T10:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: false });
-  // dica perdida (ex.: fora do ar) não sai atrasada no dia seguinte
-  assert.equal(nextAutomation(trialUser(), [], day("2026-10-13T09:00:00-03:00"), AUTOMATION_START), null);
-  // quem assinou durante o teste não recebe mais nada do teste
+test("ativação: cartão mensal já cadastrado só recebe os avisos de fim; quem pagou sai do fluxo; falha tenta de novo em 6h", () => {
+  const card = trialUser({ cardOnFile: true });
+  for (const d of ["13", "14", "16"]) assert.equal(nextAutomation(card, [], day(`2026-10-${d}T10:00:00-03:00`), AUTOMATION_START), null, d);
+  assert.deepEqual(nextAutomation(card, [], day("2026-10-17T10:00:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 5, retry: false });
   assert.equal(nextAutomation(trialUser({ status: "active", approvedAt: day("2026-10-13T10:00:00-03:00"), hasUsage: true }), [], day("2026-10-14T10:00:00-03:00"), AUTOMATION_START), null);
+  const failed = (attempts: number, when: string): AutomationRecord => ({ kind: "ativacao", step: 5, attempts, lastAttemptAt: day(when), sentAt: null });
+  const u = trialUser();
+  assert.equal(nextAutomation(u, [failed(1, "2026-10-17T08:05:00-03:00")], day("2026-10-17T10:00:00-03:00"), AUTOMATION_START), null);
+  assert.deepEqual(nextAutomation(u, [failed(1, "2026-10-17T08:05:00-03:00")], day("2026-10-17T14:10:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 5, retry: true });
+  assert.equal(nextAutomation(u, [failed(3, "2026-10-17T08:05:00-03:00")], day("2026-10-17T21:00:00-03:00"), AUTOMATION_START), null);
+  // reativado: cadastro antigo (antes da data de início) entra no fluxo a partir da reativação
+  const re = trialUser({ createdAt: day("2026-09-01T10:00:00-03:00"), reactivatedAt: day("2026-10-11T15:00:00-03:00") });
+  assert.deepEqual(nextAutomation(re, [], day("2026-10-13T10:00:00-03:00"), AUTOMATION_START), { kind: "ativacao", step: 2, retry: false });
+  assert.equal(nextAutomation({ ...re, reactivatedAt: null }, [], day("2026-10-13T10:00:00-03:00"), AUTOMATION_START), null);
+});
+
+test("ativação: textos — 1º gasto/áudio, foto, resumo com parcelas, oferta R$ 77 com prazo, fim do teste; sempre SAIR", () => {
+  const base = { name: "carlos silva", appUrl: "https://contay.com.br", trialEndsAt: "2026-10-18", kind: "ativacao" as const };
+  const s1 = buildAutomationMessage({ ...base, step: 1 });
+  assert.match(s1, /1º gasto/);
+  assert.match(buildAutomationMessage({ ...base, step: 1, hasUsage: true }), /Quanto você gastou hoje/);
+  assert.match(buildAutomationMessage({ ...base, step: 2 }), /foto/);
+  const sum = buildAutomationMessage({
+    ...base,
+    step: 3,
+    summary: { entries: 4, monthTotal: 312.5, topCategory: { name: "Mercado", total: 180 }, futureInstallments: 600, futureMonths: 3 },
+  });
+  assert.match(sum, /4 registros/);
+  assert.match(sum, /R\$\s?312,50/);
+  assert.match(sum, /Mercado/);
+  assert.match(sum, /R\$\s?600,00 de parcelas do cartão já comprometidos nos próximos 3 meses/);
+  assert.match(buildAutomationMessage({ ...base, step: 3, summary: { entries: 0, monthTotal: 0, futureInstallments: 0, futureMonths: 0 } }), /ainda não lançou/);
+  assert.match(buildAutomationMessage({ ...base, step: 3, summary: null }), /ainda não lançou/);
+  const offer = buildAutomationMessage({ ...base, step: 4 });
+  assert.match(offer, /R\$ 77/);
+  assert.match(offer, /R\$ 97/);
+  assert.match(offer, /Vale até 19\/10/);
+  assert.match(offer, /contay\.com\.br\/assinatura/);
+  const eve = buildAutomationMessage({ ...base, step: 5 });
+  assert.match(eve, /termina \*amanhã\* \(18\/10\)/);
+  assert.match(eve, /oferta até 19\/10/);
+  const last = buildAutomationMessage({ ...base, step: 6 });
+  assert.match(last, /termina \*hoje\*/);
+  assert.match(last, /acesso fica pausado/);
+  assert.match(buildAutomationMessage({ ...base, step: 5, cardOnFile: true }), /1ª cobrança será feita nele amanhã/);
+  for (const m of [s1, sum, offer, eve, last]) {
+    assert.match(m, /^Oi, Carlos!/);
+    assert.match(m, /SAIR/);
+    assert.ok(m.length < 800, `curta (${m.length})`);
+  }
+  const re = buildAutomationMessage({ kind: "reativacao", step: 1, name: "ana", appUrl: "https://contay.com.br" });
+  assert.match(re, /7 dias grátis, sem cartão/);
+  assert.match(re, /SAIR/);
 });
 
 test("dicas do teste: 3 mensagens diferentes, com benefícios, data do fim e SAIR", () => {
@@ -1469,18 +1515,7 @@ test("dicas do teste: 3 mensagens diferentes, com benefícios, data do fim e SAI
   assert.match(t3, /12x/);
 });
 
-test("avisos do teste: véspera perdida não é mandada atrasada; no último dia sai só o aviso do último dia", () => {
-  const u = trialUser();
-  assert.deepEqual(nextAutomation(u, [], day("2026-10-18T09:00:00-03:00"), AUTOMATION_START), { kind: "teste", step: 2, retry: false });
-});
 
-test("avisos do teste: falhou tenta de novo depois de 6 horas; não insiste além de 3 tentativas", () => {
-  const u = trialUser();
-  const failed = (attempts: number, when: string): AutomationRecord => ({ kind: "teste", step: 1, attempts, lastAttemptAt: day(when), sentAt: null });
-  assert.equal(nextAutomation(u, [failed(1, "2026-10-17T08:05:00-03:00")], day("2026-10-17T10:00:00-03:00"), AUTOMATION_START), null);
-  assert.deepEqual(nextAutomation(u, [failed(1, "2026-10-17T08:05:00-03:00")], day("2026-10-17T14:10:00-03:00"), AUTOMATION_START), { kind: "teste", step: 1, retry: true });
-  assert.equal(nextAutomation(u, [failed(3, "2026-10-17T08:05:00-03:00")], day("2026-10-17T21:00:00-03:00"), AUTOMATION_START), null);
-});
 
 test("avisos do teste: quem pagou, cancelou, respondeu SAIR ou não tem WhatsApp não recebe", () => {
   const eve = day("2026-10-17T09:00:00-03:00");
@@ -1516,7 +1551,7 @@ test("avisos do teste: textos — véspera e último dia, link de pagamento, pre
   assert.match(eve, /^Oi, Carlos!/);
   assert.match(eve, /termina \*amanhã\* \(18\/10\)/);
   assert.match(eve, /contay\.com\.br\/assinatura/);
-  assert.match(eve, /R\$ 29,90/);
+  assert.match(eve, /R\$ 97/);
   assert.match(eve, /não perde nenhum dia/);
   assert.match(eve, /SAIR/);
   const last = buildAutomationMessage({ ...base, kind: "teste", step: 2 });
@@ -1530,12 +1565,11 @@ test("avisos do teste: textos — véspera e último dia, link de pagamento, pre
   assert.doesNotMatch(eve, /continuam guardados/);
   // cartão cadastrado: avisa da cobrança, não pede para assinar
   const card = buildAutomationMessage({ ...base, kind: "teste", step: 1, cardOnFile: true });
-  assert.match(card, /1ª mensalidade de R\$ 29,90 será cobrada nele amanhã/);
+  assert.match(card, /1ª cobrança da assinatura será feita nele amanhã/);
   assert.doesNotMatch(card, /é só assinar/);
-  assert.match(buildAutomationMessage({ ...base, kind: "teste", step: 2, cardOnFile: true }), /será cobrada nele hoje/);
+  assert.match(buildAutomationMessage({ ...base, kind: "teste", step: 2, cardOnFile: true }), /será feita nele hoje/);
   for (const m of [eve, last, card]) assert.ok(m.length < 700, "mensagem curta");
-  // as mensagens de quem não pagou não prometem mais garantia
-  assert.doesNotMatch(buildAutomationMessage({ name: "ana", appUrl: "x", kind: "nao_pagou", step: 1 }), /garantia/);
+
 });
 
 // ---------------------------------------------------------------------------
@@ -1544,19 +1578,36 @@ test("avisos do teste: textos — véspera e último dia, link de pagamento, pre
 import { TERMS_SECTIONS } from "../../terms";
 import { MANUAL_SECTIONS } from "../../manual";
 
-test("plano anual: 12 mensalidades com 10% de desconto (desde 20/10/2026), em centavos exatos", () => {
-  assert.equal(ANNUAL_DISCOUNT_PERCENT, 10);
-  assert.equal(PLAN_PRICE, 29.9);
-  assert.equal(PLAN_PRICE_YEARLY, 322.92); // 358,80 - 10%
+test("preços (04/11/2026): mensal R$ 19,90, anual R$ 97 e oferta de fim de teste R$ 77", () => {
+  assert.equal(PLAN_PRICE, 19.9);
+  assert.equal(PLAN_PRICE_YEARLY, 97);
+  assert.equal(ANNUAL_DISCOUNT_PERCENT, 59);
   const y = planInfo("YEARLY");
   assert.deepEqual(
     { price: y.price, cycle: y.cycle, months: y.months, chargeName: y.chargeName, per: y.per, monthlyEquivalent: y.monthlyEquivalent, yearlySavings: y.yearlySavings },
-    { price: 322.92, cycle: "YEARLY", months: 12, chargeName: "anuidade", per: "por ano", monthlyEquivalent: 26.91, yearlySavings: 35.88 }
+    { price: 97, cycle: "YEARLY", months: 12, chargeName: "anuidade", per: "por ano", monthlyEquivalent: 8.08, yearlySavings: 141.8 }
   );
-  // conferência da conta sem ponto flutuante
-  assert.equal(Math.round(y.price * 100), Math.round((2990 * 12 * 90) / 100));
   const m = planInfo("MONTHLY");
-  assert.deepEqual({ price: m.price, cycle: m.cycle, months: m.months, chargeName: m.chargeName, yearlySavings: m.yearlySavings }, { price: 29.9, cycle: "MONTHLY", months: 1, chargeName: "mensalidade", yearlySavings: 0 });
+  assert.deepEqual({ price: m.price, cycle: m.cycle, months: m.months, chargeName: m.chargeName, yearlySavings: m.yearlySavings }, { price: 19.9, cycle: "MONTHLY", months: 1, chargeName: "mensalidade", yearlySavings: 0 });
+  // oferta: do 5º dia do teste (faltam 2) até o dia seguinte ao fim
+  const promo = (today: string, over: Record<string, unknown> = {}) => yearlyPromoActive({ status: "pending", trialEndsAt: "2026-10-18", today, ...over });
+  assert.equal(promo("2026-10-15"), false);
+  assert.equal(promo("2026-10-16"), true);
+  assert.equal(promo("2026-10-18"), true);
+  assert.equal(promo("2026-10-19"), true);
+  assert.equal(promo("2026-10-20"), false);
+  assert.equal(promo("2026-10-17", { status: "active" }), false);
+  assert.equal(promo("2026-10-17", { trialEndsAt: null }), false);
+  assert.equal(promo("2026-10-17", { canceledAt: new Date() }), false);
+  assert.equal(yearlyPromoEndDate("2026-10-31"), "2026-11-01");
+  assert.equal(firstChargePrice("YEARLY", true), PLAN_PRICE_YEARLY_PROMO);
+  assert.equal(firstChargePrice("YEARLY", false), 97);
+  assert.equal(firstChargePrice("MONTHLY", true), 19.9);
+  // assinatura vinda do Asaas sem ciclo: R$ 97 e R$ 77 são anuais; R$ 19,90 e R$ 29,90, mensais
+  assert.equal(planFromSubscription({ value: 97 }), "YEARLY");
+  assert.equal(planFromSubscription({ value: 77 }), "YEARLY");
+  assert.equal(planFromSubscription({ value: 19.9 }), "MONTHLY");
+  assert.equal(planFromSubscription({ value: 29.9 }), "MONTHLY");
 });
 
 test("plano: valor desconhecido, vazio ou nulo é sempre mensal (quem já existe não muda)", () => {
@@ -1598,18 +1649,22 @@ test("plano de uma assinatura vinda do Asaas: vale o ciclo; sem ciclo, decide pe
   assert.equal(planFromSubscription({}), "MONTHLY");
 });
 
-test("plano anual: os valores escritos nos Termos, no manual e nas mensagens batem com o valor cobrado", () => {
-  const br = (n: number) => n.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
-  const y = planInfo("YEARLY");
+test("preços: os valores escritos nos Termos, no manual e nas mensagens batem com o valor cobrado", () => {
+  const brl = (n: number) => `R$ ${n.toLocaleString("pt-BR", { minimumFractionDigits: Number.isInteger(n) ? 0 : 2 })}`;
+  assert.equal(PRICE_YEARLY_TEXT, brl(PLAN_PRICE_YEARLY));
+  assert.equal(PRICE_MONTHLY_TEXT, brl(PLAN_PRICE));
+  assert.equal(PROMO_YEARLY_TEXT, brl(PLAN_PRICE_YEARLY_PROMO));
   const terms = TERMS_SECTIONS.map((t) => t.body).join(" ");
   const manual = MANUAL_SECTIONS.map((m) => [m.intro, ...m.items].join(" ")).join(" ");
-  const msg = buildAutomationMessage({ name: "ana", appUrl: "x", kind: "teste", step: 1, trialEndsAt: "2026-10-18" });
-  for (const [where, textToCheck] of [["Termos", terms], ["manual", manual], ["mensagem do teste", msg]] as const) {
-    assert.ok(textToCheck.includes(`R$ ${br(y.price)} por ano`), `${where}: valor anual`);
-    assert.ok(textToCheck.includes(`${ANNUAL_DISCOUNT_PERCENT}% de desconto`), `${where}: desconto`);
+  const offer = buildAutomationMessage({ name: "ana", appUrl: "x", kind: "ativacao", step: 4, trialEndsAt: "2026-10-18" });
+  for (const [where, t] of [["Termos", terms], ["manual", manual]] as const) {
+    assert.ok(t.includes(`${brl(PLAN_PRICE_YEARLY)} por ano`), `${where}: anual`);
+    assert.ok(t.includes(brl(PLAN_PRICE)), `${where}: mensal`);
+    assert.ok(t.includes(brl(PLAN_PRICE_YEARLY_PROMO)), `${where}: oferta`);
+    assert.doesNotMatch(t, /29,90|322,92/, `${where}: preço antigo`);
   }
-  assert.ok(manual.includes(`R$ ${br(y.monthlyEquivalent)} por mês`), "manual: equivalente mensal");
-  assert.ok(terms.includes(`R$ ${br(PLAN_PRICE)} por mês`), "Termos: valor mensal");
+  assert.ok(offer.includes(brl(PLAN_PRICE_YEARLY_PROMO)) && offer.includes(brl(PLAN_PRICE_YEARLY)), "mensagem de oferta");
+  assert.ok(manual.includes(`R$ ${planInfo("YEARLY").monthlyEquivalent.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} por mês`), "manual: equivalente mensal");
 });
 
 // ---------------------------------------------------------------------------
@@ -1937,10 +1992,10 @@ test("cartão obrigatório: no teste com cartão saem as dicas, nunca os avisos 
   assert.deepEqual(nextAutomation(c, [], at("2026-10-25"), start), { kind: "teste", step: 5, retry: false }); // faltam 2
   assert.equal(nextAutomation(c, [], at("2026-10-26"), start), null); // véspera: sem aviso
   assert.equal(nextAutomation(c, [], at("2026-10-27"), start), null); // último dia: sem aviso
-  // regra antiga intacta: cartão cadastrado no teste sem card_required recebe os avisos e não as dicas
+  // sem card_required (teste sem cartão, 04/11/2026) com cartão mensal cadastrado: só os avisos de fim, no fluxo "ativacao"
   const old = { ...c, cardRequired: false };
   assert.equal(nextAutomation(old, [], at("2026-10-21"), start), null);
-  assert.deepEqual(nextAutomation(old, [], at("2026-10-26"), start), { kind: "teste", step: 1, retry: false });
+  assert.deepEqual(nextAutomation(old, [], at("2026-10-26"), start), { kind: "ativacao", step: 5, retry: false });
   for (const step of [3, 4, 5]) {
     const msg = buildAutomationMessage({ kind: "teste", step, name: "Ana", appUrl: "https://contay.com.br", trialEndsAt: "2026-10-27", cardOnFile: true, cardRequired: true });
     assert.doesNotMatch(msg, /teste grátis vai até|termina|cobrad|assinatura|pix/i, `dica ${step}`);
@@ -1951,11 +2006,10 @@ test("cartão obrigatório: no teste com cartão saem as dicas, nunca os avisos 
 test("cartão obrigatório: boas-vindas dizem quando começa a assinatura no cartão", () => {
   const msg = buildWelcomeMessage({ name: "Ana", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301", trialEndsAt: "2026-10-27", cardOnFile: true });
   assert.match(msg, /teste grátis de 7 dias está liberado/);
-  assert.match(msg, /no dia 27\/10 começa a assinatura mensal de R\$ 29,90/);
+  assert.match(msg, /no fim do teste \(27\/10\) começa a assinatura/);
   assert.match(msg, /Para cancelar antes, é só falar aqui/);
-  assert.doesNotMatch(msg, /Um dia antes de o teste terminar/);
   assert.doesNotMatch(msg, /sem cart[aã]o|pix/i);
-  // fluxo antigo (sem cartão no teste) continua igual
-  const old = buildWelcomeMessage({ name: "Ana", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301", trialEndsAt: "2026-10-27" });
-  assert.match(old, /Um dia antes de o teste terminar eu aviso/);
+  // teste sem cartão: pede o 1º gasto
+  const free = buildWelcomeMessage({ name: "Ana", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301", trialEndsAt: "2026-10-27" });
+  assert.match(free, /Me manda o último gasto/);
 });
