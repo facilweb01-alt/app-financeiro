@@ -52,7 +52,8 @@ export async function makeLegacyPending(sql, email, cpf = randomCpf()) {
     if (u.welcome_sent_at || u.welcome_error) break;
     await new Promise((r) => setTimeout(r, 150));
   }
-  await sql`update users set trial_ends_at = null, cpf = ${cpf}, welcome_requested_at = null, welcome_sent_at = null, welcome_error = null where email = ${email}`;
+  // cadastro antigo: plano mensal (o anual como sugestão chegou em 04/11/2026)
+  await sql`update users set trial_ends_at = null, billing_plan = 'MONTHLY', cpf = ${cpf}, welcome_requested_at = null, welcome_sent_at = null, welcome_error = null where email = ${email}`;
   return cpf;
 }
 
