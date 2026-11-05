@@ -70,3 +70,39 @@ export function describeSignupSource(stored: string | null | undefined): string 
   const p = new URLSearchParams(source);
   return [p.get("utm_source"), p.get("utm_campaign"), p.get("utm_content")].filter(Boolean).join(" · ") || "Direto (sem anúncio identificado)";
 }
+
+// --- Sem "utm_*": de qual site a pessoa chegou (05/11/2026) -------------------
+// Quem chega pelo link do Instagram, de uma busca no Google ou de um link
+// mandado no WhatsApp normalmente não traz "utm_*". Nesses casos usamos só o
+// NOME do site de onde veio (o "referrer" do navegador), já traduzido para um
+// canal: nada do endereço completo, nenhum identificador de clique.
+
+const REFERRER_CHANNELS: { test: RegExp; source: string; medium: string }[] = [
+  { test: /(^|\.)instagram\.com$/, source: "instagram", medium: "social" },
+  { test: /(^|\.)(facebook\.com|fb\.com|fb\.me|messenger\.com)$/, source: "facebook", medium: "social" },
+  { test: /(^|\.)(whatsapp\.com|wa\.me)$/, source: "whatsapp", medium: "social" },
+  { test: /(^|\.)google\.[a-z.]+$/, source: "google", medium: "organic" },
+  { test: /(^|\.)(bing\.com|duckduckgo\.com|yahoo\.com|search\.brave\.com|ecosia\.org)$/, source: "busca", medium: "organic" },
+  { test: /(^|\.)(youtube\.com|youtu\.be)$/, source: "youtube", medium: "social" },
+  { test: /(^|\.)tiktok\.com$/, source: "tiktok", medium: "social" },
+  { test: /(^|\.)(t\.co|x\.com|twitter\.com)$/, source: "x", medium: "social" },
+  { test: /(^|\.)linkedin\.com$/, source: "linkedin", medium: "social" },
+];
+
+/**
+ * "https://l.instagram.com/?u=..." -> "utm_source=instagram&utm_medium=social".
+ * Vazio, inválido ou o próprio site (ownHost) -> null.
+ */
+export function sourceFromReferrer(referrer: string | null | undefined, ownHost: string): string | null {
+  let host = "";
+  try {
+    host = new URL(String(referrer ?? "")).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  if (!host) return null;
+  const own = ownHost.toLowerCase().replace(/:\d+$/, "").replace(/^www\./, "");
+  if (host === own || host.endsWith(`.${own}`)) return null;
+  const hit = REFERRER_CHANNELS.find((c) => c.test.test(host));
+  return normalizeSignupSource({ utm_source: hit ? hit.source : host, utm_medium: hit ? hit.medium : "referral" });
+}

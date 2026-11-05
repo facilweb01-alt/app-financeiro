@@ -6,7 +6,7 @@ import { signup } from "@/app/actions/auth";
 import { Logo } from "@/components/Logo";
 import { GUARANTEE_DAYS, MAX_INSTALLMENTS, PLAN_PRICE, PLAN_PRICE_YEARLY, TRIAL_DAYS } from "@/lib/billing/core";
 import { formatBRL } from "@/lib/format";
-import { normalizeSignupSource } from "@/lib/business/signupSource";
+import { normalizeSignupSource, sourceFromReferrer } from "@/lib/business/signupSource";
 import { readConsent } from "@/components/tracking/metaPixel";
 
 const inputClass =
@@ -19,8 +19,8 @@ function FieldError({ errors }: { errors?: string[] }) {
 
 export function RegistrarForm({ cardRequired }: { cardRequired: boolean }) {
   const [state, action, pending] = useActionState(signup, undefined);
-  // De qual anúncio a pessoa veio: a página de vendas manda os "utm_*" no
-  // endereço desta página. Vai num campo escondido do formulário; nada fica
+  // De qual anúncio ou site a pessoa veio: a página de vendas manda os "utm_*"
+  // no endereço desta página. Vai num campo escondido do formulário; nada fica
   // gravado no navegador.
   const [source, setSource] = useState("");
   // Aceitou os cookies da Meta na página de vendas? Então vão junto os
@@ -30,8 +30,10 @@ export function RegistrarForm({ cardRequired }: { cardRequired: boolean }) {
   const [ads, setAds] = useState({ consent: "", fbp: "", fbc: "" });
   useEffect(() => {
     // Lido depois de montar: o endereço só existe no navegador.
+    // Sem "utm_*" (ex.: link da bio sem UTM, Google, link no WhatsApp): vale o
+    // nome do site de onde a pessoa veio (sourceFromReferrer).
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setSource(normalizeSignupSource(window.location.search) ?? "");
+    setSource(normalizeSignupSource(window.location.search) ?? sourceFromReferrer(document.referrer, window.location.host) ?? "");
     if (readConsent() === "aceito") {
       const cookie = (name: string) =>
         document.cookie
