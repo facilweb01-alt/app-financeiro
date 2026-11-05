@@ -2,15 +2,21 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { normalizeSignupSource, sourceFromReferrer } from "@/lib/business/signupSource";
 
 // Os dois efeitos da página de vendas que precisam de JavaScript:
 //   1. barra fixa "Quero esse app" no celular: aparece depois que o topo
 //      (#hero) sai da tela e some quando a seção de preço (#preco) entra;
 //   2. os celulares 3D do topo (#stage dentro de #scene) inclinam seguindo o mouse,
 //      só em computador e só se a pessoa não pediu "reduzir movimento".
-// Sem JavaScript a página continua completa; só perde esses dois detalhes.
+//   3. origem sem "utm_*" (05/11/2026): quem chegou pelo Instagram, Google ou
+//      um link no WhatsApp sem UTM leva o nome do site de origem para o
+//      cadastro (os botões de cadastro passam a abrir /registrar?utm_source=...).
+// Sem JavaScript a página continua completa; só perde esses detalhes.
 export function LandingEffects({ registerHref = "/registrar" }: { registerHref?: string }) {
   const [visible, setVisible] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const hero = document.getElementById("hero");
@@ -37,6 +43,23 @@ export function LandingEffects({ registerHref = "/registrar" }: { registerHref?:
       o2.disconnect();
     };
   }, []);
+
+  useEffect(() => {
+    if (normalizeSignupSource(window.location.search)) return; // já veio com UTM: o servidor cuida
+    const source = sourceFromReferrer(document.referrer, window.location.host);
+    if (!source) return;
+    // Antes do clique chegar ao Link do Next (fase de captura), troca o destino.
+    const onClick = (ev: MouseEvent) => {
+      if (ev.defaultPrevented || ev.button !== 0 || ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
+      const a = (ev.target as Element | null)?.closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!a || a.getAttribute("href") !== "/registrar") return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      router.push(`/registrar?${source}`);
+    };
+    document.addEventListener("click", onClick, true);
+    return () => document.removeEventListener("click", onClick, true);
+  }, [router]);
 
   useEffect(() => {
     const scene = document.getElementById("scene");
