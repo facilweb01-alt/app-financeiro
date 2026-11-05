@@ -1,0 +1,35 @@
+# Contay no VPS da Hostinger (srv1935413, KVM 1) — projeto Docker "contay".
+# Cole este conteúdo no Gerenciador Docker → Compose → Editor .yaml.
+# As variáveis (as mesmas do Render) vão no campo "Ambiente" do projeto:
+# o Hostinger grava esse campo no .env da pasta do projeto e o env_file abaixo
+# entrega tudo ao contêiner. Nada de segredo neste arquivo.
+#
+# Limites de propósito: no máximo 768 MB de memória e 3/4 de CPU, para o app
+# nunca tirar recurso da Evolution (WhatsApp), do n8n nem do Traefik.
+services:
+  app:
+    image: ghcr.io/facilweb01-alt/app-financeiro:latest
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000"
+    mem_limit: 768m
+    cpus: 0.75
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      - traefik.enable=true
+      # HTTPS: domínio próprio + endereço de teste do VPS (funciona antes de trocar o DNS)
+      - traefik.http.routers.contay.rule=Host(`contay.com.br`) || Host(`www.contay.com.br`) || Host(`contay.srv1935413.hstgr.cloud`)
+      - traefik.http.routers.contay.entrypoints=websecure
+      - traefik.http.routers.contay.tls.certresolver=letsencrypt
+      - traefik.http.services.contay.loadbalancer.server.port=3000
+      # HTTP -> HTTPS
+      - traefik.http.routers.contay-http.rule=Host(`contay.com.br`) || Host(`www.contay.com.br`) || Host(`contay.srv1935413.hstgr.cloud`)
+      - traefik.http.routers.contay-http.entrypoints=web
+      - traefik.http.routers.contay-http.middlewares=contay-https
+      - traefik.http.middlewares.contay-https.redirectscheme.scheme=https
+      - traefik.http.middlewares.contay-https.redirectscheme.permanent=true
