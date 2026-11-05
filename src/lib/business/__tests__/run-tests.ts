@@ -18,7 +18,7 @@ import {
   sumAmounts,
 } from "../cardStatements";
 import { computeSpendingStatus, spendingStatusSentence } from "../spendingStatus";
-import { describeSignupSource, normalizeSignupSource, registerHrefWithSource, SIGNUP_SOURCE_MAX_LENGTH } from "../signupSource";
+import { describeSignupSource, normalizeSignupSource, registerHrefWithSource, SIGNUP_SOURCE_MAX_LENGTH, sourceFromReferrer } from "../signupSource";
 import {
   describeCardCycle,
   firstDueDateForPurchase,
@@ -2012,4 +2012,23 @@ test("cartão obrigatório: boas-vindas dizem quando começa a assinatura no car
   // teste sem cartão: pede o 1º gasto
   const free = buildWelcomeMessage({ name: "Ana", appUrl: "https://contay.com.br", botNumber: "(83) 98199-5301", trialEndsAt: "2026-10-27" });
   assert.match(free, /Me manda o último gasto/);
+});
+
+// Origem sem UTM pelo site de onde a pessoa veio (05/11/2026)
+test("origem pelo referrer: Instagram, Facebook, Google, WhatsApp, outro site", () => {
+  assert.equal(sourceFromReferrer("https://l.instagram.com/?u=https%3A%2F%2Fcontay.com.br", "contay.com.br"), "utm_source=instagram&utm_medium=social");
+  assert.equal(sourceFromReferrer("https://www.instagram.com/", "contay.com.br"), "utm_source=instagram&utm_medium=social");
+  assert.equal(sourceFromReferrer("https://lm.facebook.com/l.php?u=x", "contay.com.br"), "utm_source=facebook&utm_medium=social");
+  assert.equal(sourceFromReferrer("https://www.google.com.br/", "contay.com.br"), "utm_source=google&utm_medium=organic");
+  assert.equal(sourceFromReferrer("https://web.whatsapp.com/", "contay.com.br"), "utm_source=whatsapp&utm_medium=social");
+  assert.equal(sourceFromReferrer("https://blog.exemplo.com.br/post?id=1", "contay.com.br"), "utm_source=blog.exemplo.com.br&utm_medium=referral");
+});
+
+test("origem pelo referrer: vazio, inválido ou o próprio site não contam", () => {
+  assert.equal(sourceFromReferrer("", "contay.com.br"), null);
+  assert.equal(sourceFromReferrer(null, "contay.com.br"), null);
+  assert.equal(sourceFromReferrer("nada", "contay.com.br"), null);
+  assert.equal(sourceFromReferrer("https://contay.com.br/", "contay.com.br"), null);
+  assert.equal(sourceFromReferrer("https://www.contay.com.br/registrar", "contay.com.br"), null);
+  assert.equal(sourceFromReferrer("http://localhost:3102/", "localhost:3102"), null);
 });
