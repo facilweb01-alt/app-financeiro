@@ -14,7 +14,10 @@ COPY package.json package-lock.json ./
 # Dependências completas: o drizzle-kit (migrações na inicialização) é de desenvolvimento.
 RUN npm ci --no-audit --no-fund
 COPY . .
-RUN npm run build && chown -R node:node /app
+# O "next build" carrega as rotas e o cliente do banco exige um endereço de
+# banco só para montar o módulo (não conecta). Endereço falso, só no build;
+# o de verdade vem do ambiente do contêiner.
+RUN DATABASE_URL=postgres://build:build@127.0.0.1:1/build npm run build && chown -R node:node /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 USER node
 EXPOSE 3000
