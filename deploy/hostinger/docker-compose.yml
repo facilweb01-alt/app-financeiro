@@ -4,13 +4,22 @@
 # o Hostinger grava esse campo no .env da pasta do projeto e o env_file abaixo
 # entrega tudo ao contêiner. Nada de segredo neste arquivo.
 #
+# Roteadores separados: o endereço de teste tem certificado próprio, e o do
+# domínio (contay.com.br + www) só é emitido quando o DNS já aponta para o VPS
+# (A contay.com.br e www -> 2.25.102.73). Assim um não derruba o outro.
+#
 # Limites de propósito: no máximo 768 MB de memória e 3/4 de CPU, para o app
 # nunca tirar recurso da Evolution (WhatsApp), do n8n nem do Traefik.
 services:
   app:
     image: ghcr.io/facilweb01-alt/app-financeiro:latest
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - .env
+    # O Render usa PORT=10000; aqui o app sempre escuta na 3000 (Traefik e healthcheck).
+    environment:
+      - PORT=3000
+      - HOSTNAME=0.0.0.0
     ports:
       - "3000"
     mem_limit: 768m
@@ -22,14 +31,15 @@ services:
         max-file: "3"
     labels:
       - traefik.enable=true
-      # HTTPS: domínio próprio + endereço de teste do VPS (funciona antes de trocar o DNS)
-      - traefik.http.routers.contay.rule=Host(`contay.com.br`) || Host(`www.contay.com.br`) || Host(`contay.srv1935413.hstgr.cloud`)
-      - traefik.http.routers.contay.entrypoints=websecure
-      - traefik.http.routers.contay.tls.certresolver=letsencrypt
       - traefik.http.services.contay.loadbalancer.server.port=3000
-      # HTTP -> HTTPS
-      - traefik.http.routers.contay-http.rule=Host(`contay.com.br`) || Host(`www.contay.com.br`) || Host(`contay.srv1935413.hstgr.cloud`)
-      - traefik.http.routers.contay-http.entrypoints=web
-      - traefik.http.routers.contay-http.middlewares=contay-https
-      - traefik.http.middlewares.contay-https.redirectscheme.scheme=https
-      - traefik.http.middlewares.contay-https.redirectscheme.permanent=true
+      # endereço de teste do VPS
+      - traefik.http.routers.contay-teste.rule=Host(`contay.srv1935413.hstgr.cloud`)
+      - traefik.http.routers.contay-teste.entrypoints=websecure
+      - traefik.http.routers.contay-teste.tls.certresolver=letsencrypt
+      - traefik.http.routers.contay-teste.service=contay
+      # domínio próprio
+      - traefik.http.routers.contay-dominio.rule=Host(`contay.com.br`) || Host(`www.contay.com.br`)
+      - traefik.http.routers.contay-dominio.entrypoints=websecure
+      - traefik.http.routers.contay-dominio.tls.certresolver=letsencrypt
+      - traefik.http.routers.contay-dominio.service=contay
+      # HTTP -> HTTPS: o próprio Traefik já redireciona todo o tráfego da porta 80.
