@@ -145,6 +145,9 @@ export function decodeInlineMedia(kind: MediaKind, rawBase64: string, declaredMi
   return { base64, mime, bytes };
 }
 
+/** Códigos em que vale tentar de novo: sobrecarga, limite por minuto, falha interna. */
+const GEMINI_RETRY_STATUS = new Set([429, 500, 502, 503, 504]);
+
 /** Pede ao Gemini para ouvir/ler o arquivo e devolver o gasto estruturado. */
 export async function interpretMedia(input: { kind: MediaKind; base64: string; mime: string; caption?: string | null }): Promise<MediaAnswer> {
   const key = process.env.GEMINI_API_KEY;
@@ -152,33 +155,46 @@ export async function interpretMedia(input: { kind: MediaKind; base64: string; m
   const base = (process.env.GEMINI_BASE_URL || "https://generativelanguage.googleapis.com/v1beta").replace(/\/$/, "");
   const model = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
 
-  let res: Response;
-  try {
-    res = await fetch(`${base}/models/${encodeURIComponent(model)}:generateContent`, {
-      method: "POST",
-      // A chave vai no cabeçalho (não no endereço) para nunca aparecer em log de URL.
-      headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: buildMediaPrompt({ kind: input.kind, today: todayInSaoPaulo(), caption: input.caption }) },
-              { inline_data: { mime_type: input.mime, data: input.base64 } },
-            ],
-          },
+  // Gemini às vezes responde 503 ("high demand") ou 429 por alguns segundos.
+  // Tenta de novo até 3 vezes (2 s, 4 s) e, se houver GEMINI_MODEL_FALLBACK,
+  // a última tentativa usa esse outro modelo. Só depois disso desiste.
+  const fallback = (process.env.GEMINI_MODEL_FALLBACK || "").trim();
+  const attempts = [model, model, fallback || model];
+  const body = JSON.stringify({
+    contents: [
+      {
+        role: "user",
+        parts: [
+          { text: buildMediaPrompt({ kind: input.kind, today: todayInSaoPaulo(), caption: input.caption }) },
+          { inline_data: { mime_type: input.mime, data: input.base64 } },
         ],
-        generationConfig: { temperature: 0, responseMimeType: "application/json" },
-      }),
-      cache: "no-store",
-      signal: AbortSignal.timeout(45_000),
-    });
-  } catch {
-    throw new MediaError("A inteligência artificial não respondeu a tempo.", "ia");
+      },
+    ],
+    generationConfig: { temperature: 0, responseMimeType: "application/json" },
+  });
+  let res: Response | null = null;
+  for (let i = 0; i < attempts.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, 2000 * i));
+    try {
+      res = await fetch(`${base}/models/${encodeURIComponent(attempts[i])}:generateContent`, {
+        method: "POST",
+        // A chave vai no cabeçalho (não no endereço) para nunca aparecer em log de URL.
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body,
+        cache: "no-store",
+        signal: AbortSignal.timeout(45_000),
+      });
+    } catch {
+      res = null;
+      if (i === attempts.length - 1) throw new MediaError("A inteligência artificial não respondeu a tempo.", "ia");
+      continue;
+    }
+    if (res.ok || !GEMINI_RETRY_STATUS.has(res.status)) break;
+    console.warn(`[midia] Gemini HTTP ${res.status} (tentativa ${i + 1} de ${attempts.length})`);
   }
-  if (!res.ok) {
+  if (!res || !res.ok) {
     // Nunca devolve o corpo inteiro (pode citar a chave); só o código.
-    throw new MediaError(`A inteligência artificial recusou o pedido (HTTP ${res.status}).`, "ia");
+    throw new MediaError(`A inteligência artificial recusou o pedido (HTTP ${res?.status ?? "sem resposta"}).`, "ia");
   }
   const json = (await res.json().catch(() => null)) as { candidates?: { content?: { parts?: { text?: string }[] } }[] } | null;
   const answer = json?.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("") ?? "";
