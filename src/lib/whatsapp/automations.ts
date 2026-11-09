@@ -1,10 +1,16 @@
 import "server-only";
 import { and, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import { db, withServiceMode } from "@/db/client";
-import { automationMessages, users } from "@/db/schema";
+import { automationMessages, billingPayments, users } from "@/db/schema";
 import {
   AUTOMATIONS_DEFAULT_START,
+  OPEN_PAYMENT_STATUSES,
   buildAutomationMessage,
+  buildDueReminderMessage,
+  isBillingNotice,
+  nextDueReminder,
+  saoPauloDate,
+  type DuePayment,
   isWithinSendWindow,
   nextAutomation,
   type ActivationSummary,
@@ -139,7 +145,10 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
       .limit(500)
   );
   result.checked = candidates.length;
-  if (candidates.length === 0) return result;
+  if (candidates.length === 0) {
+    await processDueReminders(now, limit, delayMs, result);
+    return result;
+  }
 
   const history = await withServiceMode(() =>
     db
@@ -182,6 +191,8 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
       { eveningHour: ignoreWindow ? 0 : undefined }
     );
     if (!plan) continue;
+    // Depois da restrição do WhatsApp (09/11/2026): só avisos de cobrança/fim de teste.
+    if (billingOnly() && !isBillingNotice(plan)) continue;
 
     const previous = own.find((r) => r.kind === plan.kind && r.step === plan.step) ?? null;
     if (!(await claim(c.id, plan, previous, now))) continue;
@@ -213,7 +224,120 @@ export async function processAutomations(options: { now?: Date; limit?: number; 
       result.details.push({ userId: c.id, kind: plan.kind, step: plan.step, ok: false, error: message });
     }
   }
+  await processDueReminders(now, limit, delayMs, result);
   return result;
+}
+
+/** AUTOMACOES_SO_COBRANCA=1: só avisos de cobrança e de fim de teste. */
+function billingOnly(): boolean {
+  return process.env.AUTOMACOES_SO_COBRANCA === "1";
+}
+
+// --- Avisos de vencimento (09/11/2026) ---------------------------------------
+//
+// Cliente que já pagou alguma vez: aviso 1 dia antes, no dia e 3 dias depois
+// do vencimento (este só se a cobrança continuar em aberto). Regras em
+// src/lib/business/automations.ts (nextDueReminder). Usa o espelho local das
+// cobranças (billing_payments, atualizado pelos webhooks do Asaas).
+
+async function processDueReminders(now: Date, limit: number, delayMs: number, result: AutomationRunResult): Promise<void> {
+  if (result.sent + result.failed >= limit) return;
+  const today = saoPauloDate(now);
+  const rows = await withServiceMode(() =>
+    db
+      .select({
+        userId: users.id,
+        name: users.name,
+        role: users.role,
+        whatsappPhone: users.whatsappPhone,
+        marketingOptOutAt: users.marketingOptOutAt,
+        billingCanceledAt: users.billingCanceledAt,
+        dueDate: billingPayments.dueDate,
+        status: billingPayments.status,
+        value: billingPayments.value,
+        billingType: billingPayments.billingType,
+      })
+      .from(billingPayments)
+      .innerJoin(users, eq(users.id, billingPayments.userId))
+      .where(
+        and(
+          eq(users.role, "user"),
+          isNotNull(users.whatsappPhone),
+          isNull(users.marketingOptOutAt),
+          isNull(users.billingCanceledAt),
+          inArray(billingPayments.status, [...OPEN_PAYMENT_STATUSES]),
+          sql`${billingPayments.dueDate} between (${today}::date - 3) and (${today}::date + 1)`,
+          sql`exists (select 1 from billing_payments b where b.user_id = "users"."id" and b.status in ('RECEIVED','CONFIRMED','RECEIVED_IN_CASH'))`
+        )
+      )
+      .limit(500)
+  );
+  if (rows.length === 0) return;
+
+  const byUser = new Map<string, { row: (typeof rows)[number]; payments: DuePayment[] }>();
+  for (const r of rows) {
+    const entry = byUser.get(r.userId) ?? { row: r, payments: [] };
+    entry.payments.push({ dueDate: String(r.dueDate), status: r.status, value: Number(r.value), billingType: r.billingType });
+    byUser.set(r.userId, entry);
+  }
+
+  const history = await withServiceMode(() =>
+    db
+      .select({
+        userId: automationMessages.userId,
+        kind: automationMessages.kind,
+        step: automationMessages.step,
+        attempts: automationMessages.attempts,
+        lastAttemptAt: automationMessages.lastAttemptAt,
+        sentAt: automationMessages.sentAt,
+      })
+      .from(automationMessages)
+      .where(and(inArray(automationMessages.userId, [...byUser.keys()]), eq(automationMessages.kind, "vencimento")))
+  );
+
+  const appUrl = publicAppUrl();
+  result.checked += byUser.size;
+  for (const [userId, { row, payments }] of byUser) {
+    if (result.sent + result.failed >= limit) break;
+    const own: AutomationRecord[] = history
+      .filter((h) => h.userId === userId)
+      .map((h) => ({ kind: h.kind as AutomationKind, step: h.step, attempts: h.attempts, lastAttemptAt: h.lastAttemptAt, sentAt: h.sentAt }));
+    const next = nextDueReminder(
+      { role: row.role, hasPhone: Boolean(row.whatsappPhone), optedOut: Boolean(row.marketingOptOutAt), paidBefore: true, billingCanceledAt: row.billingCanceledAt },
+      payments,
+      own,
+      now
+    );
+    if (!next) continue;
+    const previous = own.find((r) => r.step === next.plan.step) ?? null;
+    if (!(await claim(userId, next.plan, previous, now))) continue;
+
+    if (result.sent + result.failed > 0 && delayMs > 0) await sleep(delayMs);
+    try {
+      const phone = zapiPhone(row.whatsappPhone);
+      if (!phone) throw new Error("Número de WhatsApp do cadastro inválido.");
+      await sendWhatsappText(
+        phone,
+        buildDueReminderMessage({
+          notice: next.notice,
+          name: row.name,
+          appUrl,
+          dueDate: next.payment.dueDate,
+          value: next.payment.value,
+          billingType: next.payment.billingType,
+        })
+      );
+      await markResult(userId, next.plan, null);
+      result.sent += 1;
+      result.details.push({ userId, kind: "vencimento", step: next.plan.step, ok: true });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido.";
+      console.error("[automacoes] falha no aviso de vencimento", next.plan.step, "para", userId, message);
+      await markResult(userId, next.plan, message);
+      result.failed += 1;
+      result.details.push({ userId, kind: "vencimento", step: next.plan.step, ok: false, error: message });
+    }
+  }
 }
 
 
