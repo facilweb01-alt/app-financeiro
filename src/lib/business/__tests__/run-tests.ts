@@ -31,6 +31,11 @@ import {
   isOptOutMessage,
   isWithinSendWindow,
   nextAutomation,
+  nextDueReminder,
+  buildDueReminderMessage,
+  isBillingNotice,
+  dueStep,
+  parseDueStep,
   saoPauloDate,
   PRICE_MONTHLY_TEXT,
   PRICE_YEARLY_TEXT,
@@ -1979,7 +1984,7 @@ test("cartão obrigatório: 1 lembrete só para quem não cadastrou o cartão, 2
   assert.doesNotMatch(msg, /sem cart[aã]o/i);
 });
 
-test("cartão obrigatório: no teste com cartão saem as dicas, nunca os avisos de fim de teste", () => {
+test("cartão obrigatório: no teste com cartão saem as dicas e, desde 09/11/2026, os avisos de véspera e último dia", () => {
   const c = {
     role: "user", status: "pending", createdAt: new Date("2026-10-20T13:00:00-03:00"), approvedAt: null, billingCanceledAt: null,
     hasPhone: true, optedOut: false, hasUsage: false, trialEndsAt: "2026-10-27", cardOnFile: true, cardRequired: true,
@@ -1990,8 +1995,11 @@ test("cartão obrigatório: no teste com cartão saem as dicas, nunca os avisos 
   assert.equal(nextAutomation(c, [], at("2026-10-22"), start), null); // faltam 5
   assert.deepEqual(nextAutomation(c, [], at("2026-10-23"), start), { kind: "teste", step: 4, retry: false }); // faltam 4
   assert.deepEqual(nextAutomation(c, [], at("2026-10-25"), start), { kind: "teste", step: 5, retry: false }); // faltam 2
-  assert.equal(nextAutomation(c, [], at("2026-10-26"), start), null); // véspera: sem aviso
-  assert.equal(nextAutomation(c, [], at("2026-10-27"), start), null); // último dia: sem aviso
+  assert.deepEqual(nextAutomation(c, [], at("2026-10-26"), start), { kind: "teste", step: 1, retry: false }); // véspera
+  assert.deepEqual(nextAutomation(c, [], at("2026-10-27"), start), { kind: "teste", step: 2, retry: false }); // último dia
+  const eve = buildAutomationMessage({ kind: "teste", step: 1, name: "Ana", appUrl: "https://contay.com.br", trialEndsAt: "2026-10-27", cardOnFile: true, cardRequired: true });
+  assert.match(eve, /termina \*amanhã\* \(27\/10\)/);
+  assert.match(eve, /1ª cobrança da assinatura será feita nele amanhã/);
   // sem card_required (teste sem cartão, 04/11/2026) com cartão mensal cadastrado: só os avisos de fim, no fluxo "ativacao"
   const old = { ...c, cardRequired: false };
   assert.equal(nextAutomation(old, [], at("2026-10-21"), start), null);
@@ -2031,4 +2039,83 @@ test("origem pelo referrer: vazio, inválido ou o próprio site não contam", ()
   assert.equal(sourceFromReferrer("https://contay.com.br/", "contay.com.br"), null);
   assert.equal(sourceFromReferrer("https://www.contay.com.br/registrar", "contay.com.br"), null);
   assert.equal(sourceFromReferrer("http://localhost:3102/", "localhost:3102"), null);
+});
+
+
+// --- Avisos de vencimento (09/11/2026) ---------------------------------------
+
+test("vencimento: cliente pago recebe aviso na véspera, no dia e 3 dias depois (só se em aberto)", () => {
+  const c = { role: "user", hasPhone: true, optedOut: false, paidBefore: true, billingCanceledAt: null };
+  const pay = { dueDate: "2026-11-15", status: "PENDING", value: 19.9, billingType: "PIX" };
+  const at = (d: string) => new Date(`${d}T10:00:00-03:00`);
+  assert.equal(nextDueReminder(c, [pay], [], at("2026-11-13")), null); // faltam 2
+  const eve = nextDueReminder(c, [pay], [], at("2026-11-14"));
+  assert.deepEqual(eve?.plan, { kind: "vencimento", step: 202611151, retry: false });
+  assert.equal(eve?.notice, 1);
+  assert.equal(nextDueReminder(c, [pay], [], at("2026-11-15"))?.notice, 2);
+  assert.equal(nextDueReminder(c, [pay], [], at("2026-11-16")), null);
+  assert.equal(nextDueReminder(c, [pay], [], at("2026-11-17")), null);
+  const late = nextDueReminder(c, [{ ...pay, status: "OVERDUE" }], [], at("2026-11-18"));
+  assert.equal(late?.notice, 3);
+  assert.equal(late?.plan.step, 202611153);
+  // pago: nada
+  assert.equal(nextDueReminder(c, [{ ...pay, status: "RECEIVED" }], [], at("2026-11-18")), null);
+  assert.equal(nextDueReminder(c, [{ ...pay, status: "CONFIRMED" }], [], at("2026-11-15")), null);
+  // já enviado: nada; falhou há pouco: espera; falhou há 6h+: tenta de novo
+  const sent = [{ kind: "vencimento" as const, step: 202611152, attempts: 1, lastAttemptAt: at("2026-11-15"), sentAt: at("2026-11-15") }];
+  assert.equal(nextDueReminder(c, [pay], sent, new Date("2026-11-15T15:00:00-03:00")), null);
+  const failed = [{ kind: "vencimento" as const, step: 202611152, attempts: 1, lastAttemptAt: at("2026-11-15"), sentAt: null }];
+  assert.equal(nextDueReminder(c, [pay], failed, new Date("2026-11-15T12:00:00-03:00")), null);
+  assert.deepEqual(nextDueReminder(c, [pay], failed, new Date("2026-11-15T17:00:00-03:00"))?.plan, { kind: "vencimento", step: 202611152, retry: true });
+});
+
+test("vencimento: quem nunca pagou, cancelou, pediu SAIR ou não tem WhatsApp não recebe", () => {
+  const base = { role: "user", hasPhone: true, optedOut: false, paidBefore: true, billingCanceledAt: null };
+  const pay = { dueDate: "2026-11-15", status: "PENDING", value: 19.9, billingType: "CREDIT_CARD" };
+  const now = new Date("2026-11-14T10:00:00-03:00");
+  assert.ok(nextDueReminder(base, [pay], [], now));
+  assert.equal(nextDueReminder({ ...base, paidBefore: false }, [pay], [], now), null);
+  assert.equal(nextDueReminder({ ...base, billingCanceledAt: new Date() }, [pay], [], now), null);
+  assert.equal(nextDueReminder({ ...base, optedOut: true }, [pay], [], now), null);
+  assert.equal(nextDueReminder({ ...base, hasPhone: false }, [pay], [], now), null);
+  assert.equal(nextDueReminder({ ...base, role: "admin" }, [pay], [], now), null);
+});
+
+test("vencimento: passo guarda a data do vencimento (um aviso por cobrança)", () => {
+  assert.equal(dueStep("2026-12-01", 3), 202612013);
+  assert.deepEqual(parseDueStep(202612013), { dueDate: "2026-12-01", notice: 3 });
+  assert.equal(parseDueStep(4), null);
+  assert.ok(dueStep("2099-12-31", 3) < 2 ** 31 - 1); // cabe na coluna integer
+});
+
+test("vencimento: textos de Pix e cartão", () => {
+  const base = { name: "ana souza", appUrl: "https://contay.com.br", dueDate: "2026-11-15", value: 19.9 };
+  const pix1 = buildDueReminderMessage({ ...base, notice: 1, billingType: "PIX" });
+  assert.match(pix1, /^Oi, Ana! 👋/);
+  assert.match(pix1, /vence \*amanhã\* \(15\/11\)/);
+  assert.match(pix1, /R\$\s?19,90/);
+  assert.match(pix1, /Pix: https:\/\/contay\.com\.br\/assinatura/);
+  const pix2 = buildDueReminderMessage({ ...base, notice: 2, billingType: null });
+  assert.match(pix2, /vence \*hoje\* \(15\/11\)/);
+  const pix3 = buildDueReminderMessage({ ...base, notice: 3, billingType: "PIX" });
+  assert.match(pix3, /venceu em 15\/11 e ainda não identificamos o pagamento/);
+  const card1 = buildDueReminderMessage({ ...base, notice: 1, billingType: "CREDIT_CARD" });
+  assert.match(card1, /automática no cartão cadastrado/);
+  assert.doesNotMatch(card1, /Pix/);
+  const card3 = buildDueReminderMessage({ ...base, notice: 3, billingType: "CREDIT_CARD" });
+  assert.match(card3, /ainda não foi aprovada no cartão/);
+  assert.match(card3, /cadastre outro em: https:\/\/contay\.com\.br\/assinatura/);
+});
+
+test("AUTOMACOES_SO_COBRANCA: só avisos de cobrança e de fim de teste passam", () => {
+  assert.equal(isBillingNotice({ kind: "vencimento", step: 202611151, retry: false }), true);
+  assert.equal(isBillingNotice({ kind: "teste", step: 1, retry: false }), true);
+  assert.equal(isBillingNotice({ kind: "teste", step: 2, retry: false }), true);
+  assert.equal(isBillingNotice({ kind: "teste", step: 3, retry: false }), false);
+  assert.equal(isBillingNotice({ kind: "ativacao", step: 5, retry: false }), true);
+  assert.equal(isBillingNotice({ kind: "ativacao", step: 6, retry: false }), true);
+  assert.equal(isBillingNotice({ kind: "ativacao", step: 2, retry: false }), false);
+  assert.equal(isBillingNotice({ kind: "sem_uso", step: 1, retry: false }), false);
+  assert.equal(isBillingNotice({ kind: "nao_pagou", step: 0, retry: false }), false);
+  assert.equal(isBillingNotice({ kind: "reativacao", step: 1, retry: false }), false);
 });
