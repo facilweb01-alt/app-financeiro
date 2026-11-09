@@ -50,7 +50,21 @@
 //    dias sem cartão e uma mensagem; depois seguem o fluxo "ativacao".
 //    Escolha e limite diário ficam em src/lib/whatsapp/automations.ts.
 
-export type AutomationKind = "sem_uso" | "nao_pagou" | "teste" | "ativacao" | "reativacao";
+//  • "vencimento" (09/11/2026, pedido do Marcelo): avisos de cobrança.
+//      Cliente que já pagou alguma vez (cobrança RECEIVED/CONFIRMED):
+//        1 dia antes, no dia e 3 dias depois do vencimento (este só se a
+//        cobrança continuar em aberto).
+//      Quem ainda não pagou (teste grátis): só na véspera e no dia do fim do
+//        teste — passos 1 e 2 de "teste" (cartão cadastrado) ou 5 e 6 de
+//        "ativacao" (sem cartão). No "cartão obrigatório" esses avisos voltaram
+//        a sair (antes a cobrança no fim do teste era sem aviso).
+//    Cada aviso sai uma vez por cobrança: o passo guarda a data do vencimento
+//    (AAAAMMDD × 10 + 1/2/3). Não sai atrasado: só no dia certo.
+//  • AUTOMACOES_SO_COBRANCA=1 (09/11/2026, depois da restrição do WhatsApp):
+//    só os avisos de cobrança e de fim de teste saem; dicas, ofertas e
+//    "sem uso" ficam paradas. Ver isBillingNotice().
+
+export type AutomationKind = "sem_uso" | "nao_pagou" | "teste" | "ativacao" | "reativacao" | "vencimento";
 
 export const AUTOMATION_RULES = {
   semUsoDays: [5, 10] as const,
@@ -217,14 +231,15 @@ export function nextAutomation(
     if (trialDaysLeft !== null && trialDaysLeft >= 0) {
       const tipIndex = (AUTOMATION_RULES.trialTipsDaysLeft as readonly number[]).indexOf(trialDaysLeft);
       // dica = passos 3, 4, 5; quem já cadastrou o cartão (já contratou) não recebe dicas,
-      // menos no "cartão obrigatório", em que todo teste tem cartão. Nesse fluxo
-      // não há aviso de fim de teste (a cobrança é automática, sem aviso prévio).
+      // menos no "cartão obrigatório", em que todo teste tem cartão.
       const tipsAllowed = !c.cardOnFile || Boolean(c.cardRequired);
+      // Véspera e último dia (09/11/2026): agora também no "cartão obrigatório",
+      // avisando que a 1ª cobrança será feita no cartão cadastrado.
       const step =
         trialDaysLeft === 1
-          ? c.cardRequired ? null : 1
+          ? 1
           : trialDaysLeft === 0
-            ? c.cardRequired ? null : 2
+            ? 2
             : tipIndex >= 0 && tipsAllowed
               ? 3 + tipIndex
               : null;
@@ -259,6 +274,123 @@ export function nextAutomation(
   return null;
 }
 
+// --- Avisos de vencimento (09/11/2026) --------------------------------------
+
+/** Cobrança do espelho local (billing_payments) que importa para os avisos. */
+export type DuePayment = {
+  dueDate: string; // "YYYY-MM-DD"
+  status: string; // status do Asaas
+  value: number;
+  billingType: string | null; // PIX / CREDIT_CARD / BOLETO…
+};
+
+/** Status do Asaas de cobrança ainda não paga (e não cancelada/estornada). */
+export const OPEN_PAYMENT_STATUSES = ["PENDING", "OVERDUE", "AWAITING_RISK_ANALYSIS"] as const;
+
+/** 1 = véspera, 2 = dia do vencimento, 3 = 3 dias depois (ainda em aberto). */
+export type DueNotice = 1 | 2 | 3;
+
+export function dueStep(dueDate: string, notice: DueNotice): number {
+  return Number(dueDate.replace(/-/g, "")) * 10 + notice;
+}
+
+export function parseDueStep(step: number): { dueDate: string; notice: DueNotice } | null {
+  const notice = step % 10;
+  const d = String(Math.floor(step / 10));
+  if (![1, 2, 3].includes(notice) || !/^\d{8}$/.test(d)) return null;
+  return { dueDate: `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}`, notice: notice as DueNotice };
+}
+
+/**
+ * Próximo aviso de vencimento para um cliente que JÁ PAGOU alguma vez.
+ * Só no dia certo (nada atrasado). Devolve o aviso e a cobrança a que ele se
+ * refere, ou null.
+ */
+export function nextDueReminder(
+  c: { role: string; hasPhone: boolean; optedOut: boolean; paidBefore: boolean; billingCanceledAt: Date | null },
+  payments: DuePayment[],
+  history: AutomationRecord[],
+  now: Date
+): { plan: PlannedAutomation; payment: DuePayment; notice: DueNotice } | null {
+  if (c.role !== "user" || !c.hasPhone || c.optedOut || !c.paidBefore || c.billingCanceledAt) return null;
+  const today = saoPauloDate(now);
+  const open = payments
+    .filter((p) => (OPEN_PAYMENT_STATUSES as readonly string[]).includes(p.status))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  for (const p of open) {
+    const daysLeft = daysBetweenDates(today, p.dueDate);
+    const notice: DueNotice | null = daysLeft === 1 ? 1 : daysLeft === 0 ? 2 : daysLeft === -3 ? 3 : null;
+    if (!notice) continue;
+    const step = dueStep(p.dueDate, notice);
+    const state = stepState(record(history, "vencimento", step), now);
+    if (state === "sent" || state === "wait") continue;
+    return { plan: { kind: "vencimento", step, retry: state === "retry" }, payment: p, notice };
+  }
+  return null;
+}
+
+/** Avisos de cobrança/fim de teste (os únicos que saem com AUTOMACOES_SO_COBRANCA=1). */
+export function isBillingNotice(plan: PlannedAutomation): boolean {
+  if (plan.kind === "vencimento") return true;
+  if (plan.kind === "teste") return plan.step === 1 || plan.step === 2;
+  if (plan.kind === "ativacao") return plan.step === 5 || plan.step === 6;
+  return false;
+}
+
+export function buildDueReminderMessage(input: {
+  notice: DueNotice;
+  name: string | null;
+  appUrl: string;
+  dueDate: string;
+  value: number;
+  billingType: string | null;
+}): string {
+  const { notice, name, appUrl } = input;
+  const card = (input.billingType ?? "").toUpperCase() === "CREDIT_CARD";
+  const date = `${input.dueDate.slice(8, 10)}/${input.dueDate.slice(5, 7)}`;
+  const amount = brl(input.value);
+  const link = `${appUrl}/assinatura`;
+
+  if (notice === 3) {
+    return card
+      ? [
+          `${hello(name)} Aqui é o *Contay*.`,
+          "",
+          `A cobrança da sua assinatura (${amount}), com vencimento em ${date}, ainda não foi aprovada no cartão.`,
+          "",
+          `Para manter o app liberado, confira o cartão ou cadastre outro em: ${link}`,
+          "",
+          "Se já resolveu, pode desconsiderar. Dúvidas? Responda aqui.",
+        ].join("\n")
+      : [
+          `${hello(name)} Aqui é o *Contay*.`,
+          "",
+          `A sua assinatura (${amount}) venceu em ${date} e ainda não identificamos o pagamento.`,
+          "",
+          `Para manter o app liberado, é só pagar pelo Pix em: ${link}`,
+          "",
+          "Se já pagou, pode desconsiderar. Dúvidas? Responda aqui.",
+        ].join("\n");
+  }
+
+  const when = notice === 1 ? `vence *amanhã* (${date})` : `vence *hoje* (${date})`;
+  return card
+    ? [
+        `${hello(name)} Lembrete do *Contay*: a sua assinatura (${amount}) ${when}.`,
+        "",
+        "A cobrança é automática no cartão cadastrado: você não precisa fazer nada.",
+        "",
+        `Para conferir ou trocar o cartão: ${link}`,
+      ].join("\n")
+    : [
+        `${hello(name)} Lembrete do *Contay*: a sua assinatura (${amount}) ${when}.`,
+        "",
+        `Para pagar pelo Pix: ${link}`,
+        "",
+        "Se já pagou, pode desconsiderar. Dúvidas? Responda aqui.",
+      ].join("\n");
+}
+
 // ---------------------------------------------------------------------------
 // Textos. Regras de cuidado: nada de afirmar a situação financeira da pessoa
 // nem prometer resultado; oferta sempre com a saída "responda SAIR".
@@ -290,6 +422,7 @@ export function buildAutomationMessage(input: {
 }): string {
   const { kind, step, name, appUrl } = input;
 
+  if (kind === "vencimento") throw new Error("Aviso de vencimento usa buildDueReminderMessage().");
   if (kind === "ativacao") return buildActivationMessage(step, input);
   if (kind === "reativacao") return buildReactivationMessage(input);
 
